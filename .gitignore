@@ -1,0 +1,9 @@
+.venv311/
+venv/
+logs/
+pycdc/
+recovered_dis/
+recovered_py/
+__pycache__/
+*.pyc
+.DS_Store
