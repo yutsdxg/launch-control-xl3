@@ -1,4 +1,5 @@
 .venv311/
+docs/
 venv/
 logs/
 pycdc/

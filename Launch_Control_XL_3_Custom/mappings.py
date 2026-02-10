@@ -79,7 +79,7 @@ def create_mappings(control_surface):
                 "modes": [
                     {
                         "component": "Device",
-                        "parameter_controls": "upper_encoders",
+                        "parameter_controls": "device_parameter_encoders",
                         "prev_bank_button": "page_up_button",
                         "next_bank_button": "page_down_button",
                     },
@@ -87,23 +87,6 @@ def create_mappings(control_surface):
                         "component": "Device_Navigation",
                         "prev_button": "page_up_button_with_shift",
                         "next_button": "page_down_button_with_shift",
-                    },
-                    {
-                        "component": "Transport",
-                        "arrangement_position_encoder": "lower_encoders_raw[0]",
-                        "loop_start_encoder": "lower_encoders_raw[3]",
-                        "loop_length_encoder": "lower_encoders_raw[4]",
-                        "loop_toggle_encoder": "lower_encoders_raw[5]",
-                        "tempo_coarse_encoder": "lower_encoders_raw[7]",
-                    },
-                    {
-                        "component": "Zoom",
-                        "horizontal_zoom_encoder": "lower_encoders_raw[1]",
-                        "vertical_zoom_encoder": "lower_encoders_raw[2]",
-                    },
-                    {
-                        "component": "Cue_Point",
-                        "encoder": "lower_encoders_raw[6]",
                     },
                     set_relative_encoder_mode(control_surface),
                 ],

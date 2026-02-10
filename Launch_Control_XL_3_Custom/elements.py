@@ -1,5 +1,6 @@
 from ableton.v3.base import nop
 from ableton.v3.control_surface import ElementsBase, MapMode
+from ableton.v3.control_surface.elements import ButtonMatrixElement
 from Launchkey_MK4.display_target import DisplayTargetElement
 from . import midi
 from .colored_encoder import ColoredEncoderElement
@@ -84,6 +85,12 @@ class Elements(ElementsBase):
             map_mode=MapMode.LinearBinaryOffset,
             channels=CHANNEL_ENCODER_LED,
             element_factory=ColoredEncoderElement,
+        )
+        self.add_element(
+            "Device_Parameter_Encoders",
+            ButtonMatrixElement,
+            rows=[list(self.upper_encoders_raw) + list(self.lower_encoders_raw[:5])],
+            is_private=True,
         )
         self.add_button_matrix([RANGE_ENCODER_TOUCH], "Encoder_Touch_Elements", channels=CHANNEL_TOUCH, is_private=True)
 

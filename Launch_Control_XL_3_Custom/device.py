@@ -1,7 +1,7 @@
 from ableton.v3.control_surface.components import DeviceBankNavigationComponent as DeviceBankNavigationComponentBase
 from ableton.v3.control_surface.components import DeviceComponent as DeviceComponentBase
 
-DEVICE_BANK_SIZE = 16
+DEVICE_BANK_SIZE = 21
 DEVICE_QUANTIZED_PARAMETER_SENSITIVITY = 0.5
 BANK_NAME_JOIN_SEPARATOR = "\n"
 BANK_NAME_FALLBACK = "-"
