@@ -66,7 +66,7 @@ def create_mappings(control_surface):
                     {
                         "component": "Mixer",
                         "send_controls": "upper_encoders",
-                        "pan_controls": "lower_encoders",
+                        "pan_controls": "mixer_pan_encoders",
                         "prev_send_index_button": "page_up_button",
                         "next_send_index_button": "page_down_button",
                     },

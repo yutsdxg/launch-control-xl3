@@ -87,6 +87,12 @@ class Elements(ElementsBase):
             element_factory=ColoredEncoderElement,
         )
         self.add_element(
+            "Mixer_Pan_Encoders",
+            ButtonMatrixElement,
+            rows=[list(self.lower_encoders_raw[:7])],
+            is_private=True,
+        )
+        self.add_element(
             "Device_Parameter_Encoders",
             ButtonMatrixElement,
             rows=[list(self.upper_encoders_raw) + list(self.lower_encoders_raw[:5])],
