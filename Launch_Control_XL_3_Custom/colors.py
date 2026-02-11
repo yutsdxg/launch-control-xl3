@@ -30,6 +30,7 @@ class Rgb:
     OFF = SimpleColor(0)
     WHITE = SimpleColor(3)
     WHITE_HALF = SimpleColor(1)
+    WHITE_DIM = SimpleColor(103)
     GREEN = SimpleColor(21)
     DARK_GREEN = SimpleColor(123)
     YELLOW_GREEN = SimpleColor(17)

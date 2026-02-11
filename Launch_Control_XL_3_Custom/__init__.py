@@ -94,6 +94,10 @@ class Launch_Control_XL_3(ControlSurface):
         with self.component_guard():
             self.component_map["Encoder_Modes"].selected_mode = "daw_mixer"
             self.component_map["Daw_Mixer_Button_Modes"].selected_mode = "device_toggle"
+            try:
+                self.elements.daw_mixer_mode_button.send_value(0)
+            except RuntimeError:
+                pass
             self._update_last_touched_parameter_mapping()
 
     def _flush_midi_messages(self):

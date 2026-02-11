@@ -48,7 +48,6 @@ def create_mappings(control_surface):
             },
         },
         "Daw_Mixer_Button_Modes": {
-            "cycle_mode_button": "daw_mixer_mode_button",
             "device_toggle": {
                 "component": "Device_Toggle",
                 "toggle_button_1": "device_toggle_1_button",
