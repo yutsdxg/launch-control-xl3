@@ -6,6 +6,7 @@ from Launchkey_MK4.encoder_touch import EncoderTouchComponent
 from Launchkey_MK4.zoom import ZoomComponent
 from . import midi
 from .device import DeviceComponent
+from .device_toggle import DeviceToggleComponent
 from .display import display_specification
 from .elements import Elements
 from .mappings import create_mappings
@@ -54,6 +55,7 @@ class Specification(ControlSurfaceSpecification):
     component_map = {
         'Cue_Point': CuePointComponent,
         'Device': DeviceComponent,
+        'Device_Toggle': DeviceToggleComponent,
         'Encoder_Touch': EncoderTouchComponent,
         'Mixer': MixerComponent,
         'Session_Navigation': SessionNavigationComponent,
@@ -91,6 +93,7 @@ class Launch_Control_XL_3(ControlSurface):
         super().on_identified(response_bytes)
         with self.component_guard():
             self.component_map["Encoder_Modes"].selected_mode = "daw_mixer"
+            self.component_map["Daw_Mixer_Button_Modes"].selected_mode = "device_toggle"
             self._update_last_touched_parameter_mapping()
 
     def _flush_midi_messages(self):
