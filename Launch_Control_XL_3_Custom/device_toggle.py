@@ -9,6 +9,8 @@ TOGGLE_PARAMETER_START_INDEX = 22
 LEGACY_TOGGLE_PARAMETER_START_INDEX = TOGGLE_PARAMETER_START_INDEX - 1
 LED_FEEDBACK_UPDATE_INTERVAL = 0.1
 LED_FORCE_HOLD_SEC = 0.15
+PIGMENTS_NAME_KEYWORD = "pigments"
+PIGMENTS_INVERTED_LED_OFFSETS = (0, 1)
 
 
 class DeviceToggleComponent(Component):
@@ -53,7 +55,8 @@ class DeviceToggleComponent(Component):
         self._set_toggle_button(7, button)
 
     def _toggle_parameter(self, offset):
-        parameter = self._parameter_for_offset(offset)
+        selected_device = self._selected_device()
+        parameter = self._parameter_for_offset(offset, selected_device=selected_device)
         if not liveobj_valid(parameter):
             return
         if not getattr(parameter, "is_enabled", True):
@@ -73,7 +76,8 @@ class DeviceToggleComponent(Component):
             parameter.value = target_value
         except RuntimeError:
             return
-        forced_led_value = Rgb.WHITE.midi_value if target_is_on else Rgb.WHITE_DIM.midi_value
+        forced_led_is_on = self._led_is_on(selected_device, offset, target_is_on)
+        forced_led_value = Rgb.WHITE.midi_value if forced_led_is_on else Rgb.WHITE_DIM.midi_value
         self._forced_led_values[offset] = forced_led_value
         self._forced_led_until[offset] = time.monotonic() + LED_FORCE_HOLD_SEC
         self._send_led_value_for_offset(offset, forced_led_value, force=True)
@@ -125,7 +129,8 @@ class DeviceToggleComponent(Component):
             forced_led = self._forced_led_values[offset]
             if forced_led is not None:
                 return forced_led
-        parameter = self._parameter_for_offset(offset)
+        selected_device = self._selected_device()
+        parameter = self._parameter_for_offset(offset, selected_device=selected_device)
         if not liveobj_valid(parameter):
             return Rgb.OFF.midi_value
         if not getattr(parameter, "is_enabled", True):
@@ -139,13 +144,13 @@ class DeviceToggleComponent(Component):
         if max_value <= min_value:
             return Rgb.OFF.midi_value
         midpoint = min_value + (max_value - min_value) / 2.0
-        return Rgb.WHITE.midi_value if current > midpoint else Rgb.WHITE_DIM.midi_value
+        parameter_is_on = current > midpoint
+        led_is_on = self._led_is_on(selected_device, offset, parameter_is_on)
+        return Rgb.WHITE.midi_value if led_is_on else Rgb.WHITE_DIM.midi_value
 
-    def _parameter_for_offset(self, offset):
-        selected_track = self.song.view.selected_track
-        if not liveobj_valid(selected_track):
-            return None
-        selected_device = self._resolve_device_for_track(selected_track)
+    def _parameter_for_offset(self, offset, selected_device=None):
+        if not liveobj_valid(selected_device):
+            selected_device = self._selected_device()
         if not liveobj_valid(selected_device):
             return None
         try:
@@ -193,3 +198,26 @@ class DeviceToggleComponent(Component):
         if len(devices) > 0 and liveobj_valid(devices[0]):
             return devices[0]
         return None
+
+    def _selected_device(self):
+        selected_track = self.song.view.selected_track
+        if not liveobj_valid(selected_track):
+            return None
+        return self._resolve_device_for_track(selected_track)
+
+    def _led_is_on(self, selected_device, offset, parameter_is_on):
+        if self._should_invert_led(selected_device, offset):
+            return not parameter_is_on
+        return parameter_is_on
+
+    def _should_invert_led(self, selected_device, offset):
+        return offset in PIGMENTS_INVERTED_LED_OFFSETS and self._is_pigments_device(selected_device)
+
+    def _is_pigments_device(self, selected_device):
+        if not liveobj_valid(selected_device):
+            return False
+        try:
+            device_name = selected_device.name or ""
+        except RuntimeError:
+            return False
+        return PIGMENTS_NAME_KEYWORD in device_name.lower()
