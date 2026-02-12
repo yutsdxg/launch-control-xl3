@@ -20,6 +20,8 @@ SYSEX_FLUSH_THRESHOLD = 10
 SYSEX_DISPLAY_ID_LENGTH = 9
 LAST_TOUCHED_PARAMETER_POLL_INTERVAL = 0.1
 RELATIVE_ENCODER_DELTA_SCALE = 1.0 / 127.0
+DYNAMIC_ASSIGNMENT_SLOT_START = 5
+DYNAMIC_ASSIGNMENT_SLOT_COUNT = 3
 
 def get_capabilities():
     return {
@@ -67,13 +69,18 @@ class Specification(ControlSurfaceSpecification):
 class Launch_Control_XL_3(ControlSurface):
     def __init__(self, *a, **k):
         self._should_delay_flushing_display_messages = False
-        self._last_touched_parameter = None
-        self._last_touched_encoder = None
+        self._dynamic_assignment_encoders = ()
+        self._dynamic_assignment_slot_states = []
+        self._dynamic_assignment_value_listeners = []
         self._last_touched_parameter_task = None
-        self._last_touched_target = None
-        self._last_touched_target_kind = None
+        self._selection_target = None
+        self._selection_target_kind = None
+        self._selection_target_signature = None
+        self._assignment_candidate_target = None
+        self._assignment_candidate_kind = None
+        self._assignment_candidate_signature = None
         super().__init__(*a, **k)
-        self._setup_last_touched_parameter_control()
+        self._setup_dynamic_parameter_assignment()
 
     def port_settings_changed(self):
         self._send_midi(midi.make_connection_message(connect=False))
@@ -98,7 +105,7 @@ class Launch_Control_XL_3(ControlSurface):
                 self.elements.daw_mixer_mode_button.send_value(0)
             except RuntimeError:
                 pass
-            self._update_last_touched_parameter_mapping()
+            self._update_assignment_candidate()
 
     def _flush_midi_messages(self):
         if (
@@ -111,47 +118,126 @@ class Launch_Control_XL_3(ControlSurface):
             self._midi_message_list[:] = []
         super()._flush_midi_messages()
 
-    def _setup_last_touched_parameter_control(self):
+    def _setup_dynamic_parameter_assignment(self):
         lower_encoders = getattr(self.elements, "lower_encoders_raw", ())
         if len(lower_encoders) < 8:
             return
-        self._last_touched_encoder = lower_encoders[7]
-        self._last_touched_encoder.add_value_listener(self._on_last_touched_encoder_value)
+        start = DYNAMIC_ASSIGNMENT_SLOT_START
+        end = start + DYNAMIC_ASSIGNMENT_SLOT_COUNT
+        self._dynamic_assignment_encoders = tuple(lower_encoders[start:end])
+        if len(self._dynamic_assignment_encoders) != DYNAMIC_ASSIGNMENT_SLOT_COUNT:
+            self._dynamic_assignment_encoders = ()
+            return
+        self._dynamic_assignment_slot_states = [
+            {"kind": None, "target": None, "signature": None} for _ in self._dynamic_assignment_encoders
+        ]
+        self._dynamic_assignment_value_listeners = []
+        for slot_index, encoder in enumerate(self._dynamic_assignment_encoders):
+            listener = self._make_dynamic_encoder_value_listener(slot_index)
+            self._dynamic_assignment_value_listeners.append(listener)
+            encoder.add_value_listener(listener)
         self._last_touched_parameter_task = self._tasks.add(
             task.loop(
                 task.sequence(
-                    task.run(self._update_last_touched_parameter_mapping),
+                    task.run(self._update_assignment_candidate),
                     task.delay(LAST_TOUCHED_PARAMETER_POLL_INTERVAL),
                 )
             )
         )
 
-    def _update_last_touched_parameter_mapping(self):
-        if self._last_touched_encoder is None:
+    def _make_dynamic_encoder_value_listener(self, slot_index):
+        def _listener(value, slot_index=slot_index):
+            self._on_dynamic_encoder_value(slot_index, value)
+
+        return _listener
+
+    def _update_assignment_candidate(self):
+        if not self._dynamic_assignment_encoders:
             return
-        target_kind, target = self._resolve_last_touched_target()
+        target_kind, target = self._resolve_assignment_target()
+        target_signature = self._target_signature(target_kind, target)
+        if target_signature != self._selection_target_signature:
+            self._selection_target_kind = target_kind
+            self._selection_target = target
+            self._selection_target_signature = target_signature
+            self._assignment_candidate_kind = target_kind
+            self._assignment_candidate_target = target
+            self._assignment_candidate_signature = target_signature
+
+    def _on_dynamic_encoder_value(self, slot_index, value):
+        if value == 64:
+            return
+        self._update_assignment_candidate()
+        self._apply_assignment_candidate_to_slot(slot_index)
+        slot_state = self._dynamic_assignment_slot_states[slot_index]
+        if slot_state["kind"] == "clip_gain" and slot_state["target"] is not None:
+            self._adjust_clip_gain(slot_state["target"], value - 64)
+
+    def _apply_assignment_candidate_to_slot(self, slot_index):
+        target = self._assignment_candidate_target
+        target_kind = self._assignment_candidate_kind
+        target_signature = self._assignment_candidate_signature
         if target is None:
-            if self._last_touched_target_kind == "parameter":
-                self._last_touched_encoder.release_parameter()
-            self._last_touched_parameter = None
-            self._last_touched_target_kind = None
-            self._last_touched_target = None
             return
-        if target_kind == self._last_touched_target_kind and target == self._last_touched_target:
+        current_slot = self._dynamic_assignment_slot_states[slot_index]
+        if self._is_same_target(
+            target_kind,
+            target,
+            target_signature,
+            current_slot["kind"],
+            current_slot["target"],
+            current_slot["signature"],
+        ):
+            self._clear_assignment_candidate()
             return
+        for other_index, slot in enumerate(self._dynamic_assignment_slot_states):
+            if other_index == slot_index:
+                continue
+            if self._is_same_target(
+                target_kind,
+                target,
+                target_signature,
+                slot["kind"],
+                slot["target"],
+                slot["signature"],
+            ):
+                self._clear_slot_assignment(other_index)
+                break
+        if self._set_slot_assignment(slot_index, target_kind, target, target_signature):
+            self._clear_assignment_candidate()
+
+    def _set_slot_assignment(self, slot_index, target_kind, target, target_signature):
+        encoder = self._dynamic_assignment_encoders[slot_index]
         if target_kind == "parameter":
             if not getattr(target, "is_enabled", False):
-                return
+                return False
             try:
-                self._last_touched_encoder.connect_to(target)
+                encoder.connect_to(target)
             except RuntimeError:
-                return
-            self._last_touched_parameter = target
+                return False
+        elif target_kind == "clip_gain":
+            try:
+                encoder.release_parameter()
+            except RuntimeError:
+                return False
         else:
-            self._last_touched_encoder.release_parameter()
-            self._last_touched_parameter = None
-        self._last_touched_target_kind = target_kind
-        self._last_touched_target = target
+            return False
+        self._dynamic_assignment_slot_states[slot_index]["kind"] = target_kind
+        self._dynamic_assignment_slot_states[slot_index]["target"] = target
+        self._dynamic_assignment_slot_states[slot_index]["signature"] = target_signature
+        return True
+
+    def _clear_slot_assignment(self, slot_index):
+        if slot_index < 0 or slot_index >= len(self._dynamic_assignment_encoders):
+            return
+        encoder = self._dynamic_assignment_encoders[slot_index]
+        try:
+            encoder.release_parameter()
+        except RuntimeError:
+            pass
+        self._dynamic_assignment_slot_states[slot_index]["kind"] = None
+        self._dynamic_assignment_slot_states[slot_index]["target"] = None
+        self._dynamic_assignment_slot_states[slot_index]["signature"] = None
 
     def _get_selected_parameter(self):
         try:
@@ -159,7 +245,7 @@ class Launch_Control_XL_3(ControlSurface):
         except RuntimeError:
             return None
 
-    def _resolve_last_touched_target(self):
+    def _resolve_assignment_target(self):
         parameter = self._get_selected_parameter()
         if parameter is not None and getattr(parameter, "is_enabled", False):
             return "parameter", parameter
@@ -179,15 +265,117 @@ class Launch_Control_XL_3(ControlSurface):
             return None
         return clip
 
-    def _on_last_touched_encoder_value(self, value):
-        if self._last_touched_target_kind != "clip_gain" or self._last_touched_target is None:
-            return
-        if value == 64:
-            return
-        delta = value - 64
-        clip = self._last_touched_target
+    def _adjust_clip_gain(self, clip, delta):
         try:
             new_gain = min(max(clip.gain + delta * RELATIVE_ENCODER_DELTA_SCALE, 0.0), 1.0)
             clip.gain = new_gain
         except RuntimeError:
             return
+
+    def _clear_assignment_candidate(self):
+        self._assignment_candidate_kind = None
+        self._assignment_candidate_target = None
+        self._assignment_candidate_signature = None
+
+    def _target_signature(self, target_kind, target):
+        if target is None or target_kind is None:
+            return None
+        if target_kind == "parameter":
+            return self._parameter_signature(target)
+        if target_kind == "clip_gain":
+            return self._clip_signature(target)
+        return (target_kind, repr(target))
+
+    def _parameter_signature(self, parameter):
+        parameter_name = self._safe_attr(parameter, "name")
+        parent = getattr(parameter, "canonical_parent", None)
+        parent_name = self._safe_attr(parent, "name")
+        parent_class = self._safe_attr(parent, "class_name")
+        parameter_index = None
+        if parent is not None:
+            try:
+                parameters = tuple(parent.parameters)
+                for index, item in enumerate(parameters):
+                    if item == parameter:
+                        parameter_index = index
+                        break
+            except RuntimeError:
+                pass
+            except AttributeError:
+                pass
+        track = self._selected_track()
+        track_name = self._safe_attr(track, "name")
+        track_index = self._selected_track_index(track)
+        return (
+            "parameter",
+            track_index,
+            track_name,
+            parent_class,
+            parent_name,
+            parameter_name,
+            parameter_index,
+        )
+
+    def _clip_signature(self, clip):
+        clip_name = self._safe_attr(clip, "name")
+        return ("clip_gain", clip_name)
+
+    def _safe_attr(self, obj, attribute, fallback=None):
+        if obj is None:
+            return fallback
+        try:
+            return getattr(obj, attribute)
+        except RuntimeError:
+            return fallback
+        except AttributeError:
+            return fallback
+
+    def _selected_track(self):
+        try:
+            return self.song.view.selected_track
+        except RuntimeError:
+            return None
+
+    def _selected_track_index(self, track):
+        if track is None:
+            return None
+        try:
+            tracks = tuple(self.song.tracks)
+            returns = tuple(self.song.return_tracks)
+            all_tracks = tracks + returns + (self.song.master_track,)
+        except RuntimeError:
+            return None
+        for index, item in enumerate(all_tracks):
+            try:
+                if item == track:
+                    return index
+            except RuntimeError:
+                continue
+        return None
+
+    def _is_same_target(
+        self,
+        left_kind,
+        left_target,
+        left_signature,
+        right_kind,
+        right_target,
+        right_signature,
+    ):
+        if left_kind != right_kind:
+            return False
+        if left_signature is not None and right_signature is not None:
+            return left_signature == right_signature
+        return left_target is right_target
+
+    def disconnect(self):
+        for encoder, listener in zip(
+            self._dynamic_assignment_encoders,
+            self._dynamic_assignment_value_listeners,
+        ):
+            try:
+                encoder.remove_value_listener(listener)
+            except RuntimeError:
+                pass
+        self._dynamic_assignment_value_listeners = []
+        super().disconnect()
