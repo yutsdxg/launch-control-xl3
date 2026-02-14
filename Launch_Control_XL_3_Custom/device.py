@@ -44,6 +44,18 @@ def _is_skip_slot(value):
     return value is None or str(value).strip().upper() == "SKIP"
 
 
+def _extract_custom_entry_name_and_options(entry):
+    if _is_skip_slot(entry):
+        return None, None
+    if isinstance(entry, dict):
+        for parameter_name, options in entry.items():
+            if parameter_name is None:
+                continue
+            return str(parameter_name), options
+        return None, None
+    return str(entry), None
+
+
 def _make_device_order_index(raw_mapping):
     result = {}
     for key, order in raw_mapping.items():
@@ -115,14 +127,24 @@ class _CustomParameterBankingInfo(object):
         parameter_by_name = self._build_parameter_index(parameters)
         custom_flat = []
         used_parameter_ids = set()
-        for parameter_name in custom_order:
-            if _is_skip_slot(parameter_name):
+        missing_requested_names = []
+        for entry in custom_order:
+            if _is_skip_slot(entry):
+                custom_flat.append(None)
+                continue
+            parameter_name, _ = _extract_custom_entry_name_and_options(entry)
+            if not parameter_name:
                 custom_flat.append(None)
                 continue
             parameter = self._find_parameter(parameter_by_name, parameter_name)
+            if parameter is None:
+                # 起動直後などで一時的にパラメータが見えない場合があるため、
+                # スロット位置は維持して後段の詰め込みを防ぐ。
+                missing_requested_names.append(parameter_name)
+                custom_flat.append(None)
+                continue
             custom_flat.append(parameter)
-            if parameter is not None:
-                used_parameter_ids.add(id(parameter))
+            used_parameter_ids.add(id(parameter))
         if CUSTOM_PARAMETER_APPEND_REST:
             for parameter in self._get_base_flat_parameters(device):
                 if parameter is None:
@@ -131,6 +153,14 @@ class _CustomParameterBankingInfo(object):
                     continue
                 custom_flat.append(parameter)
                 used_parameter_ids.add(id(parameter))
+        try:
+            if missing_requested_names:
+                LOGGER.info(
+                    "LCXL3 custom order missing names: %s",
+                    ", ".join(str(name) for name in missing_requested_names),
+                )
+        except Exception:
+            pass
         return custom_flat
 
     def _resolve_custom_order(self, device):
@@ -337,8 +367,12 @@ class DeviceComponent(DeviceComponentBase):
         result = []
         used_info_ids = set()
         missing_requested_names = []
-        for requested_name in custom_order:
-            if _is_skip_slot(requested_name):
+        for entry in custom_order:
+            if _is_skip_slot(entry):
+                result.append(None)
+                continue
+            requested_name, _ = _extract_custom_entry_name_and_options(entry)
+            if not requested_name:
                 result.append(None)
                 continue
             matched = self._find_info_for_requested_name(infos, requested_name, used_info_ids)

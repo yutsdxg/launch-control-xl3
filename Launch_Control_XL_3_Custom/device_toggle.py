@@ -46,6 +46,18 @@ def _is_skip_slot(value):
     return value is None or str(value).strip().upper() == "SKIP"
 
 
+def _extract_custom_entry_name(entry):
+    if _is_skip_slot(entry):
+        return None
+    if isinstance(entry, dict):
+        for parameter_name in entry.keys():
+            if parameter_name is None:
+                continue
+            return str(parameter_name)
+        return None
+    return str(entry)
+
+
 def _make_device_order_index(raw_mapping):
     result = {}
     for key, order in raw_mapping.items():
@@ -237,8 +249,12 @@ class DeviceToggleComponent(Component):
         parameter_by_name = self._build_parameter_index(base_parameters)
         ordered = []
         used_ids = set()
-        for parameter_name in custom_order:
-            if _is_skip_slot(parameter_name):
+        for entry in custom_order:
+            if _is_skip_slot(entry):
+                ordered.append(None)
+                continue
+            parameter_name = _extract_custom_entry_name(entry)
+            if not parameter_name:
                 ordered.append(None)
                 continue
             parameter = self._find_parameter(parameter_by_name, parameter_name)

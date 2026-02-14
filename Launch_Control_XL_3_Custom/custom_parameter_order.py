@@ -12,35 +12,41 @@ Ableton Live標準のパラメータ順序を任意に変更したい場合は�
 # True: 書いた項目の後ろにデフォルトの残りパラメータを自動で連結
 CUSTOM_PARAMETER_APPEND_REST = False
 
+# 離散モード切り替えの増減制御は、必要な項目だけ dict で指定します。
+#
+# - 通常: "Parameter Name"
+# - 未割り当て: None / "SKIP"
+# - モード数を明示する場合だけ: {"Parameter Name": {"mode_count": 7}}
+#
 CUSTOM_DEVICE_PARAMETER_ORDER = {
-	"Wavetable": (
-		"Osc 1 Gain",
-		"Osc 1 Pos",
+    "Wavetable": (
+        "Osc 1 Gain",
+        "Osc 1 Pos",
         "Osc 1 Effect 1",
         "Osc 1 Effect 2",
-		"Osc 2 Gain",
-		"Osc 2 Pos",
+        "Osc 2 Gain",
+        "Osc 2 Pos",
         "Osc 2 Effect 1",
         "Osc 2 Effect 2",
-		"Amp Attack",
-		"Amp Decay",
-		"Amp Sustain",
-		"Amp Release",
-		"Env 2 Attack",
-		"Env 2 Decay",
-		"Env 2 Sustain",
-		"Env 2 Release",	
-		"Filter 1 Freq",
-		"Filter 1 Res",
-		"Env 2 Peak",
+        "Amp Attack",
+        "Amp Decay",
+        "Amp Sustain",
+        "Amp Release",
+        "Env 2 Attack",
+        "Env 2 Decay",
+        "Env 2 Sustain",
+        "Env 2 Release",
+        "Filter 1 Freq",
+        "Filter 1 Res",
+        "Env 2 Peak",
         "Filter 1 Drive",
-		"Volume",
+        "Volume",
         "Sub On",
         "Osc 1 On",
         "Osc 2 On",
-	),
-	"Saturator": (
-		"Type",
+    ),
+    "Saturator": (
+        "Type",
         None,
         None,
         None,
@@ -59,10 +65,10 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Drive",
         "Output",
         "Dry/Wet",
-	),
-	"Echo": (
+    ),
+    "Echo": (
         # 1-8
-        "L Division",
+        {"L Division": {"mode_count": 7}},
         "L Sync Mode",
         "R Division",
         "R Sync Mode",
@@ -77,7 +83,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         "Reverb Loc",
         "Reverb Decay",
-        'Channel Mode',
+        "Channel Mode",
         "Output",
         # 17-21
         "Input",
@@ -90,9 +96,9 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Link",
         "Clip Dry",
         "Filter On",
-        
-	),
-	"Reverb": (
+
+    ),
+    "Reverb": (
         # 1-8
         "In Filter Freq",
         "ER Spin Amount",
@@ -117,8 +123,8 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Decay",
         "Stereo",
         "Dry Wet",
-	),
-	"EQ Eight": (
+    ),
+    "EQ Eight": (
         # Encoder 1-8
         "1 Frequency A",
         "2 Frequency A",
@@ -153,8 +159,8 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
-	),
-	"Auto Filter": (
+    ),
+    "Auto Filter": (
         # 1-8
         "Frequency",
         None,
@@ -189,10 +195,10 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         "Soft Clip On",
-	),
+    ),
 }
 """
-	"Reverb": (
+    "Reverb": (
         # 1-8
         None,
         None,
@@ -227,5 +233,5 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
-	),
+    ),
 """

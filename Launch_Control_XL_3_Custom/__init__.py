@@ -4,7 +4,15 @@ from ableton.v3.control_surface.capabilities import AUTO_LOAD_KEY, CONTROLLER_ID
 from Launchkey_MK4.cue_point import CuePointComponent
 from Launchkey_MK4.encoder_touch import EncoderTouchComponent
 from Launchkey_MK4.zoom import ZoomComponent
+import logging
 from . import midi
+from .colored_encoder import (
+    _global_rule_options_for_parameter,
+    _resolve_device_mode_switch_rules,
+    _resolve_mode_count,
+    _rule_options_for_parameter,
+    _step_parameter_by_mode_count,
+)
 from .device import DeviceComponent
 from .device_toggle import DeviceToggleComponent
 from .display import display_specification
@@ -22,6 +30,8 @@ LAST_TOUCHED_PARAMETER_POLL_INTERVAL = 0.1
 RELATIVE_ENCODER_DELTA_SCALE = 1.0 / 127.0
 DYNAMIC_ASSIGNMENT_SLOT_START = 5
 DYNAMIC_ASSIGNMENT_SLOT_COUNT = 3
+LOGGER = logging.getLogger(__name__)
+DEBUG_MODE_PARAMS = ("l division", "r division")
 
 def get_capabilities():
     return {
@@ -72,6 +82,8 @@ class Launch_Control_XL_3(ControlSurface):
         self._dynamic_assignment_encoders = ()
         self._dynamic_assignment_slot_states = []
         self._dynamic_assignment_value_listeners = []
+        self._mode_switch_encoders = ()
+        self._mode_switch_value_listeners = []
         self._last_touched_parameter_task = None
         self._selection_target = None
         self._selection_target_kind = None
@@ -81,6 +93,7 @@ class Launch_Control_XL_3(ControlSurface):
         self._assignment_candidate_signature = None
         super().__init__(*a, **k)
         self._setup_dynamic_parameter_assignment()
+        self._setup_mode_switch_parameter_override()
 
     def port_settings_changed(self):
         self._send_midi(midi.make_connection_message(connect=False))
@@ -144,6 +157,73 @@ class Launch_Control_XL_3(ControlSurface):
                 )
             )
         )
+
+    def _setup_mode_switch_parameter_override(self):
+        upper_encoders = tuple(getattr(self.elements, "upper_encoders_raw", ()))
+        lower_encoders = tuple(getattr(self.elements, "lower_encoders_raw", ()))
+        # Device parameter encoders: upper 16 + lower 1-5
+        target_encoders = upper_encoders + lower_encoders[:5]
+        if not target_encoders:
+            return
+        self._mode_switch_encoders = target_encoders
+        self._mode_switch_value_listeners = []
+        for encoder in self._mode_switch_encoders:
+            listener = self._make_mode_switch_value_listener(encoder)
+            self._mode_switch_value_listeners.append(listener)
+            encoder.add_value_listener(listener)
+
+    def _make_mode_switch_value_listener(self, encoder):
+        def _listener(value, encoder=encoder):
+            self._on_mode_switch_encoder_value(encoder, value)
+
+        return _listener
+
+    def _on_mode_switch_encoder_value(self, encoder, value):
+        if value == 64:
+            return
+        try:
+            mapped = encoder.is_mapped_to_parameter()
+        except Exception:
+            mapped = False
+        if not mapped:
+            return
+        parameter = getattr(encoder, "mapped_object", None)
+        if parameter is None:
+            return
+        parameter_name = getattr(parameter, "name", "")
+        normalized_name = " ".join(str(parameter_name).strip().lower().split())
+        debug_target = normalized_name in DEBUG_MODE_PARAMS
+        parameter_rules = _resolve_device_mode_switch_rules(parameter)
+        options = None
+        if parameter_rules is not None:
+            options = _rule_options_for_parameter(parameter_rules, parameter_name)
+        if options is None:
+            options = _global_rule_options_for_parameter(parameter_name)
+        if options is None:
+            if debug_target:
+                LOGGER.info("LCXL3 mode-switch listener skip: no rule parameter=%s value=%s", parameter_name, value)
+            return
+        direction = 1 if value > 64 else -1
+        mode_count = _resolve_mode_count(parameter, options)
+        if not _step_parameter_by_mode_count(parameter, direction, mode_count):
+            if debug_target:
+                LOGGER.info(
+                    "LCXL3 mode-switch listener skip: step failed parameter=%s mode_count=%s value=%s",
+                    parameter_name,
+                    mode_count,
+                    value,
+                )
+            return
+        try:
+            LOGGER.info(
+                "LCXL3 mode-switch listener override: parameter=%s mode_count=%s value=%s direction=%s",
+                parameter_name,
+                mode_count,
+                value,
+                direction,
+            )
+        except Exception:
+            pass
 
     def _make_dynamic_encoder_value_listener(self, slot_index):
         def _listener(value, slot_index=slot_index):
@@ -369,6 +449,12 @@ class Launch_Control_XL_3(ControlSurface):
         return left_target is right_target
 
     def disconnect(self):
+        for encoder, listener in zip(self._mode_switch_encoders, self._mode_switch_value_listeners):
+            try:
+                encoder.remove_value_listener(listener)
+            except RuntimeError:
+                pass
+        self._mode_switch_value_listeners = []
         for encoder, listener in zip(
             self._dynamic_assignment_encoders,
             self._dynamic_assignment_value_listeners,
