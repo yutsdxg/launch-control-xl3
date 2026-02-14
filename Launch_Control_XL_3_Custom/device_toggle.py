@@ -1,16 +1,64 @@
 import time
+import re
 
 from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 from .colors import Rgb
+from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
 
-TOGGLE_PARAMETER_START_INDEX = 22
+TOGGLE_PARAMETER_START_INDEX = 21
 LEGACY_TOGGLE_PARAMETER_START_INDEX = TOGGLE_PARAMETER_START_INDEX - 1
 LED_FEEDBACK_UPDATE_INTERVAL = 0.1
 LED_FORCE_HOLD_SEC = 0.15
 PIGMENTS_NAME_KEYWORD = "pigments"
 PIGMENTS_INVERTED_LED_OFFSETS = (0, 1)
+DEVICE_ON_PARAMETER_NAME = "Device On"
+CUSTOM_DEVICE_ALIASES = {
+    "instrumentvector": "wavetable",
+    "wavetable": "instrumentvector",
+    "hybrid": "reverb",
+    "reverb": "hybrid",
+}
+
+
+def _normalize_name(value):
+    if value is None:
+        return ""
+    return " ".join(str(value).strip().lower().split())
+
+
+def _compact_name(value):
+    return re.sub(r"[^a-z0-9]+", "", _normalize_name(value))
+
+
+def _normalize_device_key(value):
+    normalized = _normalize_name(value)
+    if not normalized:
+        return normalized
+    parts = normalized.split(" ")
+    while parts and parts[-1].isdigit():
+        parts.pop()
+    return " ".join(parts)
+
+
+def _is_skip_slot(value):
+    return value is None or str(value).strip().upper() == "SKIP"
+
+
+def _make_device_order_index(raw_mapping):
+    result = {}
+    for key, order in raw_mapping.items():
+        normalized = _normalize_device_key(key)
+        if normalized:
+            result[normalized] = tuple(order)
+            alias = CUSTOM_DEVICE_ALIASES.get(normalized)
+            if alias:
+                result[alias] = tuple(order)
+    return result
+
+
+CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = _make_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
 
 
 class DeviceToggleComponent(Component):
@@ -153,10 +201,7 @@ class DeviceToggleComponent(Component):
             selected_device = self._selected_device()
         if not liveobj_valid(selected_device):
             return None
-        try:
-            parameters = tuple(selected_device.parameters)
-        except RuntimeError:
-            return None
+        parameters = self._ordered_parameters(selected_device)
         start_index = self._resolve_start_index(parameters)
         if start_index is None:
             return None
@@ -176,6 +221,95 @@ class DeviceToggleComponent(Component):
             return TOGGLE_PARAMETER_START_INDEX
         if len(parameters) > LEGACY_TOGGLE_PARAMETER_START_INDEX:
             return LEGACY_TOGGLE_PARAMETER_START_INDEX
+        return None
+
+    def _ordered_parameters(self, selected_device):
+        try:
+            base_parameters = tuple(selected_device.parameters)
+        except RuntimeError:
+            return ()
+        base_parameters = tuple(
+            p for p in base_parameters if p is not None and getattr(p, "name", "") != DEVICE_ON_PARAMETER_NAME
+        )
+        custom_order = self._resolve_custom_order(selected_device)
+        if not custom_order:
+            return base_parameters
+        parameter_by_name = self._build_parameter_index(base_parameters)
+        ordered = []
+        used_ids = set()
+        for parameter_name in custom_order:
+            if _is_skip_slot(parameter_name):
+                ordered.append(None)
+                continue
+            parameter = self._find_parameter(parameter_by_name, parameter_name)
+            if parameter is None:
+                continue
+            ordered.append(parameter)
+            used_ids.add(id(parameter))
+        if CUSTOM_PARAMETER_APPEND_REST:
+            for parameter in base_parameters:
+                if id(parameter) in used_ids:
+                    continue
+                ordered.append(parameter)
+                used_ids.add(id(parameter))
+        return tuple(ordered)
+
+    def _resolve_custom_order(self, selected_device):
+        name_keys = (
+            getattr(selected_device, "name", ""),
+            getattr(selected_device, "class_name", ""),
+            getattr(selected_device, "class_display_name", ""),
+        )
+        normalized_keys = []
+        for key in name_keys:
+            normalized = _normalize_device_key(key)
+            if normalized:
+                normalized_keys.append(normalized)
+            if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
+                return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
+        for device_key in normalized_keys:
+            for custom_key, custom_order in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX.items():
+                if custom_key in device_key or device_key in custom_key:
+                    return custom_order
+        return None
+
+    def _build_parameter_index(self, parameters):
+        index = {}
+        for parameter in parameters:
+            name = getattr(parameter, "name", "")
+            if not name:
+                continue
+            normalized = _normalize_name(name)
+            compact = _compact_name(name)
+            if name not in index:
+                index[name] = parameter
+            if normalized not in index:
+                index[normalized] = parameter
+            if compact and compact not in index:
+                index[compact] = parameter
+        return index
+
+    def _find_parameter(self, parameter_by_name, requested_name):
+        if requested_name is None:
+            return None
+        direct = parameter_by_name.get(requested_name)
+        if direct is not None:
+            return direct
+        normalized = _normalize_name(requested_name)
+        direct = parameter_by_name.get(normalized)
+        if direct is not None:
+            return direct
+        compact = _compact_name(requested_name)
+        direct = parameter_by_name.get(compact)
+        if direct is not None:
+            return direct
+        if compact:
+            for key, parameter in parameter_by_name.items():
+                if not isinstance(key, str):
+                    continue
+                key_compact = _compact_name(key)
+                if compact in key_compact or key_compact in compact:
+                    return parameter
         return None
 
     def _resolve_device_for_track(self, selected_track):
