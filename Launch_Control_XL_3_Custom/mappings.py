@@ -23,7 +23,7 @@ def create_mappings(control_surface):
             "record_button": "record_button",
         },
         "Mixer": {
-            "volume_controls": "faders",
+            "volume_controls": "mixer_volume_faders",
         },
         "View_Control": {
             "prev_track_button": "track_left_button",
