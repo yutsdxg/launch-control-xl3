@@ -71,7 +71,8 @@ class Specification(ControlSurfaceSpecification):
     session_ring_component_type = SessionRingComponent
     create_mappings_function = create_mappings
     identity_response_id_bytes = (0, 32, 41, -1, 1, 0, 1)
-    hello_messages = (midi.make_connection_message(), midi.make_enable_touch_output_message())
+    # Touch output can interfere with manual MIDI mapping (0/127 toggle values).
+    hello_messages = (midi.make_connection_message(),)
     goodbye_messages = (midi.make_connection_message(connect=False),)
     display_specification = display_specification
     component_map = {
