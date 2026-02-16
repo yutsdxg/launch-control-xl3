@@ -272,9 +272,7 @@ class Launch_Control_XL_3(ControlSurface):
         targets = self._get_group_child_targets(group_ordinal)
         if not targets:
             return
-        normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
-        index = int((normalized_value * FADER_TRACK_SELECTION_COUNT) / MIDI_VALUE_RANGE)
-        index = min(index, FADER_TRACK_SELECTION_COUNT - 1, len(targets) - 1)
+        index = self._fader_value_to_reversed_index(value, FADER_TRACK_SELECTION_COUNT, len(targets))
         target = targets[index]
         if target is None:
             return
@@ -326,9 +324,7 @@ class Launch_Control_XL_3(ControlSurface):
         targets = self._get_selected_track_device_targets()
         if not targets:
             return
-        normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
-        index = int((normalized_value * FADER_DEVICE_SELECTION_COUNT) / MIDI_VALUE_RANGE)
-        index = min(index, FADER_DEVICE_SELECTION_COUNT - 1, len(targets) - 1)
+        index = self._fader_value_to_reversed_index(value, FADER_DEVICE_SELECTION_COUNT, len(targets))
         target = targets[index]
         if target is None:
             return
@@ -348,6 +344,12 @@ class Launch_Control_XL_3(ControlSurface):
             action.select(target)
         except RuntimeError:
             pass
+
+    def _fader_value_to_reversed_index(self, value, logical_count, target_count):
+        normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
+        forward_index = int((normalized_value * logical_count) / MIDI_VALUE_RANGE)
+        forward_index = min(forward_index, logical_count - 1, target_count - 1)
+        return (target_count - 1) - forward_index
 
     def _get_selected_track_device_targets(self):
         try:
