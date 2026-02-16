@@ -1,7 +1,7 @@
 from ableton.v3.base import task
 from ableton.v3.control_surface import ControlSurface, ControlSurfaceSpecification, create_skin
 from ableton.v3.control_surface.capabilities import AUTO_LOAD_KEY, CONTROLLER_ID_KEY, PORTS_KEY, SCRIPT, SYNC, controller_id, inport, outport
-from ableton.v3.live import action
+from ableton.v3.live import action, liveobj_valid
 from Launchkey_MK4.cue_point import CuePointComponent
 from Launchkey_MK4.encoder_touch import EncoderTouchComponent
 from Launchkey_MK4.zoom import ZoomComponent
@@ -32,6 +32,8 @@ RELATIVE_ENCODER_DELTA_SCALE = 1.0 / 127.0
 DYNAMIC_ASSIGNMENT_SLOT_START = 5
 DYNAMIC_ASSIGNMENT_SLOT_COUNT = 3
 FADER_TRACK_SELECTION_COUNT = 9
+FADER_DEVICE_SELECTION_COUNT = 9
+FADER_DEVICE_SELECTION_INDEX = 2
 MIDI_VALUE_RANGE = 128
 FADER_TRACK_SELECTION_GROUP_ORDINALS = ((0, 1), (1, 2))
 LOGGER = logging.getLogger(__name__)
@@ -97,10 +99,13 @@ class Launch_Control_XL_3(ControlSurface):
         self._assignment_candidate_signature = None
         self._fader_track_selection_controls = ()
         self._fader_track_selection_listeners = ()
+        self._fader_device_selection_control = None
+        self._fader_device_selection_listener = None
         super().__init__(*a, **k)
         self._setup_dynamic_parameter_assignment()
         self._setup_mode_switch_parameter_override()
         self._setup_fader_track_selection()
+        self._setup_fader_device_selection()
 
     def port_settings_changed(self):
         self._send_midi(midi.make_connection_message(connect=False))
@@ -262,7 +267,7 @@ class Launch_Control_XL_3(ControlSurface):
         return _listener
 
     def _on_fader_track_selection_value(self, value, group_ordinal):
-        if not self._is_fader_track_selection_active():
+        if not self._is_daw_control_mode_active():
             return
         targets = self._get_group_child_targets(group_ordinal)
         if not targets:
@@ -287,7 +292,7 @@ class Launch_Control_XL_3(ControlSurface):
         except RuntimeError:
             pass
 
-    def _is_fader_track_selection_active(self):
+    def _is_daw_control_mode_active(self):
         try:
             encoder_modes = self.component_map.get("Encoder_Modes")
         except RuntimeError:
@@ -297,6 +302,77 @@ class Launch_Control_XL_3(ControlSurface):
         try:
             return encoder_modes.selected_mode == "daw_control"
         except RuntimeError:
+            return False
+
+    def _setup_fader_device_selection(self):
+        faders = tuple(getattr(self.elements, "faders_raw", ()))
+        if FADER_DEVICE_SELECTION_INDEX >= len(faders):
+            return
+        control = faders[FADER_DEVICE_SELECTION_INDEX]
+        listener = self._make_fader_device_selection_listener()
+        control.add_value_listener(listener)
+        self._fader_device_selection_control = control
+        self._fader_device_selection_listener = listener
+
+    def _make_fader_device_selection_listener(self):
+        def _listener(value):
+            self._on_fader_device_selection_value(value)
+
+        return _listener
+
+    def _on_fader_device_selection_value(self, value):
+        if not self._is_daw_control_mode_active():
+            return
+        targets = self._get_selected_track_device_targets()
+        if not targets:
+            return
+        normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
+        index = int((normalized_value * FADER_DEVICE_SELECTION_COUNT) / MIDI_VALUE_RANGE)
+        index = min(index, FADER_DEVICE_SELECTION_COUNT - 1, len(targets) - 1)
+        target = targets[index]
+        if target is None:
+            return
+        try:
+            selected_track = self.song.view.selected_track
+            selected_device = selected_track.view.selected_device
+        except RuntimeError:
+            selected_device = None
+        try:
+            if selected_device == target:
+                return
+        except RuntimeError:
+            pass
+        if self._select_device(target):
+            return
+        try:
+            action.select(target)
+        except RuntimeError:
+            pass
+
+    def _get_selected_track_device_targets(self):
+        try:
+            selected_track = self.song.view.selected_track
+            devices = tuple(selected_track.devices)
+        except RuntimeError:
+            return ()
+        return tuple(device for device in devices if liveobj_valid(device))[:FADER_DEVICE_SELECTION_COUNT]
+
+    def _select_device(self, device):
+        if not liveobj_valid(device):
+            return False
+        try:
+            self.song.view.select_device(device)
+            return True
+        except TypeError:
+            pass
+        except RuntimeError:
+            pass
+        try:
+            self.song.view.select_device(device, False)
+            return True
+        except RuntimeError:
+            return False
+        except TypeError:
             return False
 
     def _get_group_child_targets(self, group_ordinal):
@@ -543,6 +619,15 @@ class Launch_Control_XL_3(ControlSurface):
         return left_target is right_target
 
     def disconnect(self):
+        if self._fader_device_selection_control is not None and self._fader_device_selection_listener is not None:
+            try:
+                self._fader_device_selection_control.remove_value_listener(
+                    self._fader_device_selection_listener
+                )
+            except RuntimeError:
+                pass
+        self._fader_device_selection_control = None
+        self._fader_device_selection_listener = None
         for control, listener in zip(
             self._fader_track_selection_controls,
             self._fader_track_selection_listeners,
