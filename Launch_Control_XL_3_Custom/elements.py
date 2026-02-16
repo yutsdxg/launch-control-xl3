@@ -26,6 +26,7 @@ CC_RECORD = 118
 CC_DUMMY_FADER_1 = 127
 CC_DUMMY_FADER_2 = 126
 CC_DUMMY_FADER_3 = 125
+CC_DUMMY_FADER_4 = 124
 
 # Matrix ranges
 RANGE_DAW_CONTROL_BUTTONS = range(37, 45)
@@ -64,6 +65,7 @@ class Elements(ElementsBase):
         self.add_encoder(CC_DUMMY_FADER_1, "Dummy_Fader_1", channel=CHANNEL_ENCODER_LED)
         self.add_encoder(CC_DUMMY_FADER_2, "Dummy_Fader_2", channel=CHANNEL_ENCODER_LED)
         self.add_encoder(CC_DUMMY_FADER_3, "Dummy_Fader_3", channel=CHANNEL_ENCODER_LED)
+        self.add_encoder(CC_DUMMY_FADER_4, "Dummy_Fader_4", channel=CHANNEL_ENCODER_LED)
         self.add_button(45, "Device_Toggle_1_Button")
         self.add_button(46, "Device_Toggle_2_Button")
         self.add_button(47, "Device_Toggle_3_Button")
@@ -86,7 +88,10 @@ class Elements(ElementsBase):
         self.add_element(
             "Mixer_Volume_Faders",
             ButtonMatrixElement,
-            rows=[[self.dummy_fader_1, self.dummy_fader_2, self.dummy_fader_3] + list(self.faders_raw[3:])],
+            rows=[
+                [self.dummy_fader_1, self.dummy_fader_2, self.dummy_fader_3, self.dummy_fader_4]
+                + list(self.faders_raw[4:])
+            ],
             is_private=True,
         )
 

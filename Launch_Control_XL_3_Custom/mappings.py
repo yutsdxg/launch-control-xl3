@@ -80,6 +80,10 @@ def create_mappings(control_surface):
             "daw_control": {
                 "modes": [
                     {
+                        "component": "Mixer",
+                        "target_track_volume_control": "faders_raw[3]",
+                    },
+                    {
                         "component": "Device",
                         "parameter_controls": "device_parameter_encoders",
                         "prev_bank_button": "page_up_button",
