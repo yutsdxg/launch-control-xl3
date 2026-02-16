@@ -1,3 +1,4 @@
+import Live
 from ableton.v3.base import task
 from ableton.v3.control_surface import ControlSurface, ControlSurfaceSpecification, create_skin
 from ableton.v3.control_surface.capabilities import AUTO_LOAD_KEY, CONTROLLER_ID_KEY, PORTS_KEY, SCRIPT, SYNC, controller_id, inport, outport
@@ -36,6 +37,9 @@ FADER_DEVICE_SELECTION_COUNT = 9
 FADER_DEVICE_SELECTION_INDEX = 2
 MIDI_VALUE_RANGE = 128
 FADER_TRACK_SELECTION_GROUP_ORDINALS = ((0, 1), (1, 2))
+ARRANGEMENT_FOLLOW_FADER_INDEXES = (0, 1)
+ARRANGEMENT_VIEW_NAME = "Arranger"
+SESSION_VIEW_NAME = "Session"
 LOGGER = logging.getLogger(__name__)
 DEBUG_MODE_PARAMS = ("l division", "r division")
 
@@ -253,20 +257,20 @@ class Launch_Control_XL_3(ControlSurface):
             if fader_index >= len(faders):
                 continue
             control = faders[fader_index]
-            listener = self._make_fader_track_selection_listener(group_ordinal)
+            listener = self._make_fader_track_selection_listener(fader_index, group_ordinal)
             control.add_value_listener(listener)
             controls.append(control)
             listeners.append(listener)
         self._fader_track_selection_controls = tuple(controls)
         self._fader_track_selection_listeners = tuple(listeners)
 
-    def _make_fader_track_selection_listener(self, group_ordinal):
-        def _listener(value, group_ordinal=group_ordinal):
-            self._on_fader_track_selection_value(value, group_ordinal)
+    def _make_fader_track_selection_listener(self, fader_index, group_ordinal):
+        def _listener(value, fader_index=fader_index, group_ordinal=group_ordinal):
+            self._on_fader_track_selection_value(value, fader_index, group_ordinal)
 
         return _listener
 
-    def _on_fader_track_selection_value(self, value, group_ordinal):
+    def _on_fader_track_selection_value(self, value, fader_index, group_ordinal):
         if not self._is_daw_control_mode_active():
             return
         targets = self._get_group_child_targets(group_ordinal)
@@ -289,6 +293,8 @@ class Launch_Control_XL_3(ControlSurface):
             action.select(target)
         except RuntimeError:
             pass
+        else:
+            self._follow_arrangement_to_selected_track(selected_track, target, fader_index)
 
     def _is_daw_control_mode_active(self):
         try:
@@ -350,6 +356,92 @@ class Launch_Control_XL_3(ControlSurface):
         forward_index = int((normalized_value * logical_count) / MIDI_VALUE_RANGE)
         forward_index = min(forward_index, logical_count - 1, target_count - 1)
         return (target_count - 1) - forward_index
+
+    def _follow_arrangement_to_selected_track(self, previous_track, target_track, fader_index):
+        if fader_index not in ARRANGEMENT_FOLLOW_FADER_INDEXES:
+            return
+        if not self._is_arrangement_view_active():
+            return
+        try:
+            # Selection APIだけではArrangerが追従しないケースがあるため再設定を試す。
+            self.song.view.selected_track = target_track
+        except RuntimeError:
+            pass
+        try:
+            # Arrangerにキーボードフォーカスを与えると追従するケースがある。
+            self.application.view.focus_view(ARRANGEMENT_VIEW_NAME)
+        except RuntimeError:
+            pass
+        previous_index = self._visible_track_index(previous_track)
+        target_index = self._visible_track_index(target_track)
+        if previous_index is None or target_index is None:
+            try:
+                LOGGER.info(
+                    "LCXL3 arrangement follow skipped: prev_idx=%s target_idx=%s",
+                    previous_index,
+                    target_index,
+                )
+            except Exception:
+                pass
+            return
+        delta = target_index - previous_index
+        if delta == 0:
+            return
+        direction = (
+            Live.Application.Application.View.NavDirection.down
+            if delta > 0
+            else Live.Application.Application.View.NavDirection.up
+        )
+        try:
+            app_view = self.application.view
+            for _ in range(abs(delta)):
+                app_view.scroll_view(direction, ARRANGEMENT_VIEW_NAME, False)
+        except RuntimeError:
+            try:
+                LOGGER.info("LCXL3 arrangement follow scroll failed: delta=%s", delta)
+            except Exception:
+                pass
+        self._force_arrangement_reveal(target_track)
+
+    def _is_arrangement_view_active(self):
+        try:
+            app_view = self.application.view
+        except RuntimeError:
+            return False
+        try:
+            if app_view.is_view_visible(ARRANGEMENT_VIEW_NAME):
+                return True
+        except RuntimeError:
+            pass
+        try:
+            return app_view.focused_document_view == ARRANGEMENT_VIEW_NAME
+        except RuntimeError:
+            return False
+
+    def _visible_track_index(self, track):
+        if track is None:
+            return None
+        try:
+            visible_tracks = tuple(self.song.visible_tracks)
+        except RuntimeError:
+            return None
+        for index, visible_track in enumerate(visible_tracks):
+            try:
+                if visible_track == track:
+                    return index
+            except RuntimeError:
+                continue
+        return None
+
+    def _force_arrangement_reveal(self, target_track):
+        try:
+            app_view = self.application.view
+            app_view.show_view(SESSION_VIEW_NAME)
+            self.song.view.selected_track = target_track
+            app_view.show_view(ARRANGEMENT_VIEW_NAME)
+            app_view.focus_view(ARRANGEMENT_VIEW_NAME)
+        except RuntimeError:
+            pass
 
     def _get_selected_track_device_targets(self):
         try:
