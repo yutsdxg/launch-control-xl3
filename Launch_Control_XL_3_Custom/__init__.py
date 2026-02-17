@@ -34,10 +34,10 @@ DYNAMIC_ASSIGNMENT_SLOT_START = 5
 DYNAMIC_ASSIGNMENT_SLOT_COUNT = 3
 FADER_TRACK_SELECTION_COUNT = 9
 FADER_DEVICE_SELECTION_COUNT = 9
-FADER_DEVICE_SELECTION_INDEX = 2
+FADER_DEVICE_SELECTION_INDEX = 7
 MIDI_VALUE_RANGE = 128
-FADER_TRACK_SELECTION_GROUP_ORDINALS = ((0, 1), (1, 2))
-ARRANGEMENT_FOLLOW_FADER_INDEXES = (0, 1)
+FADER_TRACK_SELECTION_GROUP_ORDINALS = ((5, 1), (6, 2))
+ARRANGEMENT_FOLLOW_FADER_INDEXES = (5, 6)
 ARRANGEMENT_VIEW_NAME = "Arranger"
 SESSION_VIEW_NAME = "Session"
 LOGGER = logging.getLogger(__name__)
@@ -354,8 +354,13 @@ class Launch_Control_XL_3(ControlSurface):
 
     def _fader_value_to_reversed_index(self, value, logical_count, target_count):
         normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
-        forward_index = int((normalized_value * logical_count) / MIDI_VALUE_RANGE)
-        forward_index = min(forward_index, logical_count - 1, target_count - 1)
+        if target_count <= 1:
+            return 0
+        # ノッチ中心ベース: 9段なら 0..127 を8区間として最近傍ノッチへ丸める。
+        forward_index = int(
+            round((normalized_value * float(target_count - 1)) / float(MIDI_VALUE_RANGE - 1))
+        )
+        forward_index = min(forward_index, target_count - 1)
         return (target_count - 1) - forward_index
 
     def _follow_arrangement_to_selected_track(self, previous_track, target_track, fader_index):

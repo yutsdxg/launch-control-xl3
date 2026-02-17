@@ -81,7 +81,7 @@ def create_mappings(control_surface):
                 "modes": [
                     {
                         "component": "Mixer",
-                        "target_track_volume_control": "faders_raw[3]",
+                        "target_track_volume_control": "faders_raw[2]",
                     },
                     {
                         "component": "Device",
