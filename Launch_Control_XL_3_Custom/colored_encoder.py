@@ -9,17 +9,45 @@ import re
 import logging
 
 RGB_SYSEX_PREFIX = (240, 0, 32, 41, 2, 21, 1, 83)
+ENCODER_LED_BRIGHTNESS_SCALE = 0.5
+MONOTONE_MIN_RGB = (6, 6, 6)
+MONOTONE_CENTER_RGB = (44, 44, 44)
+MONOTONE_MAX_RGB = (96, 96, 96)
+MONOTONE_MIN_VALUE = 0
+MONOTONE_CENTER_VALUE = 64
+MONOTONE_MAX_VALUE = 127
 DEVICE_VALUE_COLOR_BINS = (
     (72, 18, 112),   # low: purple
-    (40, 44, 112),   # indigo
-    (20, 70, 112),   # blue
+    (64, 24, 112),   # indigo (more purple, less green)
+    (8, 84, 127),    # blue (deeper blue/cyan split from indigo)
     (10, 112, 38),   # green
-    (72, 112, 12),   # yellow-green
-    (112, 98, 10),   # yellow
-    (112, 56, 10),   # orange
+    (52, 127, 4),    # yellow-green (lime)
+    (127, 127, 0),   # yellow (clear pure yellow)
+    (127, 72, 0),    # orange (clear amber/orange)
     (112, 18, 14),   # high: red
 )
 DEVICE_VALUE_COLOR_BIN_COUNT = 8
+SIMPLE_COLOR_TO_RGB = {
+    0: (0, 0, 0),
+    1: (48, 48, 48),      # WHITE_HALF
+    2: (64, 10, 10),      # DARK_RED
+    3: (127, 127, 127),   # WHITE
+    5: (127, 12, 12),     # RED
+    7: (127, 42, 42),     # RED_HALF
+    17: (88, 127, 10),    # YELLOW_GREEN
+    21: (12, 127, 24),    # GREEN
+    27: (36, 127, 52),    # GREEN_HALF
+    39: (8, 112, 104),    # TURQUOISE
+    41: (14, 54, 127),    # BLUE
+    43: (44, 84, 127),    # BLUE_HALF
+    47: (10, 34, 96),     # DARK_BLUE
+    53: (84, 18, 120),    # PURPLE
+    83: (104, 64, 14),    # ORANGE_HALF
+    92: (48, 98, 127),    # LIGHT_BLUE
+    96: (127, 56, 8),     # ORANGE
+    97: (127, 116, 8),    # YELLOW
+    103: (16, 16, 16),    # WHITE_DIM / DARK_GREEN(shared value)
+}
 CUSTOM_DEVICE_ALIASES = {
     "instrumentvector": "wavetable",
     "wavetable": "instrumentvector",
@@ -106,10 +134,59 @@ def _is_device_parameter(parameter):
     return isinstance(parameter.canonical_parent, (Device, LiveObjectDecorator))
 
 
+def _clamp_led_channel(value):
+    return max(0, min(127, int(round(value))))
+
+
+def _scale_led_rgb(rgb):
+    scaled = []
+    for channel in rgb:
+        clamped = _clamp_led_channel(channel)
+        dimmed = _clamp_led_channel(clamped * ENCODER_LED_BRIGHTNESS_SCALE)
+        # Keep very dark colors visible after dimming.
+        if clamped > 0 and dimmed == 0:
+            dimmed = 1
+        scaled.append(dimmed)
+    return tuple(scaled)
+
+
+def _rgb_for_simple_color(color):
+    midi_value = getattr(color, "midi_value", None)
+    if midi_value is None:
+        return None
+    rgb = SIMPLE_COLOR_TO_RGB.get(midi_value)
+    if rgb is None:
+        return None
+    return _scale_led_rgb(rgb)
+
+
+def get_monotone_rgb_for_normalized_value(normalized):
+    value_7bit = _clamp_led_channel(normalized * 127.0)
+    if value_7bit == MONOTONE_MIN_VALUE:
+        base = MONOTONE_MIN_RGB
+    elif value_7bit == MONOTONE_CENTER_VALUE:
+        base = MONOTONE_CENTER_RGB
+    elif value_7bit == MONOTONE_MAX_VALUE:
+        base = MONOTONE_MAX_RGB
+    else:
+        return None
+    return _scale_led_rgb(base)
+
+
+def get_monotone_rgb_for_parameter(parameter):
+    try:
+        normalized = _normalize_parameter_value(parameter)
+    except Exception:
+        normalized = None
+    if normalized is None:
+        return None
+    return get_monotone_rgb_for_normalized_value(normalized)
+
+
 def get_rgb_for_device_parameter_value(parameter):
     normalized = _normalize_parameter_value(parameter)
     bin_index = min(int(normalized * DEVICE_VALUE_COLOR_BIN_COUNT), DEVICE_VALUE_COLOR_BIN_COUNT - 1)
-    return DEVICE_VALUE_COLOR_BINS[bin_index]
+    return _scale_led_rgb(DEVICE_VALUE_COLOR_BINS[bin_index])
 
 
 def get_color_for_parameter(parameter):
@@ -338,15 +415,17 @@ class ColoredEncoderElement(EncoderElement):
         self._is_assigned_to_pan = False
         if self.is_mapped_to_parameter():
             self._is_assigned_to_pan = self.mapped_object.name == "Track Panning"
-            if _is_device_parameter(self.mapped_object):
-                self._send_led_rgb(get_rgb_for_device_parameter_value(self.mapped_object))
-            else:
-                self._send_led_color(get_color_for_parameter(self.mapped_object))
+            self._send_led_for_parameter()
         else:
             self._send_led_color(Rgb.OFF)
         super()._update_parameter_listeners()
 
     def _send_led_color(self, color):
+        # Prefer RGB sysex for encoder LEDs so dimming is consistent across color paths.
+        rgb = _rgb_for_simple_color(color)
+        if rgb is not None:
+            self._send_led_rgb(rgb)
+            return
         message = (CC_STATUS, self._led_color_cc, color.midi_value)
         if message != self._last_sent_message:
             self.send_midi(message)
@@ -362,13 +441,21 @@ class ColoredEncoderElement(EncoderElement):
     def _parameter_value_changed(self):
         if not self.is_mapped_to_parameter():
             return
+        self._send_led_for_parameter()
+
+    def _send_led_for_parameter(self):
+        parameter = self.mapped_object
+        monotone_rgb = get_monotone_rgb_for_parameter(parameter)
+        if monotone_rgb is not None:
+            self._send_led_rgb(monotone_rgb)
+            return
         if self._is_assigned_to_pan:
             self._send_led_color(get_color_for_pan_value(self.parameter_value))
             return
-        if _is_device_parameter(self.mapped_object):
-            self._send_led_rgb(get_rgb_for_device_parameter_value(self.mapped_object))
+        if _is_device_parameter(parameter):
+            self._send_led_rgb(get_rgb_for_device_parameter_value(parameter))
             return
-        self._send_led_color(get_color_for_parameter(self.mapped_object))
+        self._send_led_color(get_color_for_parameter(parameter))
 
     def _handle_mode_switch_override(self, value):
         if value == 64 or not self.is_mapped_to_parameter():

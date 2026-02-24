@@ -20,10 +20,16 @@ CUSTOM_PARAMETER_APPEND_REST = False
 #
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Wavetable": (
+        # 1-8
         "Osc 1 Gain",
         "Osc 1 Pos",
         "Osc 1 Effect 1",
         "Osc 1 Effect 2",
+        "Env 2 Attack",
+        "Env 2 Decay",
+        "Env 2 Sustain",
+        "Env 2 Release",
+        # 9-16
         "Osc 2 Gain",
         "Osc 2 Pos",
         "Osc 2 Effect 1",
@@ -32,18 +38,49 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Amp Decay",
         "Amp Sustain",
         "Amp Release",
-        "Env 2 Attack",
-        "Env 2 Decay",
-        "Env 2 Sustain",
-        "Env 2 Release",
+        # 17-21
         "Filter 1 Freq",
         "Filter 1 Res",
         "Env 2 Peak",
         "Filter 1 Drive",
+        # 22
         "Volume",
+        # Button 9-16
         "Sub On",
         "Osc 1 On",
         "Osc 2 On",
+    ),
+    "Analog": (
+        # 1-8
+        "OSC1 Octave",
+        "OSC1 Shape",
+        "AMP1 Level",
+        "Noise Level",
+        "FEG1 Attack",
+        "FEG1 Decay",
+        "FEG1 Sustain",
+        "FEG1 Rel",
+        # 9-16
+        "OSC2 Octave",
+        "OSC2 Shape",
+        "AMP2 Level",
+        "Unison Detune",
+        "AEG1 Attack",
+        "AEG1 Decay",
+        "AEG1 Sustain",
+        "AEG1 Rel",
+        # 17-21
+        "Filter 1 Freq",
+        "Filter 1 Res",
+        "F1 Freq < Env",
+        None,
+        # 22
+        "Volume",
+        # Button 9-16
+        "OSC1 On/Off",
+        "OSC2 On/Off",
+        "Noise On/Off",
+        "Unison On/Off",
     ),
     "Saturator": (
         "Type",
@@ -135,19 +172,19 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         # Encoder 9-16
-        "1 Resonance A",
+        None,
         "2 Gain A",
         "3 Gain A",
-        "4 Resonance A",
+        None,
         None,
         None,
         None,
         None,
         # Encoder 17-21
-        "1 Filter Type A",
+        "1 Resonance A",
         "2 Resonance A",
         "3 Resonance A",
-        "4 Filter Type A",
+        "4 Resonance A",
         # Encoder 22
         "Output Gain",
         # Button 9-16

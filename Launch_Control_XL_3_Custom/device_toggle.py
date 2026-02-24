@@ -14,6 +14,8 @@ LED_FORCE_HOLD_SEC = 0.15
 PIGMENTS_NAME_KEYWORD = "pigments"
 PIGMENTS_INVERTED_LED_OFFSETS = (0, 1)
 DEVICE_ON_PARAMETER_NAME = "Device On"
+BUTTON_LED_OFF_VALUE = Rgb.OFF.midi_value
+BUTTON_LED_ON_VALUE = Rgb.WHITE_HALF.midi_value
 CUSTOM_DEVICE_ALIASES = {
     "instrumentvector": "wavetable",
     "wavetable": "instrumentvector",
@@ -137,7 +139,7 @@ class DeviceToggleComponent(Component):
         except RuntimeError:
             return
         forced_led_is_on = self._led_is_on(selected_device, offset, target_is_on)
-        forced_led_value = Rgb.WHITE.midi_value if forced_led_is_on else Rgb.WHITE_DIM.midi_value
+        forced_led_value = BUTTON_LED_ON_VALUE if forced_led_is_on else BUTTON_LED_OFF_VALUE
         self._forced_led_values[offset] = forced_led_value
         self._forced_led_until[offset] = time.monotonic() + LED_FORCE_HOLD_SEC
         self._send_led_value_for_offset(offset, forced_led_value, force=True)
@@ -192,21 +194,21 @@ class DeviceToggleComponent(Component):
         selected_device = self._selected_device()
         parameter = self._parameter_for_offset(offset, selected_device=selected_device)
         if not liveobj_valid(parameter):
-            return Rgb.OFF.midi_value
+            return BUTTON_LED_OFF_VALUE
         if not getattr(parameter, "is_enabled", True):
-            return Rgb.OFF.midi_value
+            return BUTTON_LED_OFF_VALUE
         try:
             min_value = parameter.min
             max_value = parameter.max
             current = parameter.value
         except RuntimeError:
-            return Rgb.OFF.midi_value
+            return BUTTON_LED_OFF_VALUE
         if max_value <= min_value:
-            return Rgb.OFF.midi_value
+            return BUTTON_LED_OFF_VALUE
         midpoint = min_value + (max_value - min_value) / 2.0
         parameter_is_on = current > midpoint
         led_is_on = self._led_is_on(selected_device, offset, parameter_is_on)
-        return Rgb.WHITE.midi_value if led_is_on else Rgb.WHITE_DIM.midi_value
+        return BUTTON_LED_ON_VALUE if led_is_on else BUTTON_LED_OFF_VALUE
 
     def _parameter_for_offset(self, offset, selected_device=None):
         if not liveobj_valid(selected_device):
