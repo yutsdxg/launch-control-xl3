@@ -2,7 +2,7 @@ import Live
 from ableton.v3.base import task
 from ableton.v3.control_surface import ControlSurface, ControlSurfaceSpecification, create_skin
 from ableton.v3.control_surface.capabilities import AUTO_LOAD_KEY, CONTROLLER_ID_KEY, PORTS_KEY, SCRIPT, SYNC, controller_id, inport, outport
-from ableton.v3.live import action, liveobj_valid
+from ableton.v3.live import action
 from Launchkey_MK4.cue_point import CuePointComponent
 from Launchkey_MK4.encoder_touch import EncoderTouchComponent
 from Launchkey_MK4.zoom import ZoomComponent
@@ -32,12 +32,16 @@ LAST_TOUCHED_PARAMETER_POLL_INTERVAL = 0.1
 RELATIVE_ENCODER_DELTA_SCALE = 1.0 / 127.0
 DYNAMIC_ASSIGNMENT_SLOT_START = 5
 DYNAMIC_ASSIGNMENT_SLOT_COUNT = 3
-FADER_TRACK_SELECTION_COUNT = 9
-FADER_DEVICE_SELECTION_COUNT = 9
-FADER_DEVICE_SELECTION_INDEX = 7
 MIDI_VALUE_RANGE = 128
-FADER_TRACK_SELECTION_GROUP_ORDINALS = ((5, 1), (6, 2))
-ARRANGEMENT_FOLLOW_FADER_INDEXES = (5, 6)
+FADER_SELECTION_VALUE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 127))
+FADER_TRACK_SELECTION_MAP = {
+    4: ("group", 1, 4, 1),
+    5: ("group", 1, 8, 5),
+    6: ("group", 2, 4, 1),
+    7: ("group", 2, 8, 5),
+    8: ("group", 2, 12, 9),
+}
+ARRANGEMENT_FOLLOW_FADER_INDEXES = (3, 4, 5, 6, 7)
 ARRANGEMENT_VIEW_NAME = "Arranger"
 SESSION_VIEW_NAME = "Session"
 LOGGER = logging.getLogger(__name__)
@@ -104,13 +108,10 @@ class Launch_Control_XL_3(ControlSurface):
         self._assignment_candidate_signature = None
         self._fader_track_selection_controls = ()
         self._fader_track_selection_listeners = ()
-        self._fader_device_selection_control = None
-        self._fader_device_selection_listener = None
         super().__init__(*a, **k)
         self._setup_dynamic_parameter_assignment()
         self._setup_mode_switch_parameter_override()
         self._setup_fader_track_selection()
-        self._setup_fader_device_selection()
 
     def port_settings_changed(self):
         self._send_midi(midi.make_connection_message(connect=False))
@@ -254,31 +255,31 @@ class Launch_Control_XL_3(ControlSurface):
             return
         controls = []
         listeners = []
-        for fader_index, group_ordinal in FADER_TRACK_SELECTION_GROUP_ORDINALS:
+        for fader_number, mapping_spec in FADER_TRACK_SELECTION_MAP.items():
+            fader_index = fader_number - 1
             if fader_index >= len(faders):
                 continue
             control = faders[fader_index]
-            listener = self._make_fader_track_selection_listener(fader_index, group_ordinal)
+            listener = self._make_fader_track_selection_listener(fader_index, mapping_spec)
             control.add_value_listener(listener)
             controls.append(control)
             listeners.append(listener)
         self._fader_track_selection_controls = tuple(controls)
         self._fader_track_selection_listeners = tuple(listeners)
 
-    def _make_fader_track_selection_listener(self, fader_index, group_ordinal):
-        def _listener(value, fader_index=fader_index, group_ordinal=group_ordinal):
-            self._on_fader_track_selection_value(value, fader_index, group_ordinal)
+    def _make_fader_track_selection_listener(self, fader_index, mapping_spec):
+        def _listener(value, fader_index=fader_index, mapping_spec=mapping_spec):
+            self._on_fader_track_selection_value(value, fader_index, mapping_spec)
 
         return _listener
 
-    def _on_fader_track_selection_value(self, value, fader_index, group_ordinal):
+    def _on_fader_track_selection_value(self, value, fader_index, mapping_spec):
         if not self._is_daw_control_mode_active():
             return
-        targets = self._get_group_child_targets(group_ordinal)
-        if not targets:
+        bucket_index = self._fader_value_to_quarter_bucket(value)
+        if bucket_index is None:
             return
-        index = self._fader_value_to_reversed_index(value, FADER_TRACK_SELECTION_COUNT, len(targets))
-        target = targets[index]
+        target = self._resolve_track_selection_target(mapping_spec, bucket_index)
         if target is None:
             return
         try:
@@ -309,59 +310,12 @@ class Launch_Control_XL_3(ControlSurface):
         except RuntimeError:
             return False
 
-    def _setup_fader_device_selection(self):
-        faders = tuple(getattr(self.elements, "faders_raw", ()))
-        if FADER_DEVICE_SELECTION_INDEX >= len(faders):
-            return
-        control = faders[FADER_DEVICE_SELECTION_INDEX]
-        listener = self._make_fader_device_selection_listener()
-        control.add_value_listener(listener)
-        self._fader_device_selection_control = control
-        self._fader_device_selection_listener = listener
-
-    def _make_fader_device_selection_listener(self):
-        def _listener(value):
-            self._on_fader_device_selection_value(value)
-
-        return _listener
-
-    def _on_fader_device_selection_value(self, value):
-        if not self._is_daw_control_mode_active():
-            return
-        targets = self._get_selected_track_device_targets()
-        if not targets:
-            return
-        index = self._fader_value_to_reversed_index(value, FADER_DEVICE_SELECTION_COUNT, len(targets))
-        target = targets[index]
-        if target is None:
-            return
-        try:
-            selected_track = self.song.view.selected_track
-            selected_device = selected_track.view.selected_device
-        except RuntimeError:
-            selected_device = None
-        try:
-            if selected_device == target:
-                return
-        except RuntimeError:
-            pass
-        if self._select_device(target):
-            return
-        try:
-            action.select(target)
-        except RuntimeError:
-            pass
-
-    def _fader_value_to_reversed_index(self, value, logical_count, target_count):
+    def _fader_value_to_quarter_bucket(self, value):
         normalized_value = min(max(int(value), 0), MIDI_VALUE_RANGE - 1)
-        if target_count <= 1:
-            return 0
-        # ノッチ中心ベース: 9段なら 0..127 を8区間として最近傍ノッチへ丸める。
-        forward_index = int(
-            round((normalized_value * float(target_count - 1)) / float(MIDI_VALUE_RANGE - 1))
-        )
-        forward_index = min(forward_index, target_count - 1)
-        return (target_count - 1) - forward_index
+        for bucket_index, (bucket_start, bucket_end) in enumerate(FADER_SELECTION_VALUE_BUCKETS):
+            if bucket_start <= normalized_value <= bucket_end:
+                return bucket_index
+        return None
 
     def _follow_arrangement_to_selected_track(self, previous_track, target_track, fader_index):
         if fader_index not in ARRANGEMENT_FOLLOW_FADER_INDEXES:
@@ -449,31 +403,23 @@ class Launch_Control_XL_3(ControlSurface):
         except RuntimeError:
             pass
 
-    def _get_selected_track_device_targets(self):
-        try:
-            selected_track = self.song.view.selected_track
-            devices = tuple(selected_track.devices)
-        except RuntimeError:
-            return ()
-        return tuple(device for device in devices if liveobj_valid(device))[:FADER_DEVICE_SELECTION_COUNT]
-
-    def _select_device(self, device):
-        if not liveobj_valid(device):
-            return False
-        try:
-            self.song.view.select_device(device)
-            return True
-        except TypeError:
-            pass
-        except RuntimeError:
-            pass
-        try:
-            self.song.view.select_device(device, False)
-            return True
-        except RuntimeError:
-            return False
-        except TypeError:
-            return False
+    def _resolve_track_selection_target(self, mapping_spec, bucket_index):
+        if not mapping_spec or len(mapping_spec) != 4:
+            return None
+        target_kind, group_ordinal, start_ordinal, end_ordinal = mapping_spec
+        if target_kind != "group":
+            return None
+        targets = self._get_group_child_targets(group_ordinal)
+        if not targets:
+            return None
+        step = 1 if end_ordinal >= start_ordinal else -1
+        max_bucket_index = abs(end_ordinal - start_ordinal)
+        effective_bucket_index = min(max(bucket_index, 0), max_bucket_index)
+        target_ordinal = start_ordinal + (effective_bucket_index * step)
+        target_index = target_ordinal - 1
+        if target_index < 0 or target_index >= len(targets):
+            return None
+        return targets[target_index]
 
     def _get_group_child_targets(self, group_ordinal):
         if group_ordinal < 1:
@@ -499,7 +445,7 @@ class Launch_Control_XL_3(ControlSurface):
                     children.append(track)
             except RuntimeError:
                 continue
-        return tuple(children[:FADER_TRACK_SELECTION_COUNT])
+        return tuple(children)
 
     def _update_assignment_candidate(self):
         if not self._dynamic_assignment_encoders:
@@ -719,15 +665,6 @@ class Launch_Control_XL_3(ControlSurface):
         return left_target is right_target
 
     def disconnect(self):
-        if self._fader_device_selection_control is not None and self._fader_device_selection_listener is not None:
-            try:
-                self._fader_device_selection_control.remove_value_listener(
-                    self._fader_device_selection_listener
-                )
-            except RuntimeError:
-                pass
-        self._fader_device_selection_control = None
-        self._fader_device_selection_listener = None
         for control, listener in zip(
             self._fader_track_selection_controls,
             self._fader_track_selection_listeners,
