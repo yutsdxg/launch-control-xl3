@@ -2,6 +2,9 @@ from .colors import Rgb, make_color_for_liveobj
 
 class Skin:
     
+    class DeviceToggle:
+        Off = Rgb.OFF
+    
     class Transport:
         PlayOn = Rgb.GREEN
         PlayOff = Rgb.GREEN_HALF
@@ -68,4 +71,6 @@ class Skin:
         class TrackSelect:
             On = Rgb.WHITE
 
-
+        
+        class DeviceToggle:
+            On = Rgb.OFF

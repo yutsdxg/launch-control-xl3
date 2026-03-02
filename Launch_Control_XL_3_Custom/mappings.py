@@ -23,7 +23,7 @@ def create_mappings(control_surface):
             "record_button": "record_button",
         },
         "Mixer": {
-            "volume_controls": "faders",
+            "volume_controls": "mixer_volume_faders",
         },
         "View_Control": {
             "prev_track_button": "track_left_button",
@@ -48,14 +48,16 @@ def create_mappings(control_surface):
             },
         },
         "Daw_Mixer_Button_Modes": {
-            "cycle_mode_button": "daw_mixer_mode_button",
-            "mute": {
-                "component": "Mixer",
-                "mute_buttons": "daw_mixer_buttons",
-            },
-            "track_select": {
-                "component": "Mixer",
-                "track_select_buttons": "daw_mixer_buttons",
+            "device_toggle": {
+                "component": "Device_Toggle",
+                "toggle_button_1": "device_toggle_1_button",
+                "toggle_button_2": "device_toggle_2_button",
+                "toggle_button_3": "device_toggle_3_button",
+                "toggle_button_4": "device_toggle_4_button",
+                "toggle_button_5": "device_toggle_5_button",
+                "toggle_button_6": "device_toggle_6_button",
+                "toggle_button_7": "device_toggle_7_button",
+                "toggle_button_8": "device_toggle_8_button",
             },
         },
         "Encoder_Modes": {
@@ -77,6 +79,10 @@ def create_mappings(control_surface):
             },
             "daw_control": {
                 "modes": [
+                    {
+                        "component": "Mixer",
+                        "target_track_volume_control": "faders_raw[2]",
+                    },
                     {
                         "component": "Device",
                         "parameter_controls": "device_parameter_encoders",
