@@ -20,30 +20,30 @@ CUSTOM_PARAMETER_APPEND_REST = False
 #
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Wavetable": (
-        # 1-8
-        "Osc 1 Gain",
+        # Encoder 1-8
         "Osc 1 Pos",
         "Osc 1 Effect 1",
         "Osc 1 Effect 2",
+        "Osc 1 Gain",
         "Env 2 Attack",
         "Env 2 Decay",
         "Env 2 Sustain",
         "Env 2 Release",
-        # 9-16
-        "Osc 2 Gain",
+        # Encoder 9-16
         "Osc 2 Pos",
         "Osc 2 Effect 1",
         "Osc 2 Effect 2",
+        "Osc 2 Gain",
         "Amp Attack",
         "Amp Decay",
         "Amp Sustain",
         "Amp Release",
-        # 17-21
+        # Encoder 17-20
         "Filter 1 Freq",
         "Filter 1 Res",
         "Env 2 Peak",
         "Filter 1 Drive",
-        # 22
+        # Encoder 21
         "Volume",
         # Button 9-16
         "Sub On",
@@ -51,30 +51,30 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Osc 2 On",
     ),
     "Analog": (
-        # 1-8
+        # Encoder 1-8
         "OSC1 Octave",
         "OSC1 Shape",
-        "AMP1 Level",
-        "Noise Level",
+        "OSC1 Level",
+        "Noise Color",
         "FEG1 Attack",
         "FEG1 Decay",
         "FEG1 Sustain",
         "FEG1 Rel",
-        # 9-16
+        # Encoder 9-16
         "OSC2 Octave",
         "OSC2 Shape",
-        "AMP2 Level",
-        "Unison Detune",
+        "OSC2 Level",
+        "Noise Level",
         "AEG1 Attack",
         "AEG1 Decay",
         "AEG1 Sustain",
         "AEG1 Rel",
-        # 17-21
+        # Encoder 17-20
         "Filter 1 Freq",
         "Filter 1 Res",
         "F1 Freq < Env",
         None,
-        # 22
+        # Encoder 21
         "Volume",
         # Button 9-16
         "OSC1 On/Off",
@@ -83,6 +83,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Unison On/Off",
     ),
     "Saturator": (
+        # Encoder 1-8
         "Type",
         None,
         None,
@@ -91,6 +92,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
+        # Encoder 9-16
         "Post Clip Mode",
         "Color On",
         "Color Amt Low",
@@ -99,12 +101,16 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
+        # Encoder 17-20
         "Drive",
         "Output",
         "Dry/Wet",
+        None,
+        # Encoder 21
+        None,
     ),
     "Echo": (
-        # 1-8
+        # Encoder 1-8
         {"L Division": {"mode_count": 7}},
         "L Sync Mode",
         "R Division",
@@ -113,7 +119,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         "Stereo",
-        # 9-16
+        # Encoder 9-16
         "L Offset",
         None,
         "R Offset",
@@ -122,12 +128,12 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Reverb Decay",
         "Channel Mode",
         "Output",
-        # 17-21
+        # Encoder 17-20
         "Input",
         "Feedback",
         "HP Freq",
         "LP Freq",
-        # 22
+        # Encoder 21
         "Dry Wet",
         # Button 9-16
         "Link",
@@ -136,7 +142,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
 
     ),
     "Reverb": (
-        # 1-8
+        # Encoder 1-8
         "In Filter Freq",
         "ER Spin Amount",
         "ER Spin Rate",
@@ -145,7 +151,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Diffusion",
         "Chorus Amount",
         "Reflect",
-        # 9-16
+        # Encoder 9-16
         "In Filter Width",
         None,
         "ER Shape",
@@ -154,12 +160,14 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Scale",
         "Chorus Rate",
         "Diffuse",
-        # 17-21
+        # Encoder 17-20
         "Predelay",
         "Size",
         "Decay",
         "Stereo",
+        # Encoder 21
         "Dry Wet",
+        # Button 9-16
     ),
     "EQ Eight": (
         # Encoder 1-8
@@ -180,12 +188,12 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
-        # Encoder 17-21
+        # Encoder 17-20
         "1 Resonance A",
         "2 Resonance A",
         "3 Resonance A",
         "4 Resonance A",
-        # Encoder 22
+        # Encoder 21
         "Output Gain",
         # Button 9-16
         "1 Filter On A",
@@ -198,7 +206,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
     ),
     "Auto Filter": (
-        # 1-8
+        # Encoder 1-8
         "Frequency",
         None,
         None,
@@ -207,7 +215,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         "Drive",
-        # 9-16
+        # Encoder 9-16
         "Type",
         None,
         None,
@@ -216,12 +224,12 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         "Output",
-        # 17-21
+        # Encoder 17-20
         "Resonance",
         "LFO Amount",
         "LFO Freq",
         None,
-        # 22
+        # Encoder 21
         "Dry Wet",
         # Button 9-16
         "Slope",
