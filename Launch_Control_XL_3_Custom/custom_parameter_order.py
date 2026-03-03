@@ -82,6 +82,38 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Noise On/Off",
         "Unison On/Off",
     ),
+    "Sampler": (
+        # Encoder 1-8
+        None,
+        None,
+        None,
+        None,
+        "Fe Attack",
+        "Fe Decay",
+        "Fe Sustain",
+        "Fe Release",
+        # Encoder 9-16
+        None,
+        None,
+        None,
+        None,
+        "Ve Attack",
+        "Ve Decay",
+        "Ve Sustain",
+        "Ve Release",
+        # Encoder 17-20
+        "Filter Freq",
+        "Filter Res",
+        "Fe < Env",
+        "Filter Drive",
+        # Encoder 21
+        "Volume",
+        # Button 9-16
+        "OSC1 On/Off",
+        "OSC2 On/Off",
+        "Noise On/Off",
+        "Unison On/Off",
+    ),
     "Saturator": (
         # Encoder 1-8
         "Type",

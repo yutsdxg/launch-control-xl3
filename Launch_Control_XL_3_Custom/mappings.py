@@ -94,6 +94,10 @@ def create_mappings(control_surface):
                         "prev_button": "page_up_button_with_shift",
                         "next_button": "page_down_button_with_shift",
                     },
+                    {
+                        "component": "Transport",
+                        "arrangement_position_encoder": "lower_encoders_raw[7]",
+                    },
                     set_relative_encoder_mode(control_surface),
                 ],
                 "behaviour": make_relative_encoder_mode_behavior(control_surface),
