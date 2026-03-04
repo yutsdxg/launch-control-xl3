@@ -95,6 +95,11 @@ def create_mappings(control_surface):
                         "next_button": "page_down_button_with_shift",
                     },
                     {
+                        "component": "Zoom",
+                        "vertical_zoom_encoder": "lower_encoders_raw[5]",
+                        "horizontal_zoom_encoder": "lower_encoders_raw[6]",
+                    },
+                    {
                         "component": "Transport",
                         "arrangement_position_encoder": "lower_encoders_raw[7]",
                     },

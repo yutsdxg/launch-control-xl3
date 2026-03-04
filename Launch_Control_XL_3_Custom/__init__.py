@@ -31,7 +31,7 @@ SYSEX_DISPLAY_ID_LENGTH = 9
 LAST_TOUCHED_PARAMETER_POLL_INTERVAL = 0.1
 RELATIVE_ENCODER_DELTA_SCALE = 1.0 / 127.0
 DYNAMIC_ASSIGNMENT_SLOT_START = 5
-DYNAMIC_ASSIGNMENT_SLOT_COUNT = 2
+DYNAMIC_ASSIGNMENT_SLOT_COUNT = 0
 MIDI_VALUE_RANGE = 128
 FADER_SELECTION_VALUE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 127))
 FADER_TRACK_SELECTION_MAP = {
@@ -150,6 +150,8 @@ class Launch_Control_XL_3(ControlSurface):
         super()._flush_midi_messages()
 
     def _setup_dynamic_parameter_assignment(self):
+        if DYNAMIC_ASSIGNMENT_SLOT_COUNT <= 0:
+            return
         lower_encoders = getattr(self.elements, "lower_encoders_raw", ())
         if len(lower_encoders) < 8:
             return
