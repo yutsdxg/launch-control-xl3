@@ -82,6 +82,68 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Noise On/Off",
         "Unison On/Off",
     ),
+    "Drift": (
+        # Encoder 1-8
+        "Osc 1 Oct",
+        "Osc 1 Wave",
+        "Osc 1 Shape",
+        "Osc 1 Gain",
+        "Env 2 Attack",
+        "Env 2 Decay",
+        "Env 2 Sustain",
+        "Env 2 Release",
+        # Encoder 9-16
+        "Osc 2 Oct",
+        "Osc 2 Wave",
+        "Osc 2 Shape",
+        "Osc 2 Gain",
+        "Env 1 Attack",
+        "Env 1 Decay",
+        "Env 1 Sustain",
+        "Env 1 Release",
+        # Encoder 17-20
+        "LP Freq",
+        "LP Reso",
+        "LP Mod Amt 1",
+        "HP Freq",
+        # Encoder 21
+        "Volume",
+        # Button 9-16
+        "Osc 1 On",
+        "Osc 2 On",
+        "Noise On",
+        "LP Type",
+    ),
+    "Meld": (
+        # Encoder 1-8
+        "A Octave",
+        "A Osc Type",
+        "A Osc Shape",
+        "A Osc Tone",
+        "A Mod Attack",
+        "A Mod Decay",
+        "A Mod Peak",
+        "A Mod Release",
+        # Encoder 9-16
+        "B Octave",
+        "B Osc Type",
+        "B Osc Shape",
+        "B Osc Tone",
+        "A Amp Attack",
+        "A Amp Decay",
+        "A Amp Sustain",
+        "A Amp Release",
+        # Encoder 17-20
+        "A Filter Freq",
+        "A Filter Q",
+        "Drive",
+        "A Filter Type",
+        # Encoder 21
+        "Volume",
+        # Button 9-16
+        "A On",
+        "B On",
+    ),
     "Sampler": (
         # Encoder 1-8
         None,

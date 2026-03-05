@@ -261,6 +261,8 @@ class DeviceToggleComponent(Component):
                 continue
             parameter = self._find_parameter(parameter_by_name, parameter_name)
             if parameter is None:
+                # 名前不一致でもスロット位置は維持し、後続のトグル割当ずれを防ぐ。
+                ordered.append(None)
                 continue
             ordered.append(parameter)
             used_ids.add(id(parameter))
