@@ -51,6 +51,8 @@ SIMPLE_COLOR_TO_RGB = {
 CUSTOM_DEVICE_ALIASES = {
     "instrumentvector": "wavetable",
     "wavetable": "instrumentvector",
+    "instrumentmeld": "meld",
+    "meld": "instrumentmeld",
     "hybrid": "reverb",
     "reverb": "hybrid",
 }
@@ -229,18 +231,12 @@ def _resolve_device_mode_switch_rules(parameter):
         getattr(parent, "class_name", ""),
         getattr(parent, "class_display_name", ""),
     )
-    normalized_keys = []
     for key in keys:
         normalized = _normalize_device_key(key)
         if not normalized:
             continue
-        normalized_keys.append(normalized)
         if normalized in MODE_SWITCH_RULES_INDEX:
             return MODE_SWITCH_RULES_INDEX[normalized]
-    for device_key in normalized_keys:
-        for custom_key, rules in MODE_SWITCH_RULES_INDEX.items():
-            if custom_key in device_key or device_key in custom_key:
-                return rules
     return None
 
 

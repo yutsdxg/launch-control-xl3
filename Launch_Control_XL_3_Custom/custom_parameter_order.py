@@ -17,6 +17,8 @@ CUSTOM_PARAMETER_APPEND_REST = False
 # - 通常: "Parameter Name"
 # - 未割り当て: None / "SKIP"
 # - モード数を明示する場合だけ: {"Parameter Name": {"mode_count": 7}}
+# - Instrument Rack選択時の子デバイス透過は未対応（本体デバイス選択時のみ適用）
+#   例: Meldのカスタム順序はMeld本体を直接選択した場合のみ有効
 #
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Wavetable": (
@@ -136,7 +138,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         # Encoder 17-20
         "A Filter Freq",
         "A Filter Q",
-        "Drive",
+        "A Filter L-B-H-N",
         "A Filter Type",
         # Encoder 21
         "Volume",

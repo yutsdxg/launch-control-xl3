@@ -19,6 +19,8 @@ BUTTON_LED_ON_VALUE = Rgb.WHITE_HALF.midi_value
 CUSTOM_DEVICE_ALIASES = {
     "instrumentvector": "wavetable",
     "wavetable": "instrumentvector",
+    "instrumentmeld": "meld",
+    "meld": "instrumentmeld",
     "hybrid": "reverb",
     "reverb": "hybrid",
 }
@@ -280,17 +282,10 @@ class DeviceToggleComponent(Component):
             getattr(selected_device, "class_name", ""),
             getattr(selected_device, "class_display_name", ""),
         )
-        normalized_keys = []
         for key in name_keys:
             normalized = _normalize_device_key(key)
-            if normalized:
-                normalized_keys.append(normalized)
             if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
                 return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
-        for device_key in normalized_keys:
-            for custom_key, custom_order in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX.items():
-                if custom_key in device_key or device_key in custom_key:
-                    return custom_order
         return None
 
     def _build_parameter_index(self, parameters):

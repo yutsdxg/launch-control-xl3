@@ -15,6 +15,8 @@ CUSTOM_DEVICE_ALIASES = {
     # Ableton internal class names
     "instrumentvector": "wavetable",
     "wavetable": "instrumentvector",
+    "instrumentmeld": "meld",
+    "meld": "instrumentmeld",
     "hybrid": "reverb",
     "reverb": "hybrid",
 }
@@ -117,6 +119,16 @@ class _CustomParameterBankingInfo(object):
             bank.extend([None] * (self._bank_size - len(bank)))
         return tuple(bank)
 
+    def device_bank_definition(self, device, *a, **k):
+        # Avoid DescribedDeviceParameterBank path when custom bank_count is active.
+        # This keeps bank_count and bank_definition aligned and prevents IndexError.
+        if self._resolve_custom_order(device) is not None:
+            return None
+        delegate = self._delegate
+        if hasattr(delegate, "device_bank_definition"):
+            return delegate.device_bank_definition(device, *a, **k)
+        return None
+
     def _build_custom_flat_parameters(self, device):
         custom_order = self._resolve_custom_order(device)
         if custom_order is None:
@@ -169,17 +181,10 @@ class _CustomParameterBankingInfo(object):
             getattr(device, "class_name", ""),
             getattr(device, "class_display_name", ""),
         )
-        normalized_keys = []
         for key in name_keys:
             normalized = _normalize_device_key(key)
-            if normalized:
-                normalized_keys.append(normalized)
             if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
                 return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
-        for device_key in normalized_keys:
-            for custom_key, custom_order in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX.items():
-                if custom_key in device_key or device_key in custom_key:
-                    return custom_order
         return None
 
     def _build_parameter_index(self, parameters):
@@ -301,17 +306,10 @@ class DeviceComponent(DeviceComponentBase):
             getattr(device, "class_name", ""),
             getattr(device, "class_display_name", ""),
         )
-        normalized_keys = []
         for key in name_keys:
             normalized = _normalize_device_key(key)
-            if normalized:
-                normalized_keys.append(normalized)
             if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
                 return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
-        for device_key in normalized_keys:
-            for custom_key, custom_order in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX.items():
-                if custom_key in device_key or device_key in custom_key:
-                    return custom_order
         return None
 
     def _get_current_device_for_custom_order(self):
