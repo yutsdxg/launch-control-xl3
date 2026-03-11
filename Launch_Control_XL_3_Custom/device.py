@@ -1,76 +1,22 @@
 from ableton.v3.control_surface.components import DeviceBankNavigationComponent as DeviceBankNavigationComponentBase
 from ableton.v3.control_surface.components import DeviceComponent as DeviceComponentBase
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
-import re
+from .custom_parameter_utils import (
+    DEVICE_ON_PARAMETER_NAME,
+    build_device_order_index,
+    normalize_device_key,
+    order_named_items,
+)
 import logging
-
-DEVICE_ON_PARAMETER_NAME = "Device On"
 
 DEVICE_BANK_SIZE = 21
 DEVICE_QUANTIZED_PARAMETER_SENSITIVITY = 0.5
 BANK_NAME_JOIN_SEPARATOR = "\n"
 BANK_NAME_FALLBACK = "-"
 CUSTOM_BANK_NAME_PREFIX = "Custom"
-CUSTOM_DEVICE_ALIASES = {
-    # Ableton internal class names
-    "instrumentvector": "wavetable",
-    "wavetable": "instrumentvector",
-    "instrumentmeld": "meld",
-    "meld": "instrumentmeld",
-    "hybrid": "reverb",
-    "reverb": "hybrid",
-}
 
 
-def _normalize_name(value):
-    if value is None:
-        return ""
-    return " ".join(str(value).strip().lower().split())
-
-
-def _compact_name(value):
-    return re.sub(r"[^a-z0-9]+", "", _normalize_name(value))
-
-
-def _normalize_device_key(value):
-    normalized = _normalize_name(value)
-    if not normalized:
-        return normalized
-    parts = normalized.split(" ")
-    while parts and parts[-1].isdigit():
-        parts.pop()
-    return " ".join(parts)
-
-
-def _is_skip_slot(value):
-    return value is None or str(value).strip().upper() == "SKIP"
-
-
-def _extract_custom_entry_name_and_options(entry):
-    if _is_skip_slot(entry):
-        return None, None
-    if isinstance(entry, dict):
-        for parameter_name, options in entry.items():
-            if parameter_name is None:
-                continue
-            return str(parameter_name), options
-        return None, None
-    return str(entry), None
-
-
-def _make_device_order_index(raw_mapping):
-    result = {}
-    for key, order in raw_mapping.items():
-        normalized = _normalize_device_key(key)
-        if normalized:
-            result[normalized] = tuple(order)
-            alias = CUSTOM_DEVICE_ALIASES.get(normalized)
-            if alias:
-                result[alias] = tuple(order)
-    return result
-
-
-CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = _make_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
+CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -83,18 +29,18 @@ class _CustomParameterBankingInfo(object):
         return getattr(self._delegate, name)
 
     def device_bank_count(self, device, *a, **k):
-        custom_flat = self._build_custom_flat_parameters(device)
-        if custom_flat is None:
+        flat_parameters = self._preferred_flat_parameters(device)
+        if flat_parameters is None:
             return self._delegate.device_bank_count(device, *a, **k)
-        total = len(custom_flat)
+        total = len(flat_parameters)
         if total <= 0:
             return 1
         return max(1, (total + self._bank_size - 1) // self._bank_size)
 
     def device_bank_names(self, device, *a, **k):
         custom_count = self.device_bank_count(device, *a, **k)
-        custom_flat = self._build_custom_flat_parameters(device)
-        if custom_flat is None:
+        flat_parameters = self._preferred_flat_parameters(device)
+        if flat_parameters is None:
             return self._delegate.device_bank_names(device, *a, **k)
         try:
             base_names = list(self._delegate.device_bank_names(device, *a, **k))
@@ -109,12 +55,12 @@ class _CustomParameterBankingInfo(object):
         return tuple(names)
 
     def device_bank_parameters(self, device, bank_index, *a, **k):
-        custom_flat = self._build_custom_flat_parameters(device)
-        if custom_flat is None:
+        flat_parameters = self._preferred_flat_parameters(device)
+        if flat_parameters is None:
             return self._delegate.device_bank_parameters(device, bank_index, *a, **k)
         start = bank_index * self._bank_size
         end = start + self._bank_size
-        bank = list(custom_flat[start:end])
+        bank = list(flat_parameters[start:end])
         if len(bank) < self._bank_size:
             bank.extend([None] * (self._bank_size - len(bank)))
         return tuple(bank)
@@ -122,12 +68,21 @@ class _CustomParameterBankingInfo(object):
     def device_bank_definition(self, device, *a, **k):
         # Avoid DescribedDeviceParameterBank path when custom bank_count is active.
         # This keeps bank_count and bank_definition aligned and prevents IndexError.
-        if self._resolve_custom_order(device) is not None:
+        if self._preferred_flat_parameters(device) is not None:
             return None
         delegate = self._delegate
         if hasattr(delegate, "device_bank_definition"):
             return delegate.device_bank_definition(device, *a, **k)
         return None
+
+    def uses_duplicate_name_banking(self, device):
+        return self._build_duplicate_name_flat_parameters(device) is not None
+
+    def _preferred_flat_parameters(self, device):
+        custom_flat = self._build_custom_flat_parameters(device)
+        if custom_flat is not None:
+            return custom_flat
+        return self._build_duplicate_name_flat_parameters(device)
 
     def _build_custom_flat_parameters(self, device):
         custom_order = self._resolve_custom_order(device)
@@ -136,35 +91,16 @@ class _CustomParameterBankingInfo(object):
         parameters = tuple(getattr(device, "parameters", ()))
         if not parameters:
             return []
-        parameter_by_name = self._build_parameter_index(parameters)
-        custom_flat = []
-        used_parameter_ids = set()
-        missing_requested_names = []
-        for entry in custom_order:
-            if _is_skip_slot(entry):
-                custom_flat.append(None)
-                continue
-            parameter_name, _ = _extract_custom_entry_name_and_options(entry)
-            if not parameter_name:
-                custom_flat.append(None)
-                continue
-            parameter = self._find_parameter(parameter_by_name, parameter_name)
-            if parameter is None:
-                # 起動直後などで一時的にパラメータが見えない場合があるため、
-                # スロット位置は維持して後段の詰め込みを防ぐ。
-                missing_requested_names.append(parameter_name)
-                custom_flat.append(None)
-                continue
-            custom_flat.append(parameter)
-            used_parameter_ids.add(id(parameter))
+        custom_flat, missing_requested_names = order_named_items(
+            parameters,
+            custom_order,
+            append_rest=CUSTOM_PARAMETER_APPEND_REST,
+            get_name=self._parameter_name,
+            is_valid_item=self._is_assignable_parameter,
+            keep_missing_slots=True,
+        )
         if CUSTOM_PARAMETER_APPEND_REST:
-            for parameter in self._get_base_flat_parameters(device):
-                if parameter is None:
-                    continue
-                if id(parameter) in used_parameter_ids:
-                    continue
-                custom_flat.append(parameter)
-                used_parameter_ids.add(id(parameter))
+            custom_flat = tuple(custom_flat)
         try:
             if missing_requested_names:
                 LOGGER.info(
@@ -182,52 +118,40 @@ class _CustomParameterBankingInfo(object):
             getattr(device, "class_display_name", ""),
         )
         for key in name_keys:
-            normalized = _normalize_device_key(key)
+            normalized = normalize_device_key(key)
             if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
                 return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
         return None
 
-    def _build_parameter_index(self, parameters):
-        index = {}
-        for parameter in parameters:
-            if parameter is None:
-                continue
-            name = getattr(parameter, "name", "")
-            if not name or name == DEVICE_ON_PARAMETER_NAME:
-                continue
-            normalized = _normalize_name(name)
-            compact = _compact_name(name)
-            if not normalized:
-                continue
-            if name not in index:
-                index[name] = parameter
-            if normalized not in index:
-                index[normalized] = parameter
-            if compact and compact not in index:
-                index[compact] = parameter
-        return index
+    def _parameter_name(self, parameter):
+        return getattr(parameter, "name", "") or ""
 
-    def _find_parameter(self, parameter_by_name, requested_name):
-        if requested_name is None:
+    def _is_assignable_parameter(self, parameter):
+        return parameter is not None and self._parameter_name(parameter) not in ("", DEVICE_ON_PARAMETER_NAME)
+
+    def _build_duplicate_name_flat_parameters(self, device):
+        if self._resolve_custom_order(device) is not None:
             return None
-        direct = parameter_by_name.get(requested_name)
-        if direct is not None:
-            return direct
-        normalized = _normalize_name(requested_name)
-        direct = parameter_by_name.get(normalized)
-        if direct is not None:
-            return direct
-        compact = _compact_name(requested_name)
-        direct = parameter_by_name.get(compact)
-        if direct is not None:
-            return direct
-        if compact:
-            for key, parameter in parameter_by_name.items():
-                if not isinstance(key, str):
-                    continue
-                if compact in _compact_name(key) or _compact_name(key) in compact:
-                    return parameter
-        return None
+        parameters = self._all_assignable_parameters(device)
+        if not parameters or not self._has_duplicate_parameter_names(parameters):
+            return None
+        return parameters
+
+    def _all_assignable_parameters(self, device):
+        try:
+            parameters = tuple(getattr(device, "parameters", ()))
+        except RuntimeError:
+            return ()
+        return tuple(parameter for parameter in parameters if self._is_assignable_parameter(parameter))
+
+    def _has_duplicate_parameter_names(self, parameters):
+        seen_names = set()
+        for parameter in parameters:
+            name = self._parameter_name(parameter)
+            if name in seen_names:
+                return True
+            seen_names.add(name)
+        return False
 
     def _get_base_flat_parameters(self, device):
         base_flat = []
@@ -307,7 +231,7 @@ class DeviceComponent(DeviceComponentBase):
             getattr(device, "class_display_name", ""),
         )
         for key in name_keys:
-            normalized = _normalize_device_key(key)
+            normalized = normalize_device_key(key)
             if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
                 return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
         return None
@@ -331,70 +255,65 @@ class DeviceComponent(DeviceComponentBase):
             return ""
         return getattr(parameter, "name", "") or ""
 
-    def _find_info_for_requested_name(self, infos, requested_name, used_info_ids):
-        compact_requested = _compact_name(requested_name)
-        normalized_requested = _normalize_name(requested_name)
+    def _get_parameter_name_for_info(self, info):
+        return self._get_parameter_name(self._extract_parameter_from_info(info))
+
+    def _is_valid_parameter_info(self, info):
+        return self._get_parameter_name_for_info(info) not in ("", DEVICE_ON_PARAMETER_NAME)
+
+    def _parameter_info_base_name(self, info):
+        parameter_name = self._get_parameter_name_for_info(info)
+        if parameter_name:
+            return parameter_name
+        if info is None:
+            return ""
+        return getattr(info, "name", "") or ""
+
+    def _uniquify_parameter_infos(self, infos):
+        if not infos:
+            return infos
+        name_counts = {}
+        for info in infos:
+            base_name = self._parameter_info_base_name(info)
+            if not base_name:
+                continue
+            name_counts[base_name] = name_counts.get(base_name, 0) + 1
+        if not any(count > 1 for count in name_counts.values()):
+            return infos
+
+        result = []
+        seen_names = {}
         for info in infos:
             if info is None:
-                continue
-            if id(info) in used_info_ids:
+                result.append(None)
                 continue
             parameter = self._extract_parameter_from_info(info)
-            if parameter is None:
+            base_name = self._parameter_info_base_name(info)
+            if parameter is None or not base_name:
+                result.append(info)
                 continue
-            parameter_name = self._get_parameter_name(parameter)
-            if not parameter_name or parameter_name == DEVICE_ON_PARAMETER_NAME:
+
+            occurrence = seen_names.get(base_name, 0) + 1
+            seen_names[base_name] = occurrence
+            unique_name = base_name if occurrence == 1 else "{} [{}]".format(base_name, occurrence)
+            if unique_name == getattr(info, "name", None):
+                result.append(info)
                 continue
-            if parameter_name == requested_name:
-                return info
-            if _normalize_name(parameter_name) == normalized_requested:
-                return info
-            compact_parameter_name = _compact_name(parameter_name)
-            if compact_parameter_name == compact_requested:
-                return info
-            if compact_requested and (
-                compact_requested in compact_parameter_name
-                or compact_parameter_name in compact_requested
-            ):
-                return info
-        return None
+            result.append(self._create_parameter_info(parameter, unique_name))
+        return tuple(result)
 
     def _apply_custom_order_to_provided_infos(self, infos, custom_order):
         if not infos:
             return infos
-        result = []
-        used_info_ids = set()
-        missing_requested_names = []
-        for entry in custom_order:
-            if _is_skip_slot(entry):
-                result.append(None)
-                continue
-            requested_name, _ = _extract_custom_entry_name_and_options(entry)
-            if not requested_name:
-                result.append(None)
-                continue
-            matched = self._find_info_for_requested_name(infos, requested_name, used_info_ids)
-            if matched is None:
-                # Do not consume a slot when the name does not match.
-                # Empty slots should be created only by explicit SKIP/None.
-                missing_requested_names.append(requested_name)
-                continue
-            result.append(matched)
-            used_info_ids.add(id(matched))
-        if CUSTOM_PARAMETER_APPEND_REST:
-            for info in infos:
-                if info is None:
-                    continue
-                if id(info) in used_info_ids:
-                    continue
-                parameter = self._extract_parameter_from_info(info)
-                if parameter is None:
-                    continue
-                parameter_name = self._get_parameter_name(parameter)
-                if parameter_name == DEVICE_ON_PARAMETER_NAME:
-                    continue
-                result.append(info)
-                used_info_ids.add(id(info))
+        result, missing_requested_names = order_named_items(
+            infos,
+            custom_order,
+            append_rest=CUSTOM_PARAMETER_APPEND_REST,
+            get_name=self._get_parameter_name_for_info,
+            is_valid_item=self._is_valid_parameter_info,
+            keep_missing_slots=False,
+        )
+        result = list(result)
         target_size = len(infos)
         if len(result) < target_size:
             result.extend([None] * (target_size - len(result)))
@@ -413,12 +332,13 @@ class DeviceComponent(DeviceComponentBase):
     def _get_provided_parameters(self):
         device = self._get_current_device_for_custom_order()
         custom_order = self._resolve_custom_order(device)
-        if not custom_order:
-            return super()._get_provided_parameters()
         bank_provider = getattr(self, "_bank_provider", None)
         bank_index = getattr(bank_provider, "index", 0) if bank_provider is not None else 0
         banking_info = getattr(self, "_banking_info", None)
-        if banking_info is not None and hasattr(banking_info, "device_bank_parameters"):
+        use_custom_banking = bool(custom_order)
+        if not use_custom_banking and banking_info is not None and hasattr(banking_info, "uses_duplicate_name_banking"):
+            use_custom_banking = banking_info.uses_duplicate_name_banking(device)
+        if use_custom_banking and banking_info is not None and hasattr(banking_info, "device_bank_parameters"):
             bank_parameters = banking_info.device_bank_parameters(device, bank_index)
             reordered = [
                 self._create_parameter_info(parameter, self._get_parameter_name(parameter))
@@ -426,10 +346,13 @@ class DeviceComponent(DeviceComponentBase):
                 else None
                 for parameter in bank_parameters
             ]
+        elif not custom_order:
+            return self._uniquify_parameter_infos(super()._get_provided_parameters())
         else:
             # Compatibility fallback for BankingInfo variants without device_bank_parameters.
             infos = super()._get_provided_parameters()
             reordered = self._apply_custom_order_to_provided_infos(list(infos), custom_order)
+        reordered = self._uniquify_parameter_infos(reordered)
         try:
             LOGGER.info(
                 "LCXL3 custom order applied: device=%s class=%s entries=%s bank=%s",

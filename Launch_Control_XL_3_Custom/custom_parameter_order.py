@@ -16,7 +16,10 @@ CUSTOM_PARAMETER_APPEND_REST = False
 #
 # - 通常: "Parameter Name"
 # - 未割り当て: None / "SKIP"
-# - モード数を明示する場合だけ: {"Parameter Name": {"mode_count": 7}}
+# - 同名パラメータを順番に使う場合: "Attack", "Attack"
+# - n番目を明示する場合: {"Attack": {"occurrence": 2}}
+# - モード数を明示する場合: {"Parameter Name": {"mode_count": 7}}
+# - occurrence と mode_count は併用可
 # - Instrument Rack選択時の子デバイス透過は未対応（本体デバイス選択時のみ適用）
 #   例: Meldのカスタム順序はMeld本体を直接選択した場合のみ有効
 #

@@ -5,7 +5,13 @@ from ableton.v3.control_surface.elements import EncoderElement
 from ableton.v3.control_surface.midi import CC_STATUS, SYSEX_END
 from .colors import Rgb
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER
-import re
+from .custom_parameter_utils import (
+    build_global_parameter_rule_index,
+    build_mode_switch_rules_index,
+    compact_name,
+    normalize_device_key,
+    normalize_name,
+)
 import logging
 
 RGB_SYSEX_PREFIX = (240, 0, 32, 41, 2, 21, 1, 83)
@@ -48,78 +54,10 @@ SIMPLE_COLOR_TO_RGB = {
     97: (127, 116, 8),    # YELLOW
     103: (16, 16, 16),    # WHITE_DIM / DARK_GREEN(shared value)
 }
-CUSTOM_DEVICE_ALIASES = {
-    "instrumentvector": "wavetable",
-    "wavetable": "instrumentvector",
-    "instrumentmeld": "meld",
-    "meld": "instrumentmeld",
-    "hybrid": "reverb",
-    "reverb": "hybrid",
-}
+MODE_SWITCH_RULES_INDEX = build_mode_switch_rules_index(CUSTOM_DEVICE_PARAMETER_ORDER)
 
 
-def _normalize_name(value):
-    if value is None:
-        return ""
-    return " ".join(str(value).strip().lower().split())
-
-
-def _compact_name(value):
-    return re.sub(r"[^a-z0-9]+", "", _normalize_name(value))
-
-
-def _normalize_device_key(value):
-    normalized = _normalize_name(value)
-    if not normalized:
-        return normalized
-    parts = normalized.split(" ")
-    while parts and parts[-1].isdigit():
-        parts.pop()
-    return " ".join(parts)
-
-
-def _build_mode_switch_rules_index(raw_mapping):
-    indexed = {}
-    for device_name, custom_order in (raw_mapping or {}).items():
-        parameter_rules = {}
-        for entry in custom_order:
-            if not isinstance(entry, dict):
-                continue
-            for parameter_name, options in entry.items():
-                if parameter_name is None:
-                    continue
-                parameter_rules[str(parameter_name)] = options
-        if not parameter_rules:
-            continue
-        normalized = _normalize_device_key(device_name)
-        if not normalized:
-            continue
-        indexed[normalized] = parameter_rules
-        alias = CUSTOM_DEVICE_ALIASES.get(normalized)
-        if alias:
-            indexed[alias] = parameter_rules
-    return indexed
-
-
-MODE_SWITCH_RULES_INDEX = _build_mode_switch_rules_index(CUSTOM_DEVICE_PARAMETER_ORDER)
-
-
-def _build_global_parameter_rule_index(raw_mapping):
-    indexed = {}
-    for _, custom_order in (raw_mapping or {}).items():
-        for entry in custom_order:
-            if not isinstance(entry, dict):
-                continue
-            for parameter_name, options in entry.items():
-                if parameter_name is None:
-                    continue
-                key = _compact_name(parameter_name)
-                if key and key not in indexed:
-                    indexed[key] = options
-    return indexed
-
-
-GLOBAL_MODE_SWITCH_RULES = _build_global_parameter_rule_index(CUSTOM_DEVICE_PARAMETER_ORDER)
+GLOBAL_MODE_SWITCH_RULES = build_global_parameter_rule_index(CUSTOM_DEVICE_PARAMETER_ORDER)
 LOGGER = logging.getLogger(__name__)
 DEBUG_MODE_SWITCH_TARGETS = ("l division", "r division")
 
@@ -232,7 +170,7 @@ def _resolve_device_mode_switch_rules(parameter):
         getattr(parent, "class_display_name", ""),
     )
     for key in keys:
-        normalized = _normalize_device_key(key)
+        normalized = normalize_device_key(key)
         if not normalized:
             continue
         if normalized in MODE_SWITCH_RULES_INDEX:
@@ -247,14 +185,14 @@ def _rule_options_for_parameter(parameter_rules, parameter_name):
         return None
     if parameter_name in parameter_rules:
         return parameter_rules[parameter_name]
-    normalized_requested = _normalize_name(parameter_name)
-    compact_requested = _compact_name(parameter_name)
+    normalized_requested = normalize_name(parameter_name)
+    compact_requested = compact_name(parameter_name)
     for key, options in parameter_rules.items():
         if not isinstance(key, str):
             continue
-        if _normalize_name(key) == normalized_requested:
+        if normalize_name(key) == normalized_requested:
             return options
-        compact_key = _compact_name(key)
+        compact_key = compact_name(key)
         if compact_key == compact_requested:
             return options
         if compact_requested and (compact_requested in compact_key or compact_key in compact_requested):
@@ -265,14 +203,14 @@ def _rule_options_for_parameter(parameter_rules, parameter_name):
 def _global_rule_options_for_parameter(parameter_name):
     if not parameter_name:
         return None
-    key = _compact_name(parameter_name)
+    key = compact_name(parameter_name)
     if not key:
         return None
     return GLOBAL_MODE_SWITCH_RULES.get(key)
 
 
 def _is_debug_mode_switch_target(parameter_name):
-    normalized = _normalize_name(parameter_name)
+    normalized = normalize_name(parameter_name)
     return normalized in DEBUG_MODE_SWITCH_TARGETS
 
 
