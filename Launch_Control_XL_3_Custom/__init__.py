@@ -19,6 +19,7 @@ from .device import DeviceComponent
 from .device_toggle import DeviceToggleComponent
 from .display import display_specification
 from .elements import Elements
+from .fader_assignment_toggle import FaderAssignmentToggleComponent
 from .mappings import create_mappings
 from .mixer import MixerComponent
 from .selected_track_control import SelectedTrackControlComponent
@@ -86,6 +87,7 @@ class Specification(ControlSurfaceSpecification):
         'Device': DeviceComponent,
         'Device_Toggle': DeviceToggleComponent,
         'Encoder_Touch': EncoderTouchComponent,
+        'Fader_Assignment_Toggle': FaderAssignmentToggleComponent,
         'Mixer': MixerComponent,
         'Selected_Track_Control': SelectedTrackControlComponent,
         'Session_Navigation': SessionNavigationComponent,

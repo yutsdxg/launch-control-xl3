@@ -31,6 +31,7 @@ CC_DUMMY_FADER_5 = 123
 CC_DUMMY_FADER_6 = 122
 CC_DUMMY_FADER_7 = 121
 CC_DUMMY_FADER_8 = 120
+CC_DUMMY_DAW_CONTROL_BUTTON_1 = 119
 
 # Matrix ranges
 RANGE_DAW_CONTROL_BUTTONS = range(37, 45)
@@ -74,6 +75,7 @@ class Elements(ElementsBase):
         self.add_encoder(CC_DUMMY_FADER_6, "Dummy_Fader_6", channel=CHANNEL_ENCODER_LED)
         self.add_encoder(CC_DUMMY_FADER_7, "Dummy_Fader_7", channel=CHANNEL_ENCODER_LED)
         self.add_encoder(CC_DUMMY_FADER_8, "Dummy_Fader_8", channel=CHANNEL_ENCODER_LED)
+        self.add_button(CC_DUMMY_DAW_CONTROL_BUTTON_1, "Dummy_Daw_Control_Button_1", channel=CHANNEL_ENCODER_LED)
         self.add_button(45, "Device_Toggle_1_Button")
         self.add_button(46, "Device_Toggle_2_Button")
         self.add_button(47, "Device_Toggle_3_Button")
@@ -84,6 +86,12 @@ class Elements(ElementsBase):
         self.add_button(52, "Device_Toggle_8_Button")
 
         self.add_button_matrix([RANGE_DAW_CONTROL_BUTTONS], "Daw_Control_Buttons")
+        self.add_element(
+            "Mixer_Daw_Control_Buttons",
+            ButtonMatrixElement,
+            rows=[[self.dummy_daw_control_button_1] + list(self.daw_control_buttons_raw[1:])],
+            is_private=True,
+        )
 
         self.add_modified_control(control=self.play_button, modifier=self.shift_button)
         self.add_modified_control(control=self.track_right_button, modifier=self.shift_button)

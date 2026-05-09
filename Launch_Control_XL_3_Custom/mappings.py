@@ -40,14 +40,18 @@ def create_mappings(control_surface):
             "solo_button": "daw_control_mode_button",
             "track_on_button": "daw_mixer_mode_button",
         },
+        "Fader_Assignment_Toggle": {
+            "fader": "faders_raw[0]",
+            "toggle_button": "daw_control_buttons_raw[0]",
+        },
         "Daw_Control_Button_Modes": {
             "solo": {
                 "component": "Mixer",
-                "solo_buttons": "daw_control_buttons",
+                "solo_buttons": "mixer_daw_control_buttons",
             },
             "arm": {
                 "component": "Mixer",
-                "arm_buttons": "daw_control_buttons",
+                "arm_buttons": "mixer_daw_control_buttons",
             },
         },
         "Daw_Mixer_Button_Modes": {
