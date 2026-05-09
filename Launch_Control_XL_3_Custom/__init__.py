@@ -22,6 +22,7 @@ from .elements import Elements
 from .fader_assignment_toggle import FaderAssignmentToggleComponent
 from .mappings import create_mappings
 from .mixer import MixerComponent
+from .performance_buttons import PerformanceButtonsComponent
 from .selected_track_control import SelectedTrackControlComponent
 from .session_navigation import SessionNavigationComponent
 from .session_ring import SessionRingComponent
@@ -89,6 +90,7 @@ class Specification(ControlSurfaceSpecification):
         'Encoder_Touch': EncoderTouchComponent,
         'Fader_Assignment_Toggle': FaderAssignmentToggleComponent,
         'Mixer': MixerComponent,
+        'Performance_Buttons': PerformanceButtonsComponent,
         'Selected_Track_Control': SelectedTrackControlComponent,
         'Session_Navigation': SessionNavigationComponent,
         'Transport': TransportComponent,
@@ -115,6 +117,7 @@ class Launch_Control_XL_3(ControlSurface):
         self._fader_track_selection_listeners = ()
         super().__init__(*a, **k)
         self._setup_selected_track_control_midi_sender()
+        self._setup_performance_buttons_midi_sender()
         self._setup_dynamic_parameter_assignment()
         self._setup_mode_switch_parameter_override()
         self._setup_fader_track_selection()
@@ -167,6 +170,18 @@ class Launch_Control_XL_3(ControlSurface):
             return
         try:
             selected_track_control.set_midi_sender(self.send_midi)
+        except RuntimeError:
+            pass
+
+    def _setup_performance_buttons_midi_sender(self):
+        try:
+            performance_buttons = self.component_map.get("Performance_Buttons")
+        except RuntimeError:
+            return
+        if performance_buttons is None:
+            return
+        try:
+            performance_buttons.set_midi_sender(self.send_midi)
         except RuntimeError:
             pass
 

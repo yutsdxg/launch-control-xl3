@@ -44,15 +44,11 @@ def create_mappings(control_surface):
             "fader": "faders_raw[0]",
             "toggle_button": "daw_control_buttons_raw[0]",
         },
-        "Daw_Control_Button_Modes": {
-            "solo": {
-                "component": "Mixer",
-                "solo_buttons": "mixer_daw_control_buttons",
-            },
-            "arm": {
-                "component": "Mixer",
-                "arm_buttons": "mixer_daw_control_buttons",
-            },
+        "Performance_Buttons": {
+            "cursor_up_button": "daw_control_buttons_raw[6]",
+            "pitch_up_button": "daw_control_buttons_raw[7]",
+            "cursor_down_button": "device_toggle_7_button",
+            "pitch_down_button": "device_toggle_8_button",
         },
         "Daw_Mixer_Button_Modes": {
             "device_toggle": {
@@ -63,8 +59,6 @@ def create_mappings(control_surface):
                 "toggle_button_4": "device_toggle_4_button",
                 "toggle_button_5": "device_toggle_5_button",
                 "toggle_button_6": "device_toggle_6_button",
-                "toggle_button_7": "device_toggle_7_button",
-                "toggle_button_8": "device_toggle_8_button",
             },
         },
         "Encoder_Modes": {
