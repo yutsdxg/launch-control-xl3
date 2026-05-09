@@ -36,8 +36,11 @@ def create_mappings(control_surface):
         "Encoder_Touch": {
             "touch_controls": "encoder_touch_elements",
         },
+        "Selected_Track_Control": {
+            "solo_button": "daw_control_mode_button",
+            "track_on_button": "daw_mixer_mode_button",
+        },
         "Daw_Control_Button_Modes": {
-            "cycle_mode_button": "daw_control_mode_button",
             "solo": {
                 "component": "Mixer",
                 "solo_buttons": "daw_control_buttons",

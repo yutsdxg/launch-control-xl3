@@ -44,6 +44,7 @@ class Rgb:
     ORANGE = SimpleColor(96)
     ORANGE_HALF = SimpleColor(83)
     YELLOW = SimpleColor(97)
+    DARK_YELLOW = SimpleColor(15)
     PURPLE = SimpleColor(53)
     TURQUOISE = SimpleColor(39)
     DARK_BLUE = SimpleColor(47)

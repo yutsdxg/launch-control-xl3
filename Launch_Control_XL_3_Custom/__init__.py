@@ -21,6 +21,7 @@ from .display import display_specification
 from .elements import Elements
 from .mappings import create_mappings
 from .mixer import MixerComponent
+from .selected_track_control import SelectedTrackControlComponent
 from .session_navigation import SessionNavigationComponent
 from .session_ring import SessionRingComponent
 from .skin import Rgb, Skin
@@ -44,6 +45,7 @@ FADER_TRACK_SELECTION_MAP = {
 ARRANGEMENT_FOLLOW_FADER_INDEXES = (3, 4, 5, 6, 7)
 ARRANGEMENT_VIEW_NAME = "Arranger"
 SESSION_VIEW_NAME = "Session"
+SELECTED_TRACK_LED_REFRESH_DELAY = 0.2
 LOGGER = logging.getLogger(__name__)
 DEBUG_MODE_PARAMS = ("l division", "r division")
 
@@ -85,6 +87,7 @@ class Specification(ControlSurfaceSpecification):
         'Device_Toggle': DeviceToggleComponent,
         'Encoder_Touch': EncoderTouchComponent,
         'Mixer': MixerComponent,
+        'Selected_Track_Control': SelectedTrackControlComponent,
         'Session_Navigation': SessionNavigationComponent,
         'Transport': TransportComponent,
         'Zoom': ZoomComponent,
@@ -109,6 +112,7 @@ class Launch_Control_XL_3(ControlSurface):
         self._fader_track_selection_controls = ()
         self._fader_track_selection_listeners = ()
         super().__init__(*a, **k)
+        self._setup_selected_track_control_midi_sender()
         self._setup_dynamic_parameter_assignment()
         self._setup_mode_switch_parameter_override()
         self._setup_fader_track_selection()
@@ -132,11 +136,14 @@ class Launch_Control_XL_3(ControlSurface):
         with self.component_guard():
             self.component_map["Encoder_Modes"].selected_mode = "daw_control"
             self.component_map["Daw_Mixer_Button_Modes"].selected_mode = "device_toggle"
-            try:
-                self.elements.daw_mixer_mode_button.send_value(0)
-            except RuntimeError:
-                pass
             self._update_assignment_candidate()
+            self._refresh_selected_track_control_leds()
+            self._tasks.add(
+                task.sequence(
+                    task.delay(SELECTED_TRACK_LED_REFRESH_DELAY),
+                    task.run(self._refresh_selected_track_control_leds),
+                )
+            )
 
     def _flush_midi_messages(self):
         if (
@@ -148,6 +155,30 @@ class Launch_Control_XL_3(ControlSurface):
                 self._tasks.add(task.sequence(task.delay(i * 0.01), task.run(self._do_send_midi, message)))
             self._midi_message_list[:] = []
         super()._flush_midi_messages()
+
+    def _setup_selected_track_control_midi_sender(self):
+        try:
+            selected_track_control = self.component_map.get("Selected_Track_Control")
+        except RuntimeError:
+            return
+        if selected_track_control is None:
+            return
+        try:
+            selected_track_control.set_midi_sender(self.send_midi)
+        except RuntimeError:
+            pass
+
+    def _refresh_selected_track_control_leds(self):
+        try:
+            selected_track_control = self.component_map.get("Selected_Track_Control")
+        except RuntimeError:
+            return
+        if selected_track_control is None:
+            return
+        try:
+            selected_track_control.refresh_led_feedback()
+        except RuntimeError:
+            pass
 
     def _setup_dynamic_parameter_assignment(self):
         if DYNAMIC_ASSIGNMENT_SLOT_COUNT <= 0:
