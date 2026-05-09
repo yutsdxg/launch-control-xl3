@@ -144,19 +144,41 @@ class FaderAssignmentToggleTest(unittest.TestCase):
         component.song = FakeSong(tracks=tracks, cue_volume=cue_volume)
         return component
 
-    def test_initial_assignment_connects_fader_to_cue_volume_and_sets_dark_grey_led(self):
+    def test_initial_assignment_connects_fader_to_loopcloud_volume_and_sets_yellow_led(self):
         cue_volume = FakeParameter("Cue Volume")
+        loopcloud_volume = FakeParameter("Loopcloud Volume")
+        tracks = (FakeTrack("Loopcloud", loopcloud_volume),)
         component = self._component(cue_volume=cue_volume)
+        component.song.tracks = tracks
         fader = FakeFader()
         button = FakeButton()
 
         component.set_fader(fader)
         component.set_toggle_button(button)
 
-        self.assertEqual(fader.connected_parameters[-1], cue_volume)
-        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_1_LED_VALUE)
+        self.assertEqual(fader.connected_parameters[-1], loopcloud_volume)
+        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE)
 
-    def test_button_press_switches_to_loopcloud_track_volume_and_yellow_led(self):
+    def test_refresh_led_feedback_forces_current_assignment_led(self):
+        component = self._component(
+            tracks=(FakeTrack("Loopcloud", FakeParameter("Loopcloud Volume")),),
+            cue_volume=FakeParameter("Cue Volume"),
+        )
+        component.set_fader(FakeFader())
+        button = FakeButton()
+
+        component.set_toggle_button(button)
+        component.refresh_led_feedback()
+
+        self.assertEqual(
+            button.sent_values[-2:],
+            [
+                FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE,
+                FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE,
+            ],
+        )
+
+    def test_button_press_switches_to_cue_volume_and_dark_grey_led(self):
         cue_volume = FakeParameter("Cue Volume")
         loopcloud_volume = FakeParameter("Loopcloud Volume")
         tracks = (
@@ -171,8 +193,8 @@ class FaderAssignmentToggleTest(unittest.TestCase):
         component.set_toggle_button(button)
         button.receive_value(127)
 
-        self.assertEqual(fader.connected_parameters[-1], loopcloud_volume)
-        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE)
+        self.assertEqual(fader.connected_parameters[-1], cue_volume)
+        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_1_LED_VALUE)
 
     def test_button_release_does_not_toggle_assignment(self):
         cue_volume = FakeParameter("Cue Volume")
@@ -188,10 +210,10 @@ class FaderAssignmentToggleTest(unittest.TestCase):
         component.set_toggle_button(button)
         button.receive_value(0)
 
-        self.assertEqual(fader.connected_parameters[-1], cue_volume)
-        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_1_LED_VALUE)
+        self.assertEqual(fader.connected_parameters[-1], loopcloud_volume)
+        self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE)
 
-    def test_missing_loopcloud_falls_back_to_first_track_volume(self):
+    def test_initial_missing_loopcloud_falls_back_to_first_track_volume(self):
         first_track_volume = FakeParameter("Track 1 Volume")
         component = self._component(
             tracks=(
@@ -205,7 +227,6 @@ class FaderAssignmentToggleTest(unittest.TestCase):
 
         component.set_fader(fader)
         component.set_toggle_button(button)
-        button.receive_value(127)
 
         self.assertEqual(fader.connected_parameters[-1], first_track_volume)
 

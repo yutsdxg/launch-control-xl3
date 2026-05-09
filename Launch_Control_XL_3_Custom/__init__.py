@@ -142,10 +142,19 @@ class Launch_Control_XL_3(ControlSurface):
             self.component_map["Encoder_Modes"].selected_mode = "daw_control"
             self.component_map["Daw_Mixer_Button_Modes"].selected_mode = "device_toggle"
             self._update_assignment_candidate()
+            self._refresh_fader_assignment_toggle_leds()
             self._refresh_selected_track_control_leds()
             self._tasks.add(
                 task.sequence(
                     task.delay(SELECTED_TRACK_LED_REFRESH_DELAY),
+                    task.run(self._refresh_fader_assignment_toggle_leds),
+                    task.run(self._refresh_selected_track_control_leds),
+                )
+            )
+            self._tasks.add(
+                task.sequence(
+                    task.delay(1),
+                    task.run(self._refresh_fader_assignment_toggle_leds),
                     task.run(self._refresh_selected_track_control_leds),
                 )
             )
@@ -194,6 +203,18 @@ class Launch_Control_XL_3(ControlSurface):
             return
         try:
             selected_track_control.refresh_led_feedback()
+        except RuntimeError:
+            pass
+
+    def _refresh_fader_assignment_toggle_leds(self):
+        try:
+            fader_assignment_toggle = self.component_map.get("Fader_Assignment_Toggle")
+        except RuntimeError:
+            return
+        if fader_assignment_toggle is None:
+            return
+        try:
+            fader_assignment_toggle.refresh_led_feedback()
         except RuntimeError:
             pass
 

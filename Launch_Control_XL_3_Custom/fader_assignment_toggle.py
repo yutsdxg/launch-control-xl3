@@ -4,6 +4,7 @@ from .colors import Rgb
 
 ASSIGNMENT_CUE = 0
 ASSIGNMENT_LOOPCLOUD = 1
+DEFAULT_ASSIGNMENT = ASSIGNMENT_LOOPCLOUD
 LOOPCLOUD_TRACK_NAME = "Loopcloud"
 ASSIGNMENT_1_LED_VALUE = Rgb.WHITE_DIM.midi_value
 ASSIGNMENT_2_LED_VALUE = Rgb.YELLOW.midi_value
@@ -15,7 +16,7 @@ class FaderAssignmentToggleComponent(Component):
         self._fader = None
         self._toggle_button = None
         self._toggle_button_slot = None
-        self._assignment = ASSIGNMENT_CUE
+        self._assignment = DEFAULT_ASSIGNMENT
         self._last_led_value = None
 
     def set_fader(self, fader):
@@ -32,6 +33,10 @@ class FaderAssignmentToggleComponent(Component):
         self._last_led_value = None
         if button is not None:
             self._toggle_button_slot = self.register_slot(button, self._on_toggle_button_value, "value")
+        self._update_led(force=True)
+
+    def refresh_led_feedback(self):
+        self._last_led_value = None
         self._update_led(force=True)
 
     def _on_toggle_button_value(self, value):
