@@ -14,10 +14,14 @@ PITCH_LED_LEVELS = (
     (24.0, (127, 12, 12), (14, 54, 127)),
     (12.0, (127, 42, 42), (44, 84, 127)),
 )
+ENCODER_MIN_LED_VALUE = (6, 6, 6)
 BUTTON_LED_OFF_VALUE = Rgb.OFF.midi_value
 PITCH_LED_OFF_VALUE = (0, 0, 0)
+PITCH_NEUTRAL_LED_VALUE = ENCODER_MIN_LED_VALUE
 MOMENTARY_BUTTON_LED_ON_VALUE = Rgb.WHITE.midi_value
 BUTTON_CONTROL_INDICES = {
+    "cursor_up": 43,
+    "cursor_down": 51,
     "pitch_up": 44,
     "pitch_down": 52,
 }
@@ -67,6 +71,8 @@ class PerformanceButtonsComponent(Component):
         self.refresh_led_feedback()
 
     def refresh_led_feedback(self):
+        self._update_led("cursor_up", force=True)
+        self._update_led("cursor_down", force=True)
         self._update_pitch_led_feedback(force=True)
 
     def _set_button(self, control_name, button, listener):
@@ -90,7 +96,7 @@ class PerformanceButtonsComponent(Component):
         self._update_led(control_name, force=True)
 
     def _on_cursor_button_value(self, control_name, value):
-        led_value = MOMENTARY_BUTTON_LED_ON_VALUE if value > 0 else BUTTON_LED_OFF_VALUE
+        led_value = MOMENTARY_BUTTON_LED_ON_VALUE if value > 0 else ENCODER_MIN_LED_VALUE
         self._send_led_value(control_name, led_value, force=True)
 
     def _on_pitch_up_button_value(self, control_name, value):
@@ -158,7 +164,7 @@ class PerformanceButtonsComponent(Component):
 
     def _update_led(self, control_name, force=False):
         if control_name in ("cursor_up", "cursor_down"):
-            led_value = BUTTON_LED_OFF_VALUE
+            led_value = ENCODER_MIN_LED_VALUE
         elif control_name == "pitch_up":
             self._update_pitch_monitor()
             led_value = self._pitch_up_led_value()
@@ -216,7 +222,7 @@ class PerformanceButtonsComponent(Component):
         for threshold, red_value, _ in PITCH_LED_LEVELS:
             if pitch_value >= threshold:
                 return red_value
-        return PITCH_LED_OFF_VALUE
+        return PITCH_NEUTRAL_LED_VALUE
 
     def _pitch_down_led_value(self):
         pitch_value = self._pitch_value()
@@ -225,7 +231,7 @@ class PerformanceButtonsComponent(Component):
         for threshold, _, blue_value in PITCH_LED_LEVELS:
             if pitch_value <= -threshold:
                 return blue_value
-        return PITCH_LED_OFF_VALUE
+        return PITCH_NEUTRAL_LED_VALUE
 
     def _pitch_value(self):
         parameter = self._pitch_parameter()
