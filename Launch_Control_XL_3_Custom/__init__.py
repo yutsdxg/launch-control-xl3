@@ -10,8 +10,10 @@ import logging
 from . import midi
 from .colored_encoder import (
     _global_rule_options_for_parameter,
+    _handle_parameter_value_rule_input,
     _resolve_device_mode_switch_rules,
     _resolve_mode_count,
+    _resolve_parameter_value_rule,
     _rule_options_for_parameter,
     _step_parameter_by_mode_count,
 )
@@ -20,10 +22,12 @@ from .device_toggle import DeviceToggleComponent
 from .display import display_specification
 from .elements import Elements
 from .fader_assignment_toggle import FaderAssignmentToggleComponent
+from .locator_navigation import LocatorNavigationComponent
 from .mappings import create_mappings
 from .mixer import MixerComponent
 from .performance_buttons import PerformanceButtonsComponent
 from .selected_track_control import SelectedTrackControlComponent
+from .selected_track_device_parameter import SelectedTrackDeviceParameterComponent
 from .session_navigation import SessionNavigationComponent
 from .session_ring import SessionRingComponent
 from .skin import Rgb, Skin
@@ -89,9 +93,11 @@ class Specification(ControlSurfaceSpecification):
         'Device_Toggle': DeviceToggleComponent,
         'Encoder_Touch': EncoderTouchComponent,
         'Fader_Assignment_Toggle': FaderAssignmentToggleComponent,
+        'Locator_Navigation': LocatorNavigationComponent,
         'Mixer': MixerComponent,
         'Performance_Buttons': PerformanceButtonsComponent,
         'Selected_Track_Control': SelectedTrackControlComponent,
+        'Selected_Track_Device_Parameter': SelectedTrackDeviceParameterComponent,
         'Session_Navigation': SessionNavigationComponent,
         'Transport': TransportComponent,
         'Zoom': ZoomComponent,
@@ -106,6 +112,7 @@ class Launch_Control_XL_3(ControlSurface):
         self._dynamic_assignment_value_listeners = []
         self._mode_switch_encoders = ()
         self._mode_switch_value_listeners = []
+        self._value_rule_input_accumulators = {}
         self._last_touched_parameter_task = None
         self._selection_target = None
         self._selection_target_kind = None
@@ -288,11 +295,34 @@ class Launch_Control_XL_3(ControlSurface):
             options = _rule_options_for_parameter(parameter_rules, parameter_name)
         if options is None:
             options = _global_rule_options_for_parameter(parameter_name)
+        direction = 1 if value > 64 else -1
+        value_rule_options = _resolve_parameter_value_rule(parameter)
+        if value_rule_options is not None:
+            handled, applied_direction = _handle_parameter_value_rule_input(
+                parameter,
+                value,
+                value_rule_options,
+                self._value_rule_input_accumulators,
+                (id(encoder), id(parameter), parameter_name),
+            )
+            if not handled:
+                return
+            if applied_direction:
+                try:
+                    LOGGER.info(
+                        "LCXL3 value-rule listener override: parameter=%s options=%s value=%s direction=%s",
+                        parameter_name,
+                        value_rule_options,
+                        value,
+                        applied_direction,
+                    )
+                except Exception:
+                    pass
+            return
         if options is None:
             if debug_target:
                 LOGGER.info("LCXL3 mode-switch listener skip: no rule parameter=%s value=%s", parameter_name, value)
             return
-        direction = 1 if value > 64 else -1
         mode_count = _resolve_mode_count(parameter, options)
         if not _step_parameter_by_mode_count(parameter, direction, mode_count):
             if debug_target:

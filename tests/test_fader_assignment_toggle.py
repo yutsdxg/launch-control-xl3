@@ -58,6 +58,9 @@ def _install_component_stubs():
     control_surface.Component = Component
 
     live = types.ModuleType("ableton.v3.live")
+    action = types.SimpleNamespace(selected_tracks=[])
+    action.select = lambda track: action.selected_tracks.append(track)
+    live.action = action
     live.liveobj_valid = lambda obj: obj is not None
     sys.modules["ableton.v3.live"] = live
 
@@ -139,6 +142,9 @@ class FakeSong(object):
 
 
 class FaderAssignmentToggleTest(unittest.TestCase):
+    def setUp(self):
+        FADER_ASSIGNMENT_TOGGLE.action.selected_tracks[:] = []
+
     def _component(self, tracks=(), cue_volume=None):
         component = FADER_ASSIGNMENT_TOGGLE.FaderAssignmentToggleComponent()
         component.song = FakeSong(tracks=tracks, cue_volume=cue_volume)
@@ -196,6 +202,24 @@ class FaderAssignmentToggleTest(unittest.TestCase):
         self.assertEqual(fader.connected_parameters[-1], cue_volume)
         self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_1_LED_VALUE)
 
+    def test_button_press_selects_loopcloud_track_on_both_toggle_sides(self):
+        loopcloud_track = FakeTrack("Loopcloud", FakeParameter("Loopcloud Volume"))
+        component = self._component(
+            tracks=(FakeTrack("Drums", FakeParameter("Drums Volume")), loopcloud_track),
+            cue_volume=FakeParameter("Cue Volume"),
+        )
+        component.set_fader(FakeFader())
+        button = FakeButton()
+        component.set_toggle_button(button)
+
+        button.receive_value(127)
+        button.receive_value(127)
+
+        self.assertEqual(
+            FADER_ASSIGNMENT_TOGGLE.action.selected_tracks,
+            [loopcloud_track, loopcloud_track],
+        )
+
     def test_button_release_does_not_toggle_assignment(self):
         cue_volume = FakeParameter("Cue Volume")
         loopcloud_volume = FakeParameter("Loopcloud Volume")
@@ -212,6 +236,7 @@ class FaderAssignmentToggleTest(unittest.TestCase):
 
         self.assertEqual(fader.connected_parameters[-1], loopcloud_volume)
         self.assertEqual(button.sent_values[-1], FADER_ASSIGNMENT_TOGGLE.ASSIGNMENT_2_LED_VALUE)
+        self.assertEqual(FADER_ASSIGNMENT_TOGGLE.action.selected_tracks, [])
 
     def test_initial_missing_loopcloud_falls_back_to_first_track_volume(self):
         first_track_volume = FakeParameter("Track 1 Volume")
@@ -229,6 +254,19 @@ class FaderAssignmentToggleTest(unittest.TestCase):
         component.set_toggle_button(button)
 
         self.assertEqual(fader.connected_parameters[-1], first_track_volume)
+
+    def test_button_press_without_loopcloud_does_not_select_first_track(self):
+        component = self._component(
+            tracks=(FakeTrack("Track 1", FakeParameter("Track 1 Volume")),),
+            cue_volume=FakeParameter("Cue Volume"),
+        )
+        component.set_fader(FakeFader())
+        button = FakeButton()
+        component.set_toggle_button(button)
+
+        button.receive_value(127)
+
+        self.assertEqual(FADER_ASSIGNMENT_TOGGLE.action.selected_tracks, [])
 
     def test_switching_releases_previous_parameter_before_connecting_next(self):
         component = self._component(

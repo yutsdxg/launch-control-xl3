@@ -96,6 +96,34 @@ def build_global_parameter_rule_index(raw_mapping):
     return indexed
 
 
+def build_device_value_rule_index(raw_mapping):
+    indexed = {}
+    for device_name, parameter_rules in (raw_mapping or {}).items():
+        rule_index = build_global_value_rule_index(parameter_rules)
+        if not rule_index:
+            continue
+        normalized = normalize_device_key(device_name)
+        if not normalized:
+            continue
+        indexed[normalized] = rule_index
+        alias = CUSTOM_DEVICE_ALIASES.get(normalized)
+        if alias:
+            indexed[alias] = rule_index
+    return indexed
+
+
+def build_global_value_rule_index(raw_mapping):
+    indexed = {}
+    for parameter_name, options in (raw_mapping or {}).items():
+        value_rule_options = _value_rule_options(options)
+        if parameter_name is None or value_rule_options is None:
+            continue
+        key = normalize_name(parameter_name)
+        if key and key not in indexed:
+            indexed[key] = value_rule_options
+    return indexed
+
+
 def resolve_entry_occurrence(options):
     if not isinstance(options, dict):
         return None
@@ -235,6 +263,14 @@ def _mode_switch_options(options):
     if not isinstance(options, dict):
         return None
     if "mode_count" not in options:
+        return None
+    return options
+
+
+def _value_rule_options(options):
+    if not isinstance(options, dict):
+        return None
+    if "step_size" not in options:
         return None
     return options
 

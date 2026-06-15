@@ -5,14 +5,21 @@ from ableton.v3.control_surface.elements import EncoderElement
 from ableton.v3.control_surface.midi import CC_STATUS, SYSEX_END
 from .colors import Rgb
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER
+from .custom_parameter_value_rules import (
+    CUSTOM_DEVICE_PARAMETER_VALUE_RULES,
+    CUSTOM_GLOBAL_PARAMETER_VALUE_RULES,
+)
 from .custom_parameter_utils import (
+    build_device_value_rule_index,
     build_global_parameter_rule_index,
+    build_global_value_rule_index,
     build_mode_switch_rules_index,
     compact_name,
     normalize_device_key,
     normalize_name,
 )
 import logging
+import math
 
 RGB_SYSEX_PREFIX = (240, 0, 32, 41, 2, 21, 1, 83)
 ENCODER_LED_BRIGHTNESS_SCALE = 0.5
@@ -58,6 +65,8 @@ MODE_SWITCH_RULES_INDEX = build_mode_switch_rules_index(CUSTOM_DEVICE_PARAMETER_
 
 
 GLOBAL_MODE_SWITCH_RULES = build_global_parameter_rule_index(CUSTOM_DEVICE_PARAMETER_ORDER)
+VALUE_RULES_INDEX = build_device_value_rule_index(CUSTOM_DEVICE_PARAMETER_VALUE_RULES)
+GLOBAL_VALUE_RULES = build_global_value_rule_index(CUSTOM_GLOBAL_PARAMETER_VALUE_RULES)
 LOGGER = logging.getLogger(__name__)
 DEBUG_MODE_SWITCH_TARGETS = ("l division", "r division")
 
@@ -153,6 +162,14 @@ def get_color_for_pan_value(value):
 
 
 def _resolve_device_mode_switch_rules(parameter):
+    return _resolve_device_rules(parameter, MODE_SWITCH_RULES_INDEX)
+
+
+def _resolve_device_value_rules(parameter):
+    return _resolve_device_rules(parameter, VALUE_RULES_INDEX)
+
+
+def _resolve_device_rules(parameter, rules_index):
     parent = getattr(parameter, "canonical_parent", None)
     if parent is None:
         return None
@@ -173,8 +190,8 @@ def _resolve_device_mode_switch_rules(parameter):
         normalized = normalize_device_key(key)
         if not normalized:
             continue
-        if normalized in MODE_SWITCH_RULES_INDEX:
-            return MODE_SWITCH_RULES_INDEX[normalized]
+        if normalized in rules_index:
+            return rules_index[normalized]
     return None
 
 
@@ -200,6 +217,14 @@ def _rule_options_for_parameter(parameter_rules, parameter_name):
     return None
 
 
+def _value_rule_options_for_parameter(parameter_rules, parameter_name):
+    if not parameter_rules or not parameter_name:
+        return None
+    if not isinstance(parameter_rules, dict):
+        return None
+    return parameter_rules.get(normalize_name(parameter_name))
+
+
 def _global_rule_options_for_parameter(parameter_name):
     if not parameter_name:
         return None
@@ -207,6 +232,23 @@ def _global_rule_options_for_parameter(parameter_name):
     if not key:
         return None
     return GLOBAL_MODE_SWITCH_RULES.get(key)
+
+
+def _global_value_rule_options_for_parameter(parameter_name):
+    if not parameter_name:
+        return None
+    return GLOBAL_VALUE_RULES.get(normalize_name(parameter_name))
+
+
+def _resolve_parameter_value_rule(parameter):
+    parameter_name = getattr(parameter, "name", "")
+    parameter_rules = _resolve_device_value_rules(parameter)
+    options = None
+    if parameter_rules is not None:
+        options = _value_rule_options_for_parameter(parameter_rules, parameter_name)
+    if options is None:
+        options = _global_value_rule_options_for_parameter(parameter_name)
+    return options
 
 
 def _is_debug_mode_switch_target(parameter_name):
@@ -257,6 +299,365 @@ def _resolve_mode_count(parameter, options):
             return None
         return mode_count if mode_count >= 2 else None
     return _derived_mode_count(parameter)
+
+
+def _float_option(options, name, default=None):
+    if not isinstance(options, dict):
+        return default
+    value = options.get(name, default)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _int_option(options, name, default=None):
+    value = _float_option(options, name, default)
+    if value is None:
+        return default
+    try:
+        return int(round(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _encoder_input_unit(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return 0
+    if value == 64:
+        return 0
+    return 1 if value > 64 else -1
+
+
+def _consume_value_rule_input(accumulators, key, value, options):
+    input_unit = _encoder_input_unit(value)
+    if input_unit == 0:
+        return 0
+    threshold = max(1, _int_option(options, "input_threshold", 1))
+    if threshold <= 1:
+        accumulators[key] = 0
+        return input_unit
+
+    previous = accumulators.get(key, 0)
+    if previous and (previous > 0) != (input_unit > 0):
+        previous = 0
+    accumulated = previous + input_unit
+    if abs(accumulated) < threshold:
+        accumulators[key] = accumulated
+        return 0
+
+    direction = 1 if accumulated > 0 else -1
+    remainder = accumulated - (direction * threshold)
+    if abs(remainder) >= threshold:
+        remainder = direction * (threshold - 1)
+    accumulators[key] = remainder
+    return direction
+
+
+def _handle_parameter_value_rule_input(parameter, value, options, accumulators, accumulator_key):
+    if isinstance(options, dict) and options.get("input_mode") == "cc_bins":
+        return _handle_value_rule_cc_bin_input(parameter, value, options, accumulators, accumulator_key)
+    direction = _consume_value_rule_input(accumulators, accumulator_key, value, options)
+    if direction == 0:
+        return _snap_parameter_to_value_rule_grid(parameter, options), 0
+    return _step_parameter_by_value_rule(parameter, direction, options), direction
+
+
+def _handle_value_rule_cc_bin_input(parameter, value, options, accumulators, accumulator_key):
+    input_unit = _encoder_input_unit(value)
+    if input_unit == 0:
+        return False, 0
+    resolution = max(2, _int_option(options, "input_resolution", 128))
+    context = _value_rule_display_context(parameter, options)
+    if context is None:
+        return False, 0
+
+    step_size, center, minimum, maximum, current, display_minimum, display_maximum = context
+    min_index = int(math.ceil((display_minimum - center) / step_size))
+    max_index = int(math.floor((display_maximum - center) / step_size))
+    if min_index > max_index:
+        return False, 0
+    bin_count = max_index - min_index + 1
+    if bin_count < 2:
+        return False, 0
+
+    display_current = _parameter_value_to_display_value(
+        minimum,
+        maximum,
+        current,
+        display_minimum,
+        display_maximum,
+    )
+    current_bin = _nearest_display_bin(display_current, step_size, center, min_index, max_index)
+    if current_bin is None:
+        return False, 0
+
+    state = accumulators.get(accumulator_key)
+    if not isinstance(state, dict) or state.get("bin_count") != bin_count or state.get("resolution") != resolution:
+        state = _cc_bin_state_for_bin(current_bin, bin_count, resolution)
+    elif state.get("bin") != current_bin:
+        state = _cc_bin_state_for_bin(current_bin, bin_count, resolution)
+
+    previous_bin = state["bin"]
+    virtual_value = min(max(state["virtual"] + input_unit, 0), resolution - 1)
+    target_bin = min(int((virtual_value * bin_count) / resolution), bin_count - 1)
+    state = {"virtual": virtual_value, "bin": target_bin, "bin_count": bin_count, "resolution": resolution}
+    accumulators[accumulator_key] = state
+
+    display_target = center + ((min_index + target_bin) * step_size)
+    target_value = _display_value_to_parameter_value(
+        minimum,
+        maximum,
+        display_target,
+        display_minimum,
+        display_maximum,
+    )
+    handled = _set_parameter_value_if_changed(parameter, current, target_value)
+    applied_direction = 0
+    if target_bin > previous_bin:
+        applied_direction = 1
+    elif target_bin < previous_bin:
+        applied_direction = -1
+    return handled, applied_direction
+
+
+def _value_rule_display_context(parameter, options):
+    step_size = _float_option(options, "step_size")
+    center = _float_option(options, "center", 0.0)
+    if step_size is None or step_size <= 0:
+        return None
+    try:
+        minimum = float(parameter.min)
+        maximum = float(parameter.max)
+        current = float(parameter.value)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return None
+    if maximum < minimum:
+        return None
+    display_minimum = _float_option(options, "display_min", minimum)
+    display_maximum = _float_option(options, "display_max", maximum)
+    if display_maximum < display_minimum:
+        return None
+    return step_size, center, minimum, maximum, current, display_minimum, display_maximum
+
+
+def _cc_bin_state_for_bin(bin_index, bin_count, resolution):
+    virtual = int(round(((float(bin_index) + 0.5) * float(resolution) / float(bin_count)) - 0.5))
+    return {
+        "virtual": min(max(virtual, 0), resolution - 1),
+        "bin": bin_index,
+        "bin_count": bin_count,
+        "resolution": resolution,
+    }
+
+
+def _nearest_display_bin(display_value, step_size, center, min_index, max_index):
+    normalized = (display_value - center) / step_size
+    target_index = min(max(int(round(normalized)), min_index), max_index)
+    return target_index - min_index
+
+
+def _parameter_value_to_display_value(minimum, maximum, current, display_minimum, display_maximum):
+    parameter_range = maximum - minimum
+    display_range = display_maximum - display_minimum
+    if parameter_range <= 0 or display_range <= 0:
+        return current
+    normalized = (current - minimum) / parameter_range
+    return display_minimum + (normalized * display_range)
+
+
+def _display_value_to_parameter_value(minimum, maximum, display_value, display_minimum, display_maximum):
+    parameter_range = maximum - minimum
+    display_range = display_maximum - display_minimum
+    if parameter_range <= 0 or display_range <= 0:
+        return display_value
+    normalized = (display_value - display_minimum) / display_range
+    return minimum + (normalized * parameter_range)
+
+
+def _step_parameter_by_value_rule(parameter, direction, options):
+    step_size = _float_option(options, "step_size")
+    center = _float_option(options, "center", 0.0)
+    if step_size is None or step_size <= 0:
+        return False
+    try:
+        minimum = float(parameter.min)
+        maximum = float(parameter.max)
+        current = float(parameter.value)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    if maximum < minimum:
+        return False
+
+    display_minimum = _float_option(options, "display_min")
+    display_maximum = _float_option(options, "display_max")
+    if display_minimum is not None and display_maximum is not None:
+        return _step_parameter_by_display_value_rule(
+            parameter,
+            direction,
+            step_size,
+            center,
+            minimum,
+            maximum,
+            current,
+            display_minimum,
+            display_maximum,
+        )
+
+    return _step_parameter_by_native_value_rule(parameter, direction, step_size, center, minimum, maximum, current)
+
+
+def _snap_parameter_to_value_rule_grid(parameter, options):
+    step_size = _float_option(options, "step_size")
+    center = _float_option(options, "center", 0.0)
+    if step_size is None or step_size <= 0:
+        return False
+    try:
+        minimum = float(parameter.min)
+        maximum = float(parameter.max)
+        current = float(parameter.value)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    if maximum < minimum:
+        return False
+
+    display_minimum = _float_option(options, "display_min")
+    display_maximum = _float_option(options, "display_max")
+    if display_minimum is not None and display_maximum is not None:
+        return _snap_parameter_to_display_value_grid(
+            parameter,
+            step_size,
+            center,
+            minimum,
+            maximum,
+            current,
+            display_minimum,
+            display_maximum,
+        )
+
+    target_value = _nearest_stepped_value(current, step_size, center, minimum, maximum)
+    if target_value is None:
+        return False
+    return _set_parameter_value_if_changed(parameter, current, target_value)
+
+
+def _snap_parameter_to_display_value_grid(
+    parameter,
+    step_size,
+    center,
+    minimum,
+    maximum,
+    current,
+    display_minimum,
+    display_maximum,
+):
+    parameter_range = maximum - minimum
+    display_range = display_maximum - display_minimum
+    if parameter_range <= 0 or display_range <= 0:
+        return False
+    normalized = (current - minimum) / parameter_range
+    display_current = display_minimum + (normalized * display_range)
+    display_target = _nearest_stepped_value(
+        display_current,
+        step_size,
+        center,
+        display_minimum,
+        display_maximum,
+    )
+    if display_target is None:
+        return False
+    target_normalized = (display_target - display_minimum) / display_range
+    target_value = minimum + (target_normalized * parameter_range)
+    return _set_parameter_value_if_changed(parameter, current, target_value)
+
+
+def _step_parameter_by_native_value_rule(parameter, direction, step_size, center, minimum, maximum, current):
+    target_value = _stepped_value_for_direction(current, direction, step_size, center, minimum, maximum)
+    if target_value is None:
+        return False
+    return _set_parameter_value_if_changed(parameter, current, target_value)
+
+
+def _step_parameter_by_display_value_rule(
+    parameter,
+    direction,
+    step_size,
+    center,
+    minimum,
+    maximum,
+    current,
+    display_minimum,
+    display_maximum,
+):
+    parameter_range = maximum - minimum
+    display_range = display_maximum - display_minimum
+    if parameter_range <= 0 or display_range <= 0:
+        return False
+    normalized = (current - minimum) / parameter_range
+    display_current = display_minimum + (normalized * display_range)
+    display_target = _stepped_value_for_direction(
+        display_current,
+        direction,
+        step_size,
+        center,
+        display_minimum,
+        display_maximum,
+    )
+    if display_target is None:
+        return False
+    target_normalized = (display_target - display_minimum) / display_range
+    target_value = minimum + (target_normalized * parameter_range)
+    return _set_parameter_value_if_changed(parameter, current, target_value)
+
+
+def _stepped_value_for_direction(current, direction, step_size, center, minimum, maximum):
+    nearest_value = _nearest_stepped_value(current, step_size, center, minimum, maximum)
+    if nearest_value is None:
+        return None
+    min_index = int(math.ceil((minimum - center) / step_size))
+    max_index = int(math.floor((maximum - center) / step_size))
+
+    normalized = (current - center) / step_size
+    epsilon = 1e-9
+    nearest_index = int(round(normalized))
+    is_on_step = abs(normalized - nearest_index) <= epsilon
+    if direction > 0:
+        target_index = nearest_index + 1 if is_on_step else int(math.floor(normalized)) + 1
+    else:
+        target_index = nearest_index - 1 if is_on_step else int(math.ceil(normalized)) - 1
+    target_index = min(max(target_index, min_index), max_index)
+    target_value = center + (target_index * step_size)
+
+    if direction > 0 and target_value < current - epsilon:
+        return current
+    if direction < 0 and target_value > current + epsilon:
+        return current
+    return target_value
+
+
+def _nearest_stepped_value(current, step_size, center, minimum, maximum):
+    min_index = int(math.ceil((minimum - center) / step_size))
+    max_index = int(math.floor((maximum - center) / step_size))
+    if min_index > max_index:
+        return None
+    normalized = (current - center) / step_size
+    target_index = min(max(int(round(normalized)), min_index), max_index)
+    return center + (target_index * step_size)
+
+
+def _set_parameter_value_if_changed(parameter, current, target_value):
+    epsilon = 1e-9
+    if abs(target_value - current) <= epsilon:
+        return True
+    try:
+        parameter.value = target_value
+    except (RuntimeError, ValueError, TypeError):
+        return False
+    return True
 
 
 def _step_parameter_by_mode_count(parameter, direction, mode_count):
@@ -341,12 +742,14 @@ class ColoredEncoderElement(EncoderElement):
         super().__init__(*a, **k)
         self._led_color_cc = self.message_identifier() - 64
         self._is_assigned_to_pan = False
+        self._value_rule_input_accumulators = {}
 
     def reset(self):
         self._send_led_color(Rgb.OFF)
 
     def _update_parameter_listeners(self):
         self._is_assigned_to_pan = False
+        self._value_rule_input_accumulators = {}
         if self.is_mapped_to_parameter():
             self._is_assigned_to_pan = self.mapped_object.name == "Track Panning"
             self._send_led_for_parameter()
@@ -403,12 +806,36 @@ class ColoredEncoderElement(EncoderElement):
             options = _rule_options_for_parameter(parameter_rules, parameter_name)
         if options is None:
             options = _global_rule_options_for_parameter(parameter_name)
+        direction = 1 if value > 64 else -1
+        value_rule_options = _resolve_parameter_value_rule(parameter)
+        if value_rule_options is not None:
+            handled, applied_direction = _handle_parameter_value_rule_input(
+                parameter,
+                value,
+                value_rule_options,
+                self._value_rule_input_accumulators,
+                (id(parameter), parameter_name),
+            )
+            if not handled:
+                return False
+            if applied_direction:
+                try:
+                    LOGGER.info(
+                        "LCXL3 value-rule override: parameter=%s options=%s value=%s direction=%s",
+                        parameter_name,
+                        value_rule_options,
+                        value,
+                        applied_direction,
+                    )
+                except Exception:
+                    pass
+                self._parameter_value_changed()
+            return True
         if options is None:
             if debug_target:
                 LOGGER.info("LCXL3 mode-switch skip: no rule matched parameter=%s", parameter_name)
             return False
         mode_count = _resolve_mode_count(parameter, options)
-        direction = 1 if value > 64 else -1
         if not _step_parameter_by_mode_count(parameter, direction, mode_count):
             if debug_target:
                 LOGGER.info(

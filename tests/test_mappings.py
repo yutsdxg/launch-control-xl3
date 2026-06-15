@@ -71,14 +71,22 @@ class MappingsTest(unittest.TestCase):
     def test_daw_control_button_modes_are_removed(self):
         self.assertNotIn("Daw_Control_Button_Modes", self.mappings)
 
-    def test_performance_buttons_use_buttons_7_8_15_16(self):
+    def test_performance_buttons_use_buttons_8_15_and_16(self):
         self.assertEqual(
             self.mappings["Performance_Buttons"],
             {
-                "cursor_up_button": "daw_control_buttons_raw[6]",
                 "pitch_up_button": "daw_control_buttons_raw[7]",
                 "cursor_down_button": "device_toggle_7_button",
                 "pitch_down_button": "device_toggle_8_button",
+            },
+        )
+
+    def test_locator_navigation_uses_buttons_6_and_7(self):
+        self.assertEqual(
+            self.mappings["Locator_Navigation"],
+            {
+                "prev_locator_button": "daw_control_buttons_raw[5]",
+                "next_locator_button": "daw_control_buttons_raw[6]",
             },
         )
 
@@ -89,6 +97,12 @@ class MappingsTest(unittest.TestCase):
         self.assertEqual(device_toggle["toggle_button_6"], "device_toggle_6_button")
         self.assertNotIn("toggle_button_7", device_toggle)
         self.assertNotIn("toggle_button_8", device_toggle)
+
+    def test_fader_2_controls_selected_track_device_4_parameter_2(self):
+        self.assertEqual(
+            self.mappings["Selected_Track_Device_Parameter"],
+            {"fader": "faders_raw[1]"},
+        )
 
 
 if __name__ == "__main__":

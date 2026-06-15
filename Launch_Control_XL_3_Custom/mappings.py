@@ -44,8 +44,14 @@ def create_mappings(control_surface):
             "fader": "faders_raw[0]",
             "toggle_button": "daw_control_buttons_raw[0]",
         },
+        "Selected_Track_Device_Parameter": {
+            "fader": "faders_raw[1]",
+        },
+        "Locator_Navigation": {
+            "prev_locator_button": "daw_control_buttons_raw[5]",
+            "next_locator_button": "daw_control_buttons_raw[6]",
+        },
         "Performance_Buttons": {
-            "cursor_up_button": "daw_control_buttons_raw[6]",
             "pitch_up_button": "daw_control_buttons_raw[7]",
             "cursor_down_button": "device_toggle_7_button",
             "pitch_down_button": "device_toggle_8_button",

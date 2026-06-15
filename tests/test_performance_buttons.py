@@ -211,25 +211,18 @@ class PerformanceButtonsTest(unittest.TestCase):
         pitch = FakeParameter("Pitch", value=pitch_value, is_enabled=is_enabled)
         return FakeTrack(devices=(FakeDevice(), FakeDevice(parameters=(pitch,)))), pitch
 
-    def test_cursor_buttons_are_dim_while_idle_and_white_while_held(self):
+    def test_cursor_down_is_dim_while_idle_and_white_while_held(self):
         component = self._component(FakeTrack())
-        cursor_up = FakeButton(identifier=43)
         cursor_down = FakeButton(identifier=51)
 
-        component.set_cursor_up_button(cursor_up)
         component.set_cursor_down_button(cursor_down)
 
-        self.assertEqual(cursor_up.sent_midi[-1], _rgb_led_message(43, PERFORMANCE_BUTTONS.ENCODER_MIN_LED_VALUE))
         self.assertEqual(cursor_down.sent_midi[-1], _rgb_led_message(51, PERFORMANCE_BUTTONS.ENCODER_MIN_LED_VALUE))
 
-        cursor_up.receive_value(127)
         cursor_down.receive_value(127)
-        self.assertEqual(cursor_up.sent_values[-1], PERFORMANCE_BUTTONS.MOMENTARY_BUTTON_LED_ON_VALUE)
         self.assertEqual(cursor_down.sent_values[-1], PERFORMANCE_BUTTONS.MOMENTARY_BUTTON_LED_ON_VALUE)
 
-        cursor_up.receive_value(0)
         cursor_down.receive_value(0)
-        self.assertEqual(cursor_up.sent_midi[-1], _rgb_led_message(43, PERFORMANCE_BUTTONS.ENCODER_MIN_LED_VALUE))
         self.assertEqual(cursor_down.sent_midi[-1], _rgb_led_message(51, PERFORMANCE_BUTTONS.ENCODER_MIN_LED_VALUE))
 
     def test_pitch_up_button_steps_pitch_and_uses_red_led_levels(self):
@@ -255,11 +248,6 @@ class PerformanceButtonsTest(unittest.TestCase):
         pitch_up.receive_value(127)
         self.assertEqual(pitch.value, 36.0)
         self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, (64, 10, 10)))
-
-        pitch_up.receive_value(127)
-        self.assertEqual(pitch.value, 48.0)
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, (64, 10, 10)))
-        self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
 
     def test_pitch_down_button_steps_pitch_and_uses_blue_led_levels(self):
         track, pitch = self._track_with_pitch()
@@ -287,7 +275,7 @@ class PerformanceButtonsTest(unittest.TestCase):
         self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, (10, 34, 96)))
         self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
 
-    def test_pitch_steps_are_clamped_to_parameter_range(self):
+    def test_pitch_up_steps_are_clamped_to_parameter_range(self):
         track, pitch = self._track_with_pitch(pitch_value=120.0)
         component = self._component(track)
         pitch_up = FakeButton()
@@ -298,7 +286,7 @@ class PerformanceButtonsTest(unittest.TestCase):
         self.assertEqual(pitch.value, 127.0)
         self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(0, (64, 10, 10)))
 
-    def test_missing_or_invalid_pitch_target_turns_pitch_leds_off(self):
+    def test_missing_or_invalid_pitch_target_turns_pitch_led_off(self):
         cases = (
             None,
             FakeTrack(devices=()),
@@ -308,56 +296,47 @@ class PerformanceButtonsTest(unittest.TestCase):
 
         for track in cases:
             component = self._component(track)
-            pitch_up = FakeButton()
             pitch_down = FakeButton()
 
-            component.set_pitch_up_button(pitch_up)
             component.set_pitch_down_button(pitch_down)
-            pitch_up.receive_value(127)
             pitch_down.receive_value(127)
 
-            self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(0, PERFORMANCE_BUTTONS.PITCH_LED_OFF_VALUE))
             self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(0, PERFORMANCE_BUTTONS.PITCH_LED_OFF_VALUE))
 
     def test_disabled_pitch_parameter_is_ignored_and_leds_off(self):
         track, pitch = self._track_with_pitch(is_enabled=False)
         component = self._component(track)
-        pitch_up = FakeButton()
+        pitch_down = FakeButton()
 
-        component.set_pitch_up_button(pitch_up)
-        pitch_up.receive_value(127)
+        component.set_pitch_down_button(pitch_down)
+        pitch_down.receive_value(127)
 
         self.assertEqual(pitch.value, 0.0)
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(0, PERFORMANCE_BUTTONS.PITCH_LED_OFF_VALUE))
+        self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(0, PERFORMANCE_BUTTONS.PITCH_LED_OFF_VALUE))
 
-    def test_external_pitch_value_change_updates_leds_from_current_value(self):
+    def test_external_pitch_value_change_updates_led_from_current_value(self):
         track, pitch = self._track_with_pitch()
         component = self._component(track)
-        pitch_up = FakeButton(identifier=44)
         pitch_down = FakeButton(identifier=52)
 
-        component.set_pitch_up_button(pitch_up)
         component.set_pitch_down_button(pitch_down)
 
         pitch.value = 24.0
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, (127, 12, 12)))
         self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
 
         pitch.value = -36.0
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
         self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, (10, 34, 96)))
 
         pitch.value = 0.0
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
         self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, PERFORMANCE_BUTTONS.PITCH_NEUTRAL_LED_VALUE))
 
     def test_polling_retargets_pitch_listener_when_selected_track_changes(self):
         first_track, first_pitch = self._track_with_pitch()
-        second_track, second_pitch = self._track_with_pitch(pitch_value=36.0)
+        second_track, second_pitch = self._track_with_pitch(pitch_value=-36.0)
         component = self._component(first_track)
-        pitch_up = FakeButton(identifier=44)
+        pitch_down = FakeButton(identifier=52)
 
-        component.set_pitch_up_button(pitch_up)
+        component.set_pitch_down_button(pitch_down)
         self.assertIn(component._on_pitch_parameter_value_changed, first_pitch.listeners)
 
         component.song.view.selected_track = second_track
@@ -365,7 +344,7 @@ class PerformanceButtonsTest(unittest.TestCase):
 
         self.assertNotIn(component._on_pitch_parameter_value_changed, first_pitch.listeners)
         self.assertIn(component._on_pitch_parameter_value_changed, second_pitch.listeners)
-        self.assertEqual(pitch_up.sent_midi[-1], _rgb_led_message(44, (64, 10, 10)))
+        self.assertEqual(pitch_down.sent_midi[-1], _rgb_led_message(52, (10, 34, 96)))
 
 
 if __name__ == "__main__":

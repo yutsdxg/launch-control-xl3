@@ -15,14 +15,12 @@ PITCH_LED_LEVELS = (
     (12.0, (127, 42, 42), (44, 84, 127)),
 )
 ENCODER_MIN_LED_VALUE = (6, 6, 6)
-BUTTON_LED_OFF_VALUE = Rgb.OFF.midi_value
 PITCH_LED_OFF_VALUE = (0, 0, 0)
 PITCH_NEUTRAL_LED_VALUE = ENCODER_MIN_LED_VALUE
 MOMENTARY_BUTTON_LED_ON_VALUE = Rgb.WHITE.midi_value
 BUTTON_CONTROL_INDICES = {
-    "cursor_up": 43,
-    "cursor_down": 51,
     "pitch_up": 44,
+    "cursor_down": 51,
     "pitch_down": 52,
 }
 
@@ -30,17 +28,14 @@ BUTTON_CONTROL_INDICES = {
 class PerformanceButtonsComponent(Component):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
-        self._cursor_up_button = None
-        self._cursor_down_button = None
         self._pitch_up_button = None
+        self._cursor_down_button = None
         self._pitch_down_button = None
-        self._cursor_up_button_slot = None
-        self._cursor_down_button_slot = None
         self._pitch_up_button_slot = None
+        self._cursor_down_button_slot = None
         self._pitch_down_button_slot = None
-        self._last_cursor_up_led_value = None
-        self._last_cursor_down_led_value = None
         self._last_pitch_up_led_value = None
+        self._last_cursor_down_led_value = None
         self._last_pitch_down_led_value = None
         self._midi_sender = None
         self._monitored_pitch_parameter = None
@@ -53,9 +48,6 @@ class PerformanceButtonsComponent(Component):
                 )
             )
         )
-
-    def set_cursor_up_button(self, button):
-        self._set_button("cursor_up", button, self._on_cursor_button_value)
 
     def set_cursor_down_button(self, button):
         self._set_button("cursor_down", button, self._on_cursor_button_value)
@@ -71,7 +63,6 @@ class PerformanceButtonsComponent(Component):
         self.refresh_led_feedback()
 
     def refresh_led_feedback(self):
-        self._update_led("cursor_up", force=True)
         self._update_led("cursor_down", force=True)
         self._update_pitch_led_feedback(force=True)
 
@@ -163,7 +154,7 @@ class PerformanceButtonsComponent(Component):
         self._update_pitch_led_feedback()
 
     def _update_led(self, control_name, force=False):
-        if control_name in ("cursor_up", "cursor_down"):
+        if control_name == "cursor_down":
             led_value = ENCODER_MIN_LED_VALUE
         elif control_name == "pitch_up":
             self._update_pitch_monitor()

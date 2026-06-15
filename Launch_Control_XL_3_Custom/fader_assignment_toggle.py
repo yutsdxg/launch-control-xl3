@@ -1,5 +1,5 @@
 from ableton.v3.control_surface import Component
-from ableton.v3.live import liveobj_valid
+from ableton.v3.live import action, liveobj_valid
 from .colors import Rgb
 
 ASSIGNMENT_CUE = 0
@@ -41,6 +41,7 @@ class FaderAssignmentToggleComponent(Component):
 
     def _on_toggle_button_value(self, value):
         if value > 0:
+            self._select_loopcloud_track()
             self._assignment = ASSIGNMENT_LOOPCLOUD if self._assignment == ASSIGNMENT_CUE else ASSIGNMENT_CUE
             self._apply_assignment()
         self._update_led(force=True)
@@ -81,18 +82,37 @@ class FaderAssignmentToggleComponent(Component):
             return None
 
     def _loopcloud_track_volume_parameter(self):
+        loopcloud_track = self._loopcloud_track()
+        if liveobj_valid(loopcloud_track):
+            return self._track_volume_parameter(loopcloud_track)
         try:
             tracks = tuple(self.song.tracks)
         except (AttributeError, RuntimeError):
             tracks = ()
+        if tracks:
+            return self._track_volume_parameter(tracks[0])
+        return None
+
+    def _select_loopcloud_track(self):
+        track = self._loopcloud_track()
+        if not liveobj_valid(track):
+            return
+        try:
+            action.select(track)
+        except RuntimeError:
+            pass
+
+    def _loopcloud_track(self):
+        try:
+            tracks = tuple(self.song.tracks)
+        except (AttributeError, RuntimeError):
+            return None
         for track in tracks:
             try:
                 if track.name == LOOPCLOUD_TRACK_NAME:
-                    return self._track_volume_parameter(track)
+                    return track
             except RuntimeError:
                 continue
-        if tracks:
-            return self._track_volume_parameter(tracks[0])
         return None
 
     def _track_volume_parameter(self, track):
