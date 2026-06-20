@@ -720,34 +720,73 @@ class TrackButtonsTest(unittest.TestCase):
         self.component.set_solo_modifier_button(self.solo)
         self.component.set_mute_modifier_button(self.mute)
 
-    def test_modifier_priority_and_release_behavior(self):
+    def test_select_mode_repressing_selected_track_toggles_mute(self):
         child = self.layout[1]
-        self.solo.receive(127)
-        self.mute.receive(127)
+
         self.buttons[1].receive(127)
-        self.buttons[1].receive(0)
+
+        self.assertIs(self.song.view.selected_track, child)
+        self.assertEqual(MIXING_ACTION.selected[-1], child)
+        self.assertFalse(child.mute)
+
+        self.buttons[1].receive(127)
+
+        self.assertTrue(child.mute)
+        self.assertFalse(child.solo)
+
+        self.buttons[1].receive(127)
+
+        self.assertFalse(child.mute)
+
+    def test_solo_button_toggles_persistent_solo_mode(self):
+        child = self.layout[1]
+
+        self.solo.receive(127)
+        self.solo.receive(0)
+        self.buttons[1].receive(127)
 
         self.assertTrue(child.solo)
         self.assertFalse(child.mute)
+        self.assertEqual(MIXING_ACTION.selected, [])
+        self.assertEqual(
+            self.component._led_sender.last[self.solo],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.SOLO_ON,
+        )
 
-    def test_pressing_soloed_track_without_solo_modifier_turns_solo_off(self):
+        self.solo.receive(127)
+
+        self.assertEqual(
+            self.component._led_sender.last[self.solo],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.SOLO_MODIFIER_IDLE,
+        )
+
+    def test_mute_button_toggles_persistent_mute_mode_and_switches_from_solo_mode(self):
         child = self.layout[1]
-        child.solo = True
+
+        self.solo.receive(127)
+        self.mute.receive(127)
+        self.mute.receive(0)
 
         self.buttons[1].receive(127)
 
         self.assertFalse(child.solo)
+        self.assertTrue(child.mute)
         self.assertEqual(MIXING_ACTION.selected, [])
+        self.assertEqual(
+            self.component._led_sender.last[self.solo],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.SOLO_MODIFIER_IDLE,
+        )
+        self.assertEqual(
+            self.component._led_sender.last[self.mute],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.MUTE_MODIFIER_ON,
+        )
 
-    def test_soloed_track_is_unsoloed_before_mute_modifier_action(self):
-        child = self.layout[1]
-        child.solo = True
         self.mute.receive(127)
 
-        self.buttons[1].receive(127)
-
-        self.assertFalse(child.solo)
-        self.assertFalse(child.mute)
+        self.assertEqual(
+            self.component._led_sender.last[self.mute],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.MUTE_MODIFIER_IDLE,
+        )
 
     def test_shift_does_not_intercept_track_button_actions(self):
         self.shift.receive(127)
@@ -787,6 +826,24 @@ class TrackButtonsTest(unittest.TestCase):
         self.component._update_track_button_led(1, force=True)
         self.assertEqual(self.component._led_sender.last[self.buttons[1]], ("active", child.rgb))
 
+    def test_selected_muted_track_blinks_with_dim_track_color(self):
+        child = self.layout[1]
+        child.mute = True
+        self.song.view.selected_track = child
+
+        self.component._selected_blink_is_on = lambda: True
+        self.component._update_track_button_led(1, force=True)
+
+        self.assertEqual(self.component._led_sender.last[self.buttons[1]], ("dim", child.rgb))
+
+        self.component._selected_blink_is_on = lambda: False
+        self.component._update_track_button_led(1, force=True)
+
+        self.assertEqual(
+            self.component._led_sender.last[self.buttons[1]],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.OFF,
+        )
+
 
 class ColorManagementTest(unittest.TestCase):
     def test_button_and_device_toggle_brightness_coefficients(self):
@@ -800,13 +857,13 @@ class ColorManagementTest(unittest.TestCase):
                 constants[target.id] = node.value.value
 
         self.assertEqual(constants["TRACK_ON_BRIGHTNESS"], 0.25)
-        self.assertEqual(constants["TRACK_MUTED_BRIGHTNESS"], 0.025)
-        self.assertEqual(constants["ENCODER_MIN_BRIGHTNESS"], 0.025)
+        self.assertEqual(constants["TRACK_MUTED_BRIGHTNESS"], 0.03)
+        self.assertEqual(constants["ENCODER_MIN_BRIGHTNESS"], 0.03)
         self.assertEqual(constants["ENCODER_CENTER_BRIGHTNESS"], 0.175)
         self.assertEqual(constants["ENCODER_MAX_BRIGHTNESS"], 0.38)
         self.assertEqual(constants["ENCODER_PARAMETER_BRIGHTNESS"], 0.25)
         self.assertEqual(constants["DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS"], 0.25)
-        self.assertEqual(constants["DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS"], 0.025)
+        self.assertEqual(constants["DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS"], 0.03)
 
     def test_encoder_min_center_max_use_white_base_color(self):
         tree = ast.parse((PACKAGE_ROOT / "colors.py").read_text())

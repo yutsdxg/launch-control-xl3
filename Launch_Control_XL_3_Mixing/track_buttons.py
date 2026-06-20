@@ -10,6 +10,10 @@ from .track_resolver import selected_track, track_button_targets
 
 LED_UPDATE_INTERVAL = 0.1
 SELECTED_BLINK_INTERVAL = 0.5
+BUTTON_MODE_SELECT = "select"
+BUTTON_MODE_SOLO = "solo"
+BUTTON_MODE_MUTE = "mute"
+SELECTED_TRACK_REPRESS_ACTION = BUTTON_MODE_MUTE
 
 
 class TrackButtonsComponent(Component):
@@ -24,8 +28,7 @@ class TrackButtonsComponent(Component):
         self._solo_modifier_slot = None
         self._mute_modifier_slot = None
         self._shift_pressed = False
-        self._solo_pressed = False
-        self._mute_pressed = False
+        self._button_mode = BUTTON_MODE_SELECT
         self._led_sender = LedSender()
         self._led_update_task = self._tasks.add(
             task.loop(
@@ -151,11 +154,15 @@ class TrackButtonsComponent(Component):
         self.refresh_led_feedback()
 
     def _on_solo_modifier_value(self, value):
-        self._solo_pressed = value > 0
-        self._update_modifier_leds(force=True)
+        if value > 0:
+            self._toggle_button_mode(BUTTON_MODE_SOLO)
 
     def _on_mute_modifier_value(self, value):
-        self._mute_pressed = value > 0
+        if value > 0:
+            self._toggle_button_mode(BUTTON_MODE_MUTE)
+
+    def _toggle_button_mode(self, mode):
+        self._button_mode = BUTTON_MODE_SELECT if self._button_mode == mode else mode
         self._update_modifier_leds(force=True)
 
     def _on_track_button_value(self, index, value):
@@ -164,13 +171,21 @@ class TrackButtonsComponent(Component):
         target = self._track_target(index)
         if not liveobj_valid(target):
             return
-        if self._solo_pressed or self._track_bool(target, "solo"):
+        if self._button_mode == BUTTON_MODE_SOLO:
             self._toggle_track_bool(target, "solo")
-        elif self._mute_pressed:
+        elif self._button_mode == BUTTON_MODE_MUTE:
             self._toggle_track_bool(target, "mute")
+        elif self._is_selected(target):
+            self._apply_selected_track_repress_action(target)
         else:
             self._select_track(target)
-        self._update_track_button_led(index, force=True)
+        self._update_track_button_leds(force=True)
+
+    def _apply_selected_track_repress_action(self, track):
+        if SELECTED_TRACK_REPRESS_ACTION == BUTTON_MODE_SOLO:
+            self._toggle_track_bool(track, "solo")
+        else:
+            self._toggle_track_bool(track, "mute")
 
     def _toggle_track_bool(self, track, attribute):
         try:
@@ -188,10 +203,11 @@ class TrackButtonsComponent(Component):
         try:
             action.select(track)
         except RuntimeError:
-            try:
-                self.song.view.selected_track = track
-            except (AttributeError, RuntimeError):
-                pass
+            pass
+        try:
+            self.song.view.selected_track = track
+        except (AttributeError, RuntimeError):
+            pass
 
     def _update_led_feedback(self):
         self._update_modifier_leds()
@@ -199,10 +215,10 @@ class TrackButtonsComponent(Component):
 
     def _update_modifier_leds(self, force=False):
         if self._solo_modifier_button is not None:
-            rgb = Theme.SOLO_ON if self._solo_pressed else Theme.SOLO_MODIFIER_IDLE
+            rgb = Theme.SOLO_ON if self._button_mode == BUTTON_MODE_SOLO else Theme.SOLO_MODIFIER_IDLE
             self._led_sender.send_rgb(self._solo_modifier_button, rgb, force=force)
         if self._mute_modifier_button is not None:
-            rgb = Theme.MUTE_MODIFIER_ON if self._mute_pressed else Theme.MUTE_MODIFIER_IDLE
+            rgb = Theme.MUTE_MODIFIER_ON if self._button_mode == BUTTON_MODE_MUTE else Theme.MUTE_MODIFIER_IDLE
             self._led_sender.send_rgb(self._mute_modifier_button, rgb, force=force)
 
     def _update_track_button_leds(self, force=False):
@@ -224,13 +240,14 @@ class TrackButtonsComponent(Component):
                 return Theme.SOLO_ON
         except (AttributeError, RuntimeError):
             pass
-        if self._is_selected(track):
-            return active_track_rgb(track_rgb(track)) if self._selected_blink_is_on() else Theme.OFF
         rgb = track_rgb(track)
         try:
-            return dim_track_rgb(rgb) if bool(track.mute) else active_track_rgb(rgb)
+            state_rgb = dim_track_rgb(rgb) if bool(track.mute) else active_track_rgb(rgb)
         except (AttributeError, RuntimeError):
-            return active_track_rgb(rgb)
+            state_rgb = active_track_rgb(rgb)
+        if self._is_selected(track):
+            return state_rgb if self._selected_blink_is_on() else Theme.OFF
+        return state_rgb
 
     def _track_target(self, index):
         targets = track_button_targets(self.song)
