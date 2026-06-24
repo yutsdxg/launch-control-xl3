@@ -1,72 +1,24 @@
 def create_mappings(_control_surface):
-    fixed_assignments = {
-        "encoder_1": "upper_encoders_raw[0]",
-        "encoder_2": "upper_encoders_raw[1]",
-        "encoder_3": "upper_encoders_raw[2]",
-        "encoder_4": "upper_encoders_raw[3]",
-        "encoder_5": "upper_encoders_raw[4]",
-        "encoder_6": "upper_encoders_raw[5]",
-        "encoder_7": "upper_encoders_raw[6]",
-        "encoder_8": "upper_encoders_raw[7]",
-        "encoder_9": "upper_encoders_raw[8]",
-        "encoder_11": "upper_encoders_raw[10]",
-        "encoder_12": "upper_encoders_raw[11]",
-        "encoder_13": "upper_encoders_raw[12]",
-        "encoder_14": "upper_encoders_raw[13]",
-        "encoder_15": "upper_encoders_raw[14]",
-        "encoder_16": "upper_encoders_raw[15]",
-        "encoder_17": "lower_encoders_raw[0]",
-        "encoder_19": "lower_encoders_raw[2]",
-        "encoder_20": "lower_encoders_raw[3]",
-        "encoder_21": "lower_encoders_raw[4]",
-        "encoder_22": "lower_encoders_raw[5]",
-        "encoder_23": "lower_encoders_raw[6]",
-        "encoder_24": "lower_encoders_raw[7]",
-        "fader_1": "faders_raw[0]",
-        "fader_3": "faders_raw[2]",
-        "fader_4": "faders_raw[3]",
-        "fader_5": "faders_raw[4]",
-        "fader_6": "faders_raw[5]",
-        "fader_7": "faders_raw[6]",
-        "fader_8": "faders_raw[7]",
-        "encoder_1_display": "upper_encoder_0_display_command",
-        "encoder_2_display": "upper_encoder_1_display_command",
-        "encoder_3_display": "upper_encoder_2_display_command",
-        "encoder_4_display": "upper_encoder_3_display_command",
-        "encoder_5_display": "upper_encoder_4_display_command",
-        "encoder_6_display": "upper_encoder_5_display_command",
-        "encoder_7_display": "upper_encoder_6_display_command",
-        "encoder_8_display": "upper_encoder_7_display_command",
-        "encoder_9_display": "upper_encoder_8_display_command",
-        "encoder_11_display": "upper_encoder_10_display_command",
-        "encoder_12_display": "upper_encoder_11_display_command",
-        "encoder_13_display": "upper_encoder_12_display_command",
-        "encoder_14_display": "upper_encoder_13_display_command",
-        "encoder_15_display": "upper_encoder_14_display_command",
-        "encoder_16_display": "upper_encoder_15_display_command",
-        "encoder_17_display": "lower_encoder_0_display_command",
-        "encoder_19_display": "lower_encoder_2_display_command",
-        "encoder_20_display": "lower_encoder_3_display_command",
-        "encoder_21_display": "lower_encoder_4_display_command",
-        "encoder_22_display": "lower_encoder_5_display_command",
-        "encoder_23_display": "lower_encoder_6_display_command",
-        "encoder_24_display": "lower_encoder_7_display_command",
-        "fader_1_display": "fader_0_display_command",
-        "fader_3_display": "fader_2_display_command",
-        "fader_4_display": "fader_3_display_command",
-        "fader_5_display": "fader_4_display_command",
-        "fader_6_display": "fader_5_display_command",
-        "fader_7_display": "fader_6_display_command",
-        "fader_8_display": "fader_7_display_command",
-    }
+    control_router = {}
+    for index in range(1, 25):
+        if index <= 16:
+            control = "upper_encoders_raw[{}]".format(index - 1)
+            display = "upper_encoder_{}_display_command".format(index - 1)
+        else:
+            control = "lower_encoders_raw[{}]".format(index - 17)
+            display = "lower_encoder_{}_display_command".format(index - 17)
+        control_router["encoder_{}".format(index)] = control
+        control_router["encoder_{}_display".format(index)] = display
+    for index in range(1, 9):
+        control_router["fader_{}".format(index)] = "faders_raw[{}]".format(index - 1)
+        control_router["fader_{}_display".format(index)] = "fader_{}_display_command".format(index - 1)
+    for index in range(1, 17):
+        control_router["track_button_{}".format(index)] = "track_button_{}".format(index)
     track_buttons = {
         "shift_button": "shift_button",
         "solo_modifier_button": "solo_modifier_button",
         "mute_modifier_button": "mute_modifier_button",
     }
-    track_buttons.update(
-        {"track_button_{}".format(index): "track_button_{}".format(index) for index in range(1, 17)}
-    )
     return {
         "Transport": {
             "play_toggle_button": "play_button",
@@ -74,8 +26,14 @@ def create_mappings(_control_surface):
         "View_Based_Recording": {
             "record_button": "record_button",
         },
-        "Fixed_Assignments": fixed_assignments,
+        "Control_Router": control_router,
+        "Fixed_Assignments": {},
         "Track_Buttons": track_buttons,
+        "Mode_Manager": {
+            "mixing_button": "page_up_button",
+            "instrument_button": "page_down_button",
+        },
+        "Instrument_Assignments": {},
         "Locator_Navigation": {
             "prev_locator_button": "track_left_button",
             "next_locator_button": "track_right_button",

@@ -12,6 +12,10 @@ ENCODER_MAX_BRIGHTNESS = 0.38
 ENCODER_PARAMETER_BRIGHTNESS = 0.25
 DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS = 0.25
 DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS = 0.03
+MODE_ACTIVE_BRIGHTNESS = TRACK_ON_BRIGHTNESS
+MODE_INACTIVE_BRIGHTNESS = TRACK_MUTED_BRIGHTNESS
+INSTRUMENT_BUTTON_ON_BRIGHTNESS = TRACK_ON_BRIGHTNESS
+INSTRUMENT_BUTTON_OFF_BRIGHTNESS = TRACK_MUTED_BRIGHTNESS
 MIDI_RGB_MAX = 127
 LIVE_RGB_MAX = 255
 
@@ -202,6 +206,18 @@ def device_toggle_encoder_rgb(encoder_number, is_on):
     base = Theme.DEVICE_TOGGLE_ENCODER_COLORS.get(encoder_number, Theme.DEVICE_ON)
     brightness = DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS if is_on else DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS
     return scale_rgb(base, brightness)
+
+
+def mode_button_rgb(is_active):
+    brightness = MODE_ACTIVE_BRIGHTNESS if is_active else MODE_INACTIVE_BRIGHTNESS
+    return scale_rgb(Palette.WHITE, brightness)
+
+
+def instrument_button_rgb(is_on):
+    if is_on is None:
+        return Theme.OFF
+    brightness = INSTRUMENT_BUTTON_ON_BRIGHTNESS if is_on else INSTRUMENT_BUTTON_OFF_BRIGHTNESS
+    return scale_rgb(Palette.WHITE, brightness)
 
 
 def encoder_pan_rgb(parameter_value):

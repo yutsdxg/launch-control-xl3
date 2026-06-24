@@ -19,6 +19,7 @@ SELECTED_TRACK_REPRESS_ACTION = BUTTON_MODE_MUTE
 class TrackButtonsComponent(Component):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
+        self._active = True
         self._track_buttons = [None] * 16
         self._track_button_slots = [None] * 16
         self._shift_button = None
@@ -42,6 +43,18 @@ class TrackButtonsComponent(Component):
     def set_midi_sender(self, midi_sender):
         self._led_sender.set_midi_sender(midi_sender)
         self.refresh_led_feedback()
+
+    def set_active(self, active):
+        active = bool(active)
+        if self._active == active:
+            if active:
+                self.refresh_led_feedback()
+            return
+        self._active = active
+        if self._active:
+            self.refresh_led_feedback()
+        else:
+            self._turn_modifier_leds_off(force=True)
 
     def set_shift_button(self, button):
         self._shift_button, self._shift_slot = self._replace_modifier(
@@ -119,6 +132,8 @@ class TrackButtonsComponent(Component):
         self._set_track_button(15, button)
 
     def refresh_led_feedback(self):
+        if not self._active:
+            return
         self._update_modifier_leds(force=True)
         self._update_track_button_leds(force=True)
 
@@ -150,14 +165,20 @@ class TrackButtonsComponent(Component):
         self._update_track_button_led(index, force=True)
 
     def _on_shift_value(self, value):
+        if not self._active:
+            return
         self._shift_pressed = value > 0
         self.refresh_led_feedback()
 
     def _on_solo_modifier_value(self, value):
+        if not self._active:
+            return
         if value > 0:
             self._toggle_button_mode(BUTTON_MODE_SOLO)
 
     def _on_mute_modifier_value(self, value):
+        if not self._active:
+            return
         if value > 0:
             self._toggle_button_mode(BUTTON_MODE_MUTE)
 
@@ -166,6 +187,8 @@ class TrackButtonsComponent(Component):
         self._update_modifier_leds(force=True)
 
     def _on_track_button_value(self, index, value):
+        if not self._active:
+            return
         if value <= 0:
             return
         target = self._track_target(index)
@@ -199,6 +222,16 @@ class TrackButtonsComponent(Component):
         except (AttributeError, RuntimeError):
             return False
 
+    def _object_name(self, obj):
+        for attr in ("name", "class_display_name", "class_name"):
+            try:
+                value = getattr(obj, attr, "")
+            except RuntimeError:
+                value = ""
+            if value:
+                return str(value)
+        return ""
+
     def _select_track(self, track):
         try:
             action.select(track)
@@ -210,10 +243,14 @@ class TrackButtonsComponent(Component):
             pass
 
     def _update_led_feedback(self):
+        if not self._active:
+            return
         self._update_modifier_leds()
         self._update_track_button_leds()
 
     def _update_modifier_leds(self, force=False):
+        if not self._active:
+            return
         if self._solo_modifier_button is not None:
             rgb = Theme.SOLO_ON if self._button_mode == BUTTON_MODE_SOLO else Theme.SOLO_MODIFIER_IDLE
             self._led_sender.send_rgb(self._solo_modifier_button, rgb, force=force)
@@ -221,11 +258,18 @@ class TrackButtonsComponent(Component):
             rgb = Theme.MUTE_MODIFIER_ON if self._button_mode == BUTTON_MODE_MUTE else Theme.MUTE_MODIFIER_IDLE
             self._led_sender.send_rgb(self._mute_modifier_button, rgb, force=force)
 
+    def _turn_modifier_leds_off(self, force=False):
+        for button in (self._solo_modifier_button, self._mute_modifier_button):
+            if button is not None:
+                self._led_sender.send_rgb(button, Theme.OFF, force=force)
+
     def _update_track_button_leds(self, force=False):
         for index in range(len(self._track_buttons)):
             self._update_track_button_led(index, force=force)
 
     def _update_track_button_led(self, index, force=False):
+        if not self._active:
+            return
         button = self._track_buttons[index]
         if button is None:
             return

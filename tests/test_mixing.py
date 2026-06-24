@@ -139,6 +139,8 @@ def _install_component_stubs():
         encoder_number,
         is_on,
     )
+    colors.mode_button_rgb = lambda is_active: ("mode", is_active)
+    colors.instrument_button_rgb = lambda is_on: ("instrument-button", is_on)
     sys.modules["Launch_Control_XL_3_Mixing.colors"] = colors
 
     led = types.ModuleType("Launch_Control_XL_3_Mixing.led")
@@ -164,7 +166,13 @@ def _install_component_stubs():
 
 _install_component_stubs()
 TRACK_RESOLVER = _load_module("Launch_Control_XL_3_Mixing.track_resolver", "track_resolver.py")
+CONTROL_ROUTER = _load_module("Launch_Control_XL_3_Mixing.control_router", "control_router.py")
 FIXED_ASSIGNMENTS = _load_module("Launch_Control_XL_3_Mixing.fixed_assignments", "fixed_assignments.py")
+INSTRUMENT_ASSIGNMENTS = _load_module(
+    "Launch_Control_XL_3_Mixing.instrument_assignments",
+    "instrument_assignments.py",
+)
+MODE_MANAGER = _load_module("Launch_Control_XL_3_Mixing.mode_manager", "mode_manager.py")
 TRACK_BUTTONS = _load_module("Launch_Control_XL_3_Mixing.track_buttons", "track_buttons.py")
 MAPPINGS = _load_module("Launch_Control_XL_3_Mixing.mappings", "mappings.py")
 MIXING_ACTION = TRACK_BUTTONS.action
@@ -259,6 +267,22 @@ class FakeParameter:
         return str(self.value)
 
 
+class CountingParameterSequence:
+    def __init__(self, owner, values):
+        self._owner = owner
+        self._values = tuple(values)
+
+    def __iter__(self):
+        self._owner.parameter_read_count += 1
+        return iter(self._values)
+
+    def __len__(self):
+        return len(self._values)
+
+    def __getitem__(self, index):
+        return self._values[index]
+
+
 class FakeDevice:
     def __init__(self, number, on=True):
         self.name = "Device {}".format(number)
@@ -273,6 +297,61 @@ class FakeDevice:
         )
         for parameter in self.parameters:
             parameter.canonical_parent = self
+
+
+class CountingDevice(FakeDevice):
+    def __init__(self, number, on=True):
+        self.parameter_read_count = 0
+        super().__init__(number=number, on=on)
+
+    @property
+    def parameters(self):
+        return CountingParameterSequence(self, self._parameters)
+
+    @parameters.setter
+    def parameters(self, value):
+        self._parameters = tuple(value)
+
+
+class FakeInstrumentDevice:
+    def __init__(self, name="Instrument", parameter_count=48):
+        self.name = name
+        self.class_name = name
+        self.class_display_name = name
+        self.parameters = (FakeParameter("Device On"),) + tuple(
+            FakeParameter("P{}".format(index)) for index in range(1, parameter_count + 1)
+        )
+        for parameter in self.parameters:
+            parameter.canonical_parent = self
+
+
+class CountingInstrumentDevice(FakeInstrumentDevice):
+    def __init__(self, name="Instrument", parameter_count=48):
+        self.parameter_read_count = 0
+        super().__init__(name=name, parameter_count=parameter_count)
+
+    @property
+    def parameters(self):
+        return CountingParameterSequence(self, self._parameters)
+
+    @parameters.setter
+    def parameters(self, value):
+        self._parameters = tuple(value)
+
+
+class VolatileInstrumentDevice:
+    def __init__(self, name="Volatile Instrument", parameter_count=48):
+        self.name = name
+        self.class_name = name
+        self.class_display_name = name
+        self.parameter_count = parameter_count
+
+    @property
+    def parameters(self):
+        parameters = (FakeParameter("Device On", parent=self),) + tuple(
+            FakeParameter("P{}".format(index), parent=self) for index in range(1, self.parameter_count + 1)
+        )
+        return parameters
 
 
 class FakeMixer:
@@ -336,24 +415,26 @@ class MixingMappingsTest(unittest.TestCase):
 
         self.assertEqual(mappings["Locator_Navigation"]["prev_locator_button"], "track_left_button")
         self.assertEqual(mappings["Locator_Navigation"]["next_locator_button"], "track_right_button")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_1"], "upper_encoders_raw[0]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_9"], "upper_encoders_raw[8]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_11"], "upper_encoders_raw[10]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_12"], "upper_encoders_raw[11]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_13"], "upper_encoders_raw[12]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_14"], "upper_encoders_raw[13]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_15"], "upper_encoders_raw[14]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_19"], "lower_encoders_raw[2]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_20"], "lower_encoders_raw[3]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_21"], "lower_encoders_raw[4]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_22"], "lower_encoders_raw[5]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_23"], "lower_encoders_raw[6]")
-        self.assertEqual(mappings["Fixed_Assignments"]["fader_3"], "faders_raw[2]")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_1_display"], "upper_encoder_0_display_command")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_9_display"], "upper_encoder_8_display_command")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_11_display"], "upper_encoder_10_display_command")
-        self.assertEqual(mappings["Fixed_Assignments"]["encoder_22_display"], "lower_encoder_5_display_command")
-        self.assertEqual(mappings["Fixed_Assignments"]["fader_3_display"], "fader_2_display_command")
+        self.assertEqual(mappings["Fixed_Assignments"], {})
+        self.assertEqual(mappings["Instrument_Assignments"], {})
+        self.assertEqual(mappings["Control_Router"]["encoder_1"], "upper_encoders_raw[0]")
+        self.assertEqual(mappings["Control_Router"]["encoder_9"], "upper_encoders_raw[8]")
+        self.assertEqual(mappings["Control_Router"]["encoder_11"], "upper_encoders_raw[10]")
+        self.assertEqual(mappings["Control_Router"]["encoder_24"], "lower_encoders_raw[7]")
+        self.assertEqual(mappings["Control_Router"]["fader_2"], "faders_raw[1]")
+        self.assertEqual(mappings["Control_Router"]["fader_3"], "faders_raw[2]")
+        self.assertEqual(mappings["Control_Router"]["track_button_16"], "track_button_16")
+        self.assertEqual(mappings["Control_Router"]["encoder_1_display"], "upper_encoder_0_display_command")
+        self.assertEqual(mappings["Control_Router"]["encoder_24_display"], "lower_encoder_7_display_command")
+        self.assertEqual(mappings["Control_Router"]["fader_3_display"], "fader_2_display_command")
+        self.assertNotIn("track_button_1", mappings["Track_Buttons"])
+        self.assertEqual(
+            mappings["Mode_Manager"],
+            {
+                "mixing_button": "page_up_button",
+                "instrument_button": "page_down_button",
+            },
+        )
         self.assertNotIn("Encoder_Modes", mappings)
         self.assertNotIn("Mixer", mappings)
 
@@ -375,6 +456,91 @@ class TrackResolverTest(unittest.TestCase):
         song = FakeSong(layout)
 
         self.assertIs(TRACK_RESOLVER.track_button_targets(song)[7], layout[-1])
+
+
+class ModeManagerTest(unittest.TestCase):
+    def setUp(self):
+        self.component = MODE_MANAGER.ModeManagerComponent()
+        self.mixing_button = FakeButton(106)
+        self.instrument_button = FakeButton(107)
+        self.changes = []
+        self.component.set_mixing_button(self.mixing_button)
+        self.component.set_instrument_button(self.instrument_button)
+        self.component.set_on_mode_changed(self.changes.append)
+
+    def test_initial_mode_is_mixing_and_page_leds_show_current_mode(self):
+        self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_MIXING)
+        self.assertEqual(self.changes, [MODE_MANAGER.MODE_MIXING])
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", True))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", False))
+
+    def test_page_down_selects_instrument_and_page_up_returns_to_mixing(self):
+        self.instrument_button.receive(127)
+
+        self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_INSTRUMENT)
+        self.assertEqual(self.changes[-1], MODE_MANAGER.MODE_INSTRUMENT)
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", False))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", True))
+
+        self.mixing_button.receive(127)
+
+        self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_MIXING)
+        self.assertEqual(self.changes[-1], MODE_MANAGER.MODE_MIXING)
+
+
+class ControlRouterTest(unittest.TestCase):
+    class FixedReceiver:
+        def __init__(self):
+            self.calls = []
+
+        def set_encoder_1(self, control):
+            self.calls.append(("encoder_1", control))
+
+        def set_encoder_1_display(self, command):
+            self.calls.append(("encoder_1_display", command))
+
+    class InstrumentReceiver(FixedReceiver):
+        def set_fader_2(self, control):
+            self.calls.append(("fader_2", control))
+
+        def set_button_1(self, button):
+            self.calls.append(("button_1", button))
+
+    class TrackButtonReceiver:
+        def __init__(self):
+            self.calls = []
+
+        def set_track_button_1(self, button):
+            self.calls.append(("track_button_1", button))
+
+    def test_router_forwards_stored_shared_controls_after_targets_are_registered(self):
+        router = CONTROL_ROUTER.ControlRouterComponent()
+        fixed = self.FixedReceiver()
+        instrument = self.InstrumentReceiver()
+        track_buttons = self.TrackButtonReceiver()
+        encoder = FakeControl(77)
+        display = FakeDisplayCommand()
+        fader = FakeControl(6)
+        button = FakeButton(37)
+
+        router.set_encoder_1(encoder)
+        router.set_encoder_1_display(display)
+        router.set_fader_2(fader)
+        router.set_track_button_1(button)
+        router.set_target_components(
+            fixed_assignments=fixed,
+            instrument_assignments=instrument,
+            track_buttons=track_buttons,
+        )
+
+        self.assertIn(("encoder_1", encoder), fixed.calls)
+        self.assertIn(("encoder_1_display", display), fixed.calls)
+        self.assertNotIn(("fader_2", fader), fixed.calls)
+        self.assertIn(("encoder_1", encoder), instrument.calls)
+        self.assertIn(("encoder_1_display", display), instrument.calls)
+        self.assertIn(("fader_2", fader), instrument.calls)
+        self.assertIn(("button_1", button), instrument.calls)
+        self.assertIn(("track_button_1", button), track_buttons.calls)
 
 
 class FixedAssignmentsTest(unittest.TestCase):
@@ -701,6 +867,239 @@ class FixedAssignmentsTest(unittest.TestCase):
 
         self.assertIs(control.connected[-1], replacement.mixer_device.volume)
 
+    def test_inactive_mode_releases_and_stops_mixing_assignment_updates(self):
+        control = FakeControl()
+        self.component.set_fader_8(control)
+        replacement = FakeTrack("Replacement", devices=tuple(FakeDevice(index) for index in range(1, 10)))
+
+        self.component.set_active(False)
+        release_count = control.release_count
+        self.song.view.selected_track = replacement
+        self.component._update_assignments()
+
+        self.assertEqual(control.release_count, release_count)
+        self.assertIs(control.connected[-1], self.selected.mixer_device.volume)
+
+        self.component.set_active(True)
+
+        self.assertIs(control.connected[-1], replacement.mixer_device.volume)
+
+    def test_assignment_does_not_reconnect_when_live_returns_equivalent_parameter_wrappers(self):
+        volatile = VolatileInstrumentDevice("Device 4", parameter_count=4)
+        self.selected.devices = (
+            FakeDevice(1),
+            FakeDevice(2),
+            FakeDevice(3),
+            volatile,
+            *self.selected.devices[4:],
+        )
+        control = FakeControl()
+
+        self.component.set_encoder_11(control)
+        release_count = control.release_count
+        connect_count = len(control.connected)
+        self.component._update_assignments()
+
+        self.assertEqual(control.release_count, release_count)
+        self.assertEqual(len(control.connected), connect_count)
+
+    def test_device_parameters_are_cached_for_same_mixing_device(self):
+        device = CountingDevice(4)
+        self.selected.devices = (
+            FakeDevice(1),
+            FakeDevice(2),
+            FakeDevice(3),
+            device,
+            *self.selected.devices[4:],
+        )
+        fader = FakeControl()
+        on_off_encoder = FakeControl(identifier=67)
+
+        self.component.set_fader_3(fader)
+        reads_after_parameter_assignment = device.parameter_read_count
+        self.component.set_encoder_3(on_off_encoder)
+        self.assertEqual(device.parameter_read_count, reads_after_parameter_assignment)
+
+        self.component._update_assignments()
+        self.component._update_assignments()
+
+        self.assertEqual(device.parameter_read_count, reads_after_parameter_assignment)
+
+
+class InstrumentAssignmentsTest(unittest.TestCase):
+    def setUp(self):
+        self.target_device = FakeInstrumentDevice()
+        self.selected = FakeTrack(
+            "Selected",
+            devices=(FakeDevice(1), FakeDevice(2), self.target_device, FakeDevice(4)),
+        )
+        self.song = FakeSong((self.selected,), selected_track=self.selected)
+        self.component = INSTRUMENT_ASSIGNMENTS.InstrumentAssignmentsComponent()
+        self.component.song = self.song
+
+    def _activate_with_controls(self, controls):
+        for name, control in controls.items():
+            getattr(self.component, "set_{}".format(name))(control)
+        self.component.set_active(True)
+
+    def test_instrument_parameter_numbers_use_selected_track_third_device(self):
+        controls = {
+            "encoder_1": FakeControl(),
+            "encoder_24": FakeControl(),
+            "fader_1": FakeControl(),
+            "fader_8": FakeControl(),
+        }
+
+        self._activate_with_controls(controls)
+
+        self.assertIs(controls["encoder_1"].connected[-1], self.target_device.parameters[1])
+        self.assertIs(controls["encoder_24"].connected[-1], self.target_device.parameters[24])
+        self.assertIs(controls["fader_1"].connected[-1], self.target_device.parameters[25])
+        self.assertIs(controls["fader_8"].connected[-1], self.target_device.parameters[32])
+
+    def test_instrument_is_inactive_until_selected(self):
+        control = FakeControl()
+
+        self.component.set_encoder_1(control)
+
+        self.assertEqual(control.connected, [])
+
+    def test_inactive_instrument_mapping_does_not_release_shared_active_control(self):
+        control = FakeControl()
+        control.connect_to(self.selected.mixer_device.volume)
+
+        self.component.set_encoder_1(control)
+
+        self.assertEqual(control.release_count, 0)
+        self.assertIs(control.connected[-1], self.selected.mixer_device.volume)
+
+    def test_instrument_buttons_toggle_parameters_and_update_leds(self):
+        button = FakeButton(37)
+        target = self.target_device.parameters[33]
+        self.component.set_button_1(button)
+        self.component.set_active(True)
+
+        self.assertEqual(self.component._led_sender.last[button], ("instrument-button", False))
+
+        button.receive(127)
+
+        self.assertEqual(target.value, target.max)
+        self.assertEqual(self.component._led_sender.last[button], ("instrument-button", True))
+
+        button.receive(127)
+
+        self.assertEqual(target.value, target.min)
+        self.assertEqual(self.component._led_sender.last[button], ("instrument-button", False))
+
+    def test_instrument_button_without_assignment_is_off(self):
+        self.target_device = FakeInstrumentDevice(parameter_count=32)
+        self.selected.devices = (FakeDevice(1), FakeDevice(2), self.target_device)
+        button = FakeButton(37)
+
+        self.component.set_button_1(button)
+        self.component.set_active(True)
+
+        self.assertEqual(self.component._led_sender.last[button], ("instrument-button", None))
+
+    def test_instrument_custom_parameter_order_supports_occurrence_and_skip_slots(self):
+        device = self.target_device
+        device.name = "Duplicate Instrument 2"
+        device.parameters = (
+            FakeParameter("Device On", parent=device),
+            FakeParameter("Repeated", parent=device),
+            FakeParameter("Other", parent=device),
+            FakeParameter("Repeated", parent=device),
+        )
+        old_index = INSTRUMENT_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX
+        old_append_rest = INSTRUMENT_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST
+        try:
+            INSTRUMENT_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = (
+                INSTRUMENT_ASSIGNMENTS.build_device_order_index(
+                    {
+                        "Duplicate Instrument": (
+                            {"Repeated": {"occurrence": 2}},
+                            "SKIP",
+                            "Other",
+                        )
+                    }
+                )
+            )
+            INSTRUMENT_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = False
+            first = FakeControl()
+            skipped = FakeControl()
+            third = FakeControl()
+
+            self._activate_with_controls(
+                {
+                    "encoder_1": first,
+                    "encoder_2": skipped,
+                    "encoder_3": third,
+                }
+            )
+
+            self.assertIs(first.connected[-1], device.parameters[3])
+            self.assertEqual(skipped.connected, [])
+            self.assertIs(third.connected[-1], device.parameters[2])
+        finally:
+            INSTRUMENT_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = old_index
+            INSTRUMENT_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = old_append_rest
+
+    def test_instrument_retargets_after_selected_track_change(self):
+        control = FakeControl()
+        self._activate_with_controls({"encoder_1": control})
+        replacement_device = FakeInstrumentDevice("Replacement Instrument")
+        replacement = FakeTrack(
+            "Replacement",
+            devices=(FakeDevice(1), FakeDevice(2), replacement_device),
+        )
+
+        self.song.view.selected_track = replacement
+        self.component._update_assignments()
+
+        self.assertIs(control.connected[-1], replacement_device.parameters[1])
+
+    def test_instrument_does_not_reconnect_when_live_returns_equivalent_parameter_wrappers(self):
+        volatile = VolatileInstrumentDevice()
+        self.selected.devices = (FakeDevice(1), FakeDevice(2), volatile, FakeDevice(4))
+        control = FakeControl()
+
+        self._activate_with_controls({"encoder_1": control})
+        release_count = control.release_count
+        connect_count = len(control.connected)
+        self.component._update_assignments()
+
+        self.assertEqual(control.release_count, release_count)
+        self.assertEqual(len(control.connected), connect_count)
+
+    def test_instrument_target_parameters_are_cached_for_same_device(self):
+        device = CountingInstrumentDevice()
+        self.target_device = device
+        self.selected.devices = (FakeDevice(1), FakeDevice(2), device, FakeDevice(4))
+        control = FakeControl()
+
+        self._activate_with_controls({"encoder_1": control})
+        reads_after_activation = device.parameter_read_count
+        self.component._update_assignments()
+        self.component._update_assignments()
+
+        self.assertEqual(device.parameter_read_count, reads_after_activation)
+
+    def test_instrument_deactivation_releases_assignments_and_turns_button_leds_off(self):
+        control = FakeControl()
+        button = FakeButton(37)
+        self.component.set_encoder_1(control)
+        self.component.set_button_1(button)
+        self.component.set_active(True)
+
+        self.component.set_active(False)
+        release_count = control.release_count
+        button.receive(127)
+        self.component._update_assignments()
+
+        self.assertEqual(control.release_count, release_count)
+        self.assertEqual(self.component._led_sender.last[button], ("instrument-button", None))
+        self.assertEqual(self.target_device.parameters[33].value, self.target_device.parameters[33].min)
+
 
 class TrackButtonsTest(unittest.TestCase):
     def setUp(self):
@@ -844,6 +1243,20 @@ class TrackButtonsTest(unittest.TestCase):
             sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.OFF,
         )
 
+    def test_inactive_mode_ignores_track_button_and_modifier_input(self):
+        child = self.layout[1]
+
+        self.component.set_active(False)
+        self.solo.receive(127)
+        self.buttons[1].receive(127)
+
+        self.assertFalse(child.solo)
+        self.assertIs(self.song.view.selected_track, self.layout[0])
+        self.assertEqual(
+            self.component._led_sender.last[self.solo],
+            sys.modules["Launch_Control_XL_3_Mixing.colors"].Theme.OFF,
+        )
+
 
 class ColorManagementTest(unittest.TestCase):
     def test_button_and_device_toggle_brightness_coefficients(self):
@@ -855,6 +1268,8 @@ class ColorManagementTest(unittest.TestCase):
             target = node.targets[0]
             if isinstance(target, ast.Name) and isinstance(node.value, ast.Constant):
                 constants[target.id] = node.value.value
+            elif isinstance(target, ast.Name) and isinstance(node.value, ast.Name):
+                constants[target.id] = node.value.id
 
         self.assertEqual(constants["TRACK_ON_BRIGHTNESS"], 0.25)
         self.assertEqual(constants["TRACK_MUTED_BRIGHTNESS"], 0.03)
@@ -864,6 +1279,10 @@ class ColorManagementTest(unittest.TestCase):
         self.assertEqual(constants["ENCODER_PARAMETER_BRIGHTNESS"], 0.25)
         self.assertEqual(constants["DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS"], 0.25)
         self.assertEqual(constants["DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS"], 0.03)
+        self.assertEqual(constants["MODE_ACTIVE_BRIGHTNESS"], "TRACK_ON_BRIGHTNESS")
+        self.assertEqual(constants["MODE_INACTIVE_BRIGHTNESS"], "TRACK_MUTED_BRIGHTNESS")
+        self.assertEqual(constants["INSTRUMENT_BUTTON_ON_BRIGHTNESS"], "TRACK_ON_BRIGHTNESS")
+        self.assertEqual(constants["INSTRUMENT_BUTTON_OFF_BRIGHTNESS"], "TRACK_MUTED_BRIGHTNESS")
 
     def test_encoder_min_center_max_use_white_base_color(self):
         tree = ast.parse((PACKAGE_ROOT / "colors.py").read_text())

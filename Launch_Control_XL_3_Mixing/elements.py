@@ -12,6 +12,8 @@ CC_SOLO_MODIFIER = 65
 CC_MUTE_MODIFIER = 66
 CC_TRACK_RIGHT = 102
 CC_TRACK_LEFT = 103
+CC_PAGE_UP = 106
+CC_PAGE_DOWN = 107
 CC_PLAY = 116
 CC_RECORD = 118
 
@@ -39,6 +41,8 @@ class Elements(ElementsBase):
         self.add_button(CC_MUTE_MODIFIER, "Mute_Modifier_Button")
         self.add_button(CC_TRACK_RIGHT, "Track_Right_Button")
         self.add_button(CC_TRACK_LEFT, "Track_Left_Button")
+        self.add_button(CC_PAGE_UP, "Page_Up_Button")
+        self.add_button(CC_PAGE_DOWN, "Page_Down_Button")
         self.add_button(CC_PLAY, "Play_Button")
         self.add_button(CC_RECORD, "Record_Button")
 

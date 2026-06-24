@@ -38,11 +38,14 @@ ON_OFF_ENCODER_DEVICES = {
 class FixedAssignmentsComponent(Component):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
+        self._active = True
         self._controls = {}
         self._connected_parameters = {}
+        self._connected_parameter_signatures = {}
         self._on_off_slots = {}
         self._parameter_encoder_slots = {}
         self._logged_parameter_assignments = {}
+        self._device_parameter_cache = {}
         self._display_commands = {}
         self._led_sender = LedSender()
         self._assignment_update_task = self._tasks.add(
@@ -58,10 +61,30 @@ class FixedAssignmentsComponent(Component):
         self._led_sender.set_midi_sender(midi_sender)
         self.refresh_led_feedback()
 
+    def set_active(self, active):
+        active = bool(active)
+        if self._active == active:
+            if active:
+                self._update_assignments()
+                self.refresh_led_feedback()
+            return
+        self._active = active
+        if self._active:
+            self._clear_device_parameter_cache()
+            self._update_assignments()
+            self.refresh_led_feedback()
+        else:
+            self._clear_device_parameter_cache()
+            self._release_all_parameter_controls()
+            for encoder_number in ON_OFF_ENCODER_DEVICES:
+                self._clear_manual_led_rgb(self._controls.get("encoder_{}".format(encoder_number)))
+
     def _set_display_command(self, name, command):
         self._display_commands[name] = command
 
     def refresh_led_feedback(self):
+        if not self._active:
+            return
         for encoder_number in ON_OFF_ENCODER_DEVICES:
             self._update_on_off_encoder_led(encoder_number, force=True)
 
@@ -275,6 +298,8 @@ class FixedAssignmentsComponent(Component):
         self._set_display_command("fader_8", command)
 
     def _update_assignments(self):
+        if not self._active:
+            return
         for name in tuple(self._controls):
             if not name.startswith("encoder_") or int(name.split("_")[1]) not in ON_OFF_ENCODER_DEVICES:
                 self._update_parameter_assignment(name)
@@ -283,15 +308,27 @@ class FixedAssignmentsComponent(Component):
 
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
+        if not self._active:
+            if name in self._connected_parameters:
+                self._release_parameter_control(name, control)
+            return
         parameter = self._parameter_for_control(name)
-        current = self._connected_parameters.get(name)
-        if not force and parameter is current and self._parameter_is_enabled(parameter):
+        parameter_signature = self._parameter_signature(name, parameter)
+        if (
+            not force
+            and parameter_signature is not None
+            and parameter_signature == self._connected_parameter_signatures.get(name)
+            and self._parameter_is_enabled(parameter)
+        ):
             return
         self._release_parameter_control(name, control)
-        if control is None or not self._parameter_is_enabled(parameter):
+        if control is None:
+            return
+        if not self._parameter_is_enabled(parameter):
             return
         if is_handled_special_parameter(parameter):
             self._connected_parameters[name] = parameter
+            self._connected_parameter_signatures[name] = parameter_signature
             self._set_manual_led_parameter(control, parameter)
             self._log_parameter_assignment(name, parameter)
             self._update_parameter_encoder_led(name, parameter, force=True)
@@ -301,11 +338,13 @@ class FixedAssignmentsComponent(Component):
         except RuntimeError:
             return
         self._connected_parameters[name] = parameter
+        self._connected_parameter_signatures[name] = parameter_signature
         self._log_parameter_assignment(name, parameter)
 
     def _release_parameter_control(self, name, control):
         parameter = self._connected_parameters.get(name)
         self._connected_parameters.pop(name, None)
+        self._connected_parameter_signatures.pop(name, None)
         if control is None:
             return
         if parameter is not None:
@@ -314,6 +353,10 @@ class FixedAssignmentsComponent(Component):
             control.release_parameter()
         except (AttributeError, RuntimeError):
             pass
+
+    def _release_all_parameter_controls(self):
+        for name, control in tuple(self._controls.items()):
+            self._release_parameter_control(name, control)
 
     def _set_manual_led_parameter(self, control, parameter):
         try:
@@ -361,6 +404,8 @@ class FixedAssignmentsComponent(Component):
         self._on_parameter_control_value(name, value)
 
     def _on_parameter_control_value(self, name, value):
+        if not self._active:
+            return
         if self._is_encoder_control(name) and value == 64:
             return
         parameter = self._connected_parameters.get(name)
@@ -431,6 +476,55 @@ class FixedAssignmentsComponent(Component):
     def _parameter_value(self, parameter):
         try:
             return getattr(parameter, "value")
+        except (AttributeError, RuntimeError):
+            return None
+
+    def _parameter_signature(self, name, parameter):
+        if not self._parameter_is_enabled(parameter):
+            return None
+        track = self._display_track_for_control(name)
+        device = self._parameter_device(parameter)
+        return (
+            name,
+            self._track_index(track),
+            self._object_name(track),
+            self._object_name(device),
+            self._object_attr(device, "class_name"),
+            self._object_attr(device, "class_display_name"),
+            self._object_name(parameter),
+            self._parameter_attr(parameter, "min"),
+            self._parameter_attr(parameter, "max"),
+        )
+
+    def _track_index(self, track):
+        if not liveobj_valid(track):
+            return None
+        try:
+            tracks = tuple(self.song.tracks)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+        for index, candidate in enumerate(tracks):
+            try:
+                if candidate == track:
+                    return index
+            except RuntimeError:
+                continue
+        try:
+            if track == self.song.master_track:
+                return "master"
+        except (AttributeError, RuntimeError):
+            pass
+        return None
+
+    def _object_attr(self, obj, attr):
+        try:
+            return str(getattr(obj, attr, ""))
+        except (AttributeError, RuntimeError):
+            return ""
+
+    def _parameter_attr(self, parameter, attr):
+        try:
+            return getattr(parameter, attr)
         except (AttributeError, RuntimeError):
             return None
 
@@ -524,6 +618,8 @@ class FixedAssignmentsComponent(Component):
         return None
 
     def _on_on_off_encoder_value(self, encoder_number, value):
+        if not self._active:
+            return
         if value == 64:
             return
         parameter = self.device_on_parameter(ON_OFF_ENCODER_DEVICES[encoder_number])
@@ -593,6 +689,8 @@ class FixedAssignmentsComponent(Component):
             return ""
 
     def _update_on_off_encoder_led(self, encoder_number, force=False):
+        if not self._active:
+            return
         control = self._controls.get("encoder_{}".format(encoder_number))
         if control is None:
             return
@@ -605,7 +703,8 @@ class FixedAssignmentsComponent(Component):
             control_index = control.message_identifier() - 64
         except (AttributeError, RuntimeError):
             return
-        if not self._set_manual_led_rgb(control, rgb, force=force):
+        manual_sent = self._set_manual_led_rgb(control, rgb, force=force)
+        if not manual_sent:
             self._led_sender.send_rgb(control, rgb, control_index=control_index, force=force)
 
     def _device_toggle_state(self, parameter):
@@ -617,13 +716,7 @@ class FixedAssignmentsComponent(Component):
 
     def device_on_parameter(self, device_number):
         track = selected_track(self.song)
-        device = self._device(track, device_number)
-        if not liveobj_valid(device):
-            return None
-        try:
-            parameters = tuple(device.parameters)
-        except (AttributeError, RuntimeError):
-            return None
+        parameters = self._cached_raw_device_parameters(track, device_number)
         for parameter in parameters:
             try:
                 if liveobj_valid(parameter) and parameter.name == DEVICE_ON_PARAMETER_NAME:
@@ -643,19 +736,74 @@ class FixedAssignmentsComponent(Component):
         return devices[index] if index < len(devices) and liveobj_valid(devices[index]) else None
 
     def _device_parameter(self, track, device_number, parameter_number):
-        device = self._device(track, device_number)
-        if not liveobj_valid(device) or parameter_number < 1:
+        if parameter_number < 1:
             return None
-        parameters = self._ordered_device_parameters(device)
+        parameters = self._cached_ordered_device_parameters(track, device_number)
         index = parameter_number - 1
         return parameters[index] if index < len(parameters) else None
 
-    def _ordered_device_parameters(self, device):
+    def _cached_raw_device_parameters(self, track, device_number):
+        entry = self._device_parameter_cache_entry(track, device_number)
+        return entry[0] if entry is not None else ()
+
+    def _cached_ordered_device_parameters(self, track, device_number):
+        entry = self._device_parameter_cache_entry(track, device_number)
+        return entry[1] if entry is not None else ()
+
+    def _device_parameter_cache_entry(self, track, device_number):
+        device = self._device(track, device_number)
+        if not liveobj_valid(device) or device_number < 1:
+            return None
+        key = self._device_parameter_cache_key(track, device_number)
+        signature = self._device_parameter_cache_signature(track, device_number, device)
+        if key is None or signature is None:
+            raw_parameters = self._raw_device_parameters(device)
+            return raw_parameters, self._ordered_device_parameters_from_raw(device, raw_parameters)
+        cached = self._device_parameter_cache.get(key)
+        if cached is not None and cached[0] == signature:
+            return cached[1], cached[2]
+        raw_parameters = self._raw_device_parameters(device)
+        ordered_parameters = self._ordered_device_parameters_from_raw(device, raw_parameters)
+        self._device_parameter_cache[key] = (signature, raw_parameters, ordered_parameters)
+        return raw_parameters, ordered_parameters
+
+    def _clear_device_parameter_cache(self):
+        self._device_parameter_cache = {}
+
+    def _device_parameter_cache_key(self, track, device_number):
+        if not liveobj_valid(track) or device_number < 1:
+            return None
+        return (self._track_index(track), self._object_name(track), device_number)
+
+    def _device_parameter_cache_signature(self, track, device_number, device):
+        if not liveobj_valid(track) or not liveobj_valid(device):
+            return None
+        device_count = None
         try:
-            parameters = tuple(device.parameters)
+            device_count = len(tuple(track.devices))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+        return (
+            self._track_index(track),
+            self._object_name(track),
+            device_number,
+            device_count,
+            self._object_name(device),
+            self._object_attr(device, "class_name"),
+            self._object_attr(device, "class_display_name"),
+        )
+
+    def _ordered_device_parameters(self, device):
+        return self._ordered_device_parameters_from_raw(device, self._raw_device_parameters(device))
+
+    def _raw_device_parameters(self, device):
+        try:
+            return tuple(device.parameters)
         except (AttributeError, RuntimeError):
             return ()
-        parameters = tuple(parameter for parameter in parameters if self._is_assignable_device_parameter(parameter))
+
+    def _ordered_device_parameters_from_raw(self, device, raw_parameters):
+        parameters = tuple(parameter for parameter in raw_parameters if self._is_assignable_device_parameter(parameter))
         custom_order = self._resolve_custom_order(device)
         if custom_order is None:
             return parameters
@@ -737,8 +885,8 @@ class FixedAssignmentsComponent(Component):
         for slot in tuple(self._parameter_encoder_slots.values()):
             slot.disconnect()
         self._parameter_encoder_slots = {}
-        for name, control in tuple(self._controls.items()):
-            self._release_parameter_control(name, control)
+        self._release_all_parameter_controls()
+        self._clear_device_parameter_cache()
         try:
             super().disconnect()
         except AttributeError:
