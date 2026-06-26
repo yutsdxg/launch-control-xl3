@@ -139,6 +139,7 @@ def _install_component_stubs():
         encoder_number,
         is_on,
     )
+    colors.loopcloud_metric_submode_rgb = lambda is_metric_ab: ("submode", is_metric_ab)
     colors.mode_button_rgb = lambda is_active: ("mode", is_active)
     colors.instrument_button_rgb = lambda is_on: ("instrument-button", is_on)
     sys.modules["Launch_Control_XL_3_Mixing.colors"] = colors
@@ -254,6 +255,7 @@ class FakeParameter:
         enabled=True,
         parent=None,
         value_items=(),
+        is_quantized=False,
     ):
         self.name = name
         self.value = value
@@ -262,6 +264,7 @@ class FakeParameter:
         self.is_enabled = enabled
         self.canonical_parent = parent
         self.value_items = tuple(value_items)
+        self.is_quantized = is_quantized
 
     def __str__(self):
         return str(self.value)
@@ -582,7 +585,8 @@ class FixedAssignmentsTest(unittest.TestCase):
             controls[name] = FakeControl()
             getattr(self.component, "set_{}".format(name))(controls[name])
 
-        self.assertIs(controls["encoder_1"].connected[-1], self.loopcloud.devices[1].parameters[3])
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertEqual(controls["encoder_1"].connected, [])
         self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
         self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
         self.assertIs(controls["encoder_11"].connected[-1], self.selected.devices[3].parameters[3])
@@ -664,6 +668,168 @@ class FixedAssignmentsTest(unittest.TestCase):
         finally:
             FIXED_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = old_index
             FIXED_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = old_append_rest
+
+    def test_encoder_1_switches_metric_ab_submode_and_back_to_loopcloud(self):
+        metric_ab = FakeInstrumentDevice("ADPTR MetricAB", parameter_count=4)
+        self.song.master_track.devices = (FakeInstrumentDevice("Other", parameter_count=4), metric_ab)
+        old_index = FIXED_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX
+        old_append_rest = FIXED_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST
+        try:
+            FIXED_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = FIXED_ASSIGNMENTS.build_device_order_index(
+                {
+                    "ADPTR MetricAB": (
+                        "P3",
+                        "P1",
+                        "P2",
+                    )
+                }
+            )
+            FIXED_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = False
+            encoder_1 = FakeControl()
+            controls = {
+                "encoder_8": FakeControl(),
+                "encoder_9": FakeControl(),
+                "encoder_16": FakeControl(),
+                "encoder_17": FakeControl(),
+                "fader_1": FakeControl(),
+            }
+
+            self.component.set_encoder_1(encoder_1)
+            for name, control in controls.items():
+                getattr(self.component, "set_{}".format(name))(control)
+
+            self.assertEqual(encoder_1.connected, [])
+            self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+            self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
+            self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+            self.assertIs(controls["encoder_17"].connected[-1], self.loopcloud.devices[1].parameters[1])
+            self.assertIs(controls["fader_1"].connected[-1], self.loopcloud.mixer_device.volume)
+
+            encoder_1.receive(65)
+
+            self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE)
+            self.assertIs(controls["fader_1"].connected[-1], metric_ab.parameters[3])
+            self.assertIs(controls["encoder_17"].connected[-1], metric_ab.parameters[1])
+            self.assertIs(controls["encoder_9"].connected[-1], metric_ab.parameters[2])
+            self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+            self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+
+            encoder_1.receive(63)
+
+            self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+            self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+            self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
+            self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+            self.assertIs(controls["encoder_17"].connected[-1], self.loopcloud.devices[1].parameters[1])
+            self.assertIs(controls["fader_1"].connected[-1], self.loopcloud.mixer_device.volume)
+        finally:
+            FIXED_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = old_index
+            FIXED_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = old_append_rest
+
+    def test_metric_ab_submode_without_master_device_leaves_controls_unassigned(self):
+        encoder_1 = FakeControl()
+        controls = {
+            "encoder_8": FakeControl(),
+            "encoder_9": FakeControl(),
+            "encoder_16": FakeControl(),
+            "encoder_17": FakeControl(),
+            "fader_1": FakeControl(),
+        }
+
+        self.component.set_encoder_1(encoder_1)
+        encoder_1.receive(65)
+        for name, control in controls.items():
+            getattr(self.component, "set_{}".format(name))(control)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE)
+        self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+        self.assertEqual(controls["encoder_9"].connected, [])
+        self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+        self.assertEqual(controls["encoder_17"].connected, [])
+        self.assertEqual(controls["fader_1"].connected, [])
+
+    def test_metric_ab_submode_requires_exact_device_name(self):
+        wrong_name = FakeInstrumentDevice("ADPTR MetricAB 2", parameter_count=4)
+        wrong_name.class_name = "ADPTR MetricAB"
+        wrong_name.class_display_name = "ADPTR MetricAB"
+        self.song.master_track.devices = (wrong_name,)
+        encoder_1 = FakeControl()
+        controls = {
+            "encoder_8": FakeControl(),
+            "encoder_9": FakeControl(),
+            "encoder_16": FakeControl(),
+            "encoder_17": FakeControl(),
+            "fader_1": FakeControl(),
+        }
+
+        self.component.set_encoder_1(encoder_1)
+        encoder_1.receive(65)
+        for name, control in controls.items():
+            getattr(self.component, "set_{}".format(name))(control)
+
+        self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+        self.assertEqual(controls["encoder_9"].connected, [])
+        self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+        self.assertEqual(controls["encoder_17"].connected, [])
+        self.assertEqual(controls["fader_1"].connected, [])
+
+    def test_metric_ab_placeholder_order_does_not_fall_back_to_raw_parameters(self):
+        metric_ab = FakeInstrumentDevice("ADPTR MetricAB", parameter_count=4)
+        self.song.master_track.devices = (metric_ab,)
+        encoder_1 = FakeControl()
+        controls = {
+            "encoder_8": FakeControl(),
+            "encoder_9": FakeControl(),
+            "encoder_16": FakeControl(),
+            "encoder_17": FakeControl(),
+            "fader_1": FakeControl(),
+        }
+
+        self.component.set_encoder_1(encoder_1)
+        encoder_1.receive(65)
+        for name, control in controls.items():
+            getattr(self.component, "set_{}".format(name))(control)
+
+        self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
+        self.assertEqual(controls["encoder_9"].connected, [])
+        self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
+        self.assertEqual(controls["encoder_17"].connected, [])
+        self.assertEqual(controls["fader_1"].connected, [])
+
+    def test_encoder_1_submode_switch_displays_mode_and_updates_led(self):
+        display = FakeDisplayCommand()
+        encoder_1 = FakeManualLedControl(identifier=77)
+
+        self.component.set_encoder_1_display(display)
+        self.component.set_encoder_1(encoder_1)
+
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
+        self.assertEqual(display.sent, [])
+
+        encoder_1.receive(65)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE)
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", True))
+        self.assertEqual(self._display_lines(display), ("Mode", "MetricAB", ""))
+
+        encoder_1.receive(65)
+
+        self.assertEqual(self._display_lines(display), ("Mode", "MetricAB", ""))
+
+        encoder_1.receive(63)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
+        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
+
+    def test_encoder_1_submode_led_is_cleared_when_inactive(self):
+        encoder_1 = FakeManualLedControl(identifier=77)
+
+        self.component.set_encoder_1(encoder_1)
+        self.component.set_active(False)
+
+        self.assertIsNone(encoder_1.manual_led_rgb)
+        self.assertEqual(encoder_1.manual_led_rgb_clear_count, 1)
 
     def test_on_off_encoder_direction_sets_device_state(self):
         encoder = FakeControl(identifier=78)
@@ -788,10 +954,16 @@ class FixedAssignmentsTest(unittest.TestCase):
         self.component.set_encoder_22(encoder)
         self.assertIs(encoder.manual_led_parameter, style)
         encoder.receive(65)
+        self.assertEqual(style.value, 2.0)
+        encoder.receive(65)
+        self.assertEqual(style.value, 6.0)
+        encoder.receive(65)
         self.assertEqual(style.value, 6.0)
         encoder.receive(65)
         self.assertEqual(style.value, 22.0)
         style.value = 21.0
+        encoder.receive(63)
+        self.assertEqual(style.value, 21.0)
         encoder.receive(63)
         self.assertEqual(style.value, 6.0)
 
@@ -820,12 +992,176 @@ class FixedAssignmentsTest(unittest.TestCase):
         self.assertEqual(encoder.connected, [])
         self.assertIs(encoder.manual_led_parameter, style)
         encoder.receive(65)
+        self.assertAlmostEqual(style.value, 2.0 / 27.0)
+        encoder.receive(65)
+        self.assertAlmostEqual(style.value, 6.0 / 27.0)
+        encoder.receive(65)
         self.assertAlmostEqual(style.value, 6.0 / 27.0)
         encoder.receive(65)
         self.assertAlmostEqual(style.value, 22.0 / 27.0)
         style.value = 21.0 / 27.0
         encoder.receive(63)
+        self.assertAlmostEqual(style.value, 21.0 / 27.0)
+        encoder.receive(63)
         self.assertAlmostEqual(style.value, 6.0 / 27.0)
+
+    def test_small_value_items_parameter_steps_by_encoder_direction(self):
+        device = self.selected.devices[3]
+        mode = FakeParameter(
+            "Two Way Switch",
+            value=0.0,
+            minimum=0.0,
+            maximum=1.0,
+            parent=device,
+            value_items=("A", "B"),
+        )
+        device.parameters = (
+            device.parameters[0],
+            device.parameters[1],
+            device.parameters[2],
+            mode,
+            device.parameters[4],
+        )
+        encoder = FakeControl(identifier=88)
+
+        self.component.set_encoder_11(encoder)
+
+        self.assertEqual(encoder.connected, [])
+        self.assertIs(encoder.manual_led_parameter, mode)
+        encoder.receive(65)
+        self.assertEqual(mode.value, 1.0)
+        encoder.receive(65)
+        self.assertEqual(mode.value, 1.0)
+        encoder.receive(63)
+        self.assertEqual(mode.value, 0.0)
+
+    def test_small_quantized_parameter_steps_by_encoder_direction(self):
+        device = self.selected.devices[3]
+        cue = FakeParameter(
+            "Selected Cue",
+            value=2.0,
+            minimum=1.0,
+            maximum=4.0,
+            parent=device,
+            is_quantized=True,
+        )
+        device.parameters = (
+            device.parameters[0],
+            device.parameters[1],
+            device.parameters[2],
+            cue,
+            device.parameters[4],
+        )
+        encoder = FakeControl(identifier=88)
+
+        self.component.set_encoder_11(encoder)
+
+        self.assertEqual(encoder.connected, [])
+        self.assertIs(encoder.manual_led_parameter, cue)
+        encoder.receive(65)
+        self.assertEqual(cue.value, 2.0)
+        encoder.receive(65)
+        self.assertEqual(cue.value, 3.0)
+        encoder.receive(63)
+        self.assertEqual(cue.value, 3.0)
+        encoder.receive(63)
+        self.assertEqual(cue.value, 2.0)
+        encoder.receive(63)
+        self.assertEqual(cue.value, 2.0)
+        encoder.receive(63)
+        self.assertEqual(cue.value, 1.0)
+
+    def test_metric_ab_ab_switch_steps_without_value_items_or_quantized_flag(self):
+        device = self.selected.devices[3]
+        device.name = "ADPTR MetricAB"
+        device.class_name = "PluginDevice"
+        device.class_display_name = "ADPTR MetricAB"
+        ab_switch = FakeParameter(
+            "AB Switch",
+            value=0.0,
+            minimum=0.0,
+            maximum=1.0,
+            parent=device,
+        )
+        device.parameters = (
+            device.parameters[0],
+            device.parameters[1],
+            device.parameters[2],
+            ab_switch,
+            device.parameters[4],
+        )
+        encoder = FakeControl(identifier=88)
+
+        self.component.set_encoder_11(encoder)
+
+        self.assertEqual(encoder.connected, [])
+        self.assertIs(encoder.manual_led_parameter, ab_switch)
+        encoder.receive(65)
+        self.assertEqual(ab_switch.value, 1.0)
+        encoder.receive(63)
+        self.assertEqual(ab_switch.value, 0.0)
+
+    def test_metric_ab_selected_cue_steps_without_value_items_or_quantized_flag(self):
+        device = self.selected.devices[3]
+        device.name = "ADPTR MetricAB"
+        device.class_name = "PluginDevice"
+        device.class_display_name = "ADPTR MetricAB"
+        selected_cue = FakeParameter(
+            "Selected Cue",
+            value=1.0 / 3.0,
+            minimum=0.0,
+            maximum=1.0,
+            parent=device,
+        )
+        device.parameters = (
+            device.parameters[0],
+            device.parameters[1],
+            device.parameters[2],
+            selected_cue,
+            device.parameters[4],
+        )
+        encoder = FakeControl(identifier=96)
+
+        self.component.set_encoder_19(encoder)
+
+        self.assertEqual(encoder.connected, [])
+        self.assertIs(encoder.manual_led_parameter, selected_cue)
+        encoder.receive(65)
+        self.assertAlmostEqual(selected_cue.value, 1.0 / 3.0)
+        encoder.receive(65)
+        self.assertAlmostEqual(selected_cue.value, 2.0 / 3.0)
+        encoder.receive(63)
+        self.assertAlmostEqual(selected_cue.value, 2.0 / 3.0)
+        encoder.receive(63)
+        self.assertAlmostEqual(selected_cue.value, 1.0 / 3.0)
+        encoder.receive(63)
+        self.assertAlmostEqual(selected_cue.value, 1.0 / 3.0)
+        encoder.receive(63)
+        self.assertAlmostEqual(selected_cue.value, 0.0)
+
+    def test_small_discrete_parameter_on_fader_keeps_normal_connection(self):
+        device = self.selected.devices[3]
+        discrete = FakeParameter(
+            "Small Fader Target",
+            value=0.0,
+            minimum=0.0,
+            maximum=1.0,
+            parent=device,
+            value_items=("A", "B"),
+        )
+        device.parameters = (
+            device.parameters[0],
+            discrete,
+            device.parameters[2],
+            device.parameters[3],
+            device.parameters[4],
+        )
+        fader = FakeControl()
+
+        self.component.set_fader_3(fader)
+
+        self.assertIs(fader.connected[-1], discrete)
+        self.assertIsNone(fader.manual_led_parameter)
 
     def test_special_manual_led_parameter_is_cleared_when_retargeted(self):
         saturn = self.selected.devices[6]

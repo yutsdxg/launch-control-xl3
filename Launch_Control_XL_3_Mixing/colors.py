@@ -12,6 +12,7 @@ ENCODER_MAX_BRIGHTNESS = 0.38
 ENCODER_PARAMETER_BRIGHTNESS = 0.25
 DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS = 0.25
 DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS = 0.03
+SUBMODE_ENCODER_BRIGHTNESS = DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS
 MODE_ACTIVE_BRIGHTNESS = TRACK_ON_BRIGHTNESS
 MODE_INACTIVE_BRIGHTNESS = TRACK_MUTED_BRIGHTNESS
 INSTRUMENT_BUTTON_ON_BRIGHTNESS = TRACK_ON_BRIGHTNESS
@@ -206,6 +207,11 @@ def device_toggle_encoder_rgb(encoder_number, is_on):
     base = Theme.DEVICE_TOGGLE_ENCODER_COLORS.get(encoder_number, Theme.DEVICE_ON)
     brightness = DEVICE_TOGGLE_ENCODER_ON_BRIGHTNESS if is_on else DEVICE_TOGGLE_ENCODER_OFF_BRIGHTNESS
     return scale_rgb(base, brightness)
+
+
+def loopcloud_metric_submode_rgb(is_metric_ab):
+    base = Palette.ORANGE if is_metric_ab else Palette.YELLOW
+    return scale_rgb(base, SUBMODE_ENCODER_BRIGHTNESS)
 
 
 def mode_button_rgb(is_active):

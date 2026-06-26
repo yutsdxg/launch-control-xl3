@@ -112,6 +112,11 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "L 16th",
         "Feedback",
     ),
+    "ADPTR MetricAB": (
+        "Selected Track",
+        "Selected Cue",
+        "AB Switch",
+    ),
 }
 """
     "Some Device": (

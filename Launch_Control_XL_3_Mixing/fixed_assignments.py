@@ -4,7 +4,7 @@ from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
-from .colors import device_toggle_encoder_rgb, encoder_rgb_for_parameter
+from .colors import device_toggle_encoder_rgb, encoder_rgb_for_parameter, loopcloud_metric_submode_rgb
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
 from .custom_parameter_utils import (
     DEVICE_ON_PARAMETER_NAME,
@@ -19,12 +19,21 @@ from .special_parameters import (
     is_handled_special_parameter,
     is_special_parameter_candidate,
     parameter_debug_info,
+    special_parameter_step_threshold,
 )
 from .track_resolver import first_named_track, selected_track
 
 ASSIGNMENT_UPDATE_INTERVAL = 0.1
 LOGGER = logging.getLogger(__name__)
 CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
+LOOPCLOUD_SUBMODE = "loopcloud"
+METRIC_AB_SUBMODE = "metric_ab"
+METRIC_AB_DEVICE_NAME = "ADPTR MetricAB"
+METRIC_AB_PARAMETER_CONTROLS = {
+    "fader_1": 1,
+    "encoder_17": 2,
+    "encoder_9": 3,
+}
 ON_OFF_ENCODER_DEVICES = {
     2: 1,
     3: 4,
@@ -44,6 +53,9 @@ class FixedAssignmentsComponent(Component):
         self._connected_parameter_signatures = {}
         self._on_off_slots = {}
         self._parameter_encoder_slots = {}
+        self._submode_switch_slot = None
+        self._loopcloud_metric_submode = LOOPCLOUD_SUBMODE
+        self._special_parameter_input_accumulators = {}
         self._logged_parameter_assignments = {}
         self._device_parameter_cache = {}
         self._display_commands = {}
@@ -76,6 +88,7 @@ class FixedAssignmentsComponent(Component):
         else:
             self._clear_device_parameter_cache()
             self._release_all_parameter_controls()
+            self._clear_manual_led_rgb(self._controls.get("encoder_1"))
             for encoder_number in ON_OFF_ENCODER_DEVICES:
                 self._clear_manual_led_rgb(self._controls.get("encoder_{}".format(encoder_number)))
 
@@ -85,6 +98,7 @@ class FixedAssignmentsComponent(Component):
     def refresh_led_feedback(self):
         if not self._active:
             return
+        self._update_submode_switch_encoder_led(force=True)
         for encoder_number in ON_OFF_ENCODER_DEVICES:
             self._update_on_off_encoder_led(encoder_number, force=True)
 
@@ -127,7 +141,7 @@ class FixedAssignmentsComponent(Component):
         self._set_on_off_encoder(2, control)
 
     def set_encoder_1(self, control):
-        self._set_parameter_control("encoder_1", control)
+        self._set_submode_switch_encoder(control)
 
     def set_encoder_1_display(self, command):
         self._set_display_command("encoder_1", command)
@@ -297,10 +311,30 @@ class FixedAssignmentsComponent(Component):
     def set_fader_8_display(self, command):
         self._set_display_command("fader_8", command)
 
+    def _set_submode_switch_encoder(self, control):
+        name = "encoder_1"
+        previous = self._controls.get(name)
+        if previous is control:
+            return
+        if self._submode_switch_slot is not None:
+            self._submode_switch_slot.disconnect()
+            self._submode_switch_slot = None
+        self._release_parameter_control(name, previous)
+        self._controls[name] = control
+        if control is not None:
+            self._submode_switch_slot = self.register_slot(
+                control,
+                self._on_submode_switch_encoder_value,
+                "value",
+            )
+        self._update_submode_switch_encoder_led(force=True)
+
     def _update_assignments(self):
         if not self._active:
             return
         for name in tuple(self._controls):
+            if name == "encoder_1":
+                continue
             if not name.startswith("encoder_") or int(name.split("_")[1]) not in ON_OFF_ENCODER_DEVICES:
                 self._update_parameter_assignment(name)
         for encoder_number in ON_OFF_ENCODER_DEVICES:
@@ -326,7 +360,7 @@ class FixedAssignmentsComponent(Component):
             return
         if not self._parameter_is_enabled(parameter):
             return
-        if is_handled_special_parameter(parameter):
+        if self._is_parameter_encoder_control(name) and is_handled_special_parameter(parameter):
             self._connected_parameters[name] = parameter
             self._connected_parameter_signatures[name] = parameter_signature
             self._set_manual_led_parameter(control, parameter)
@@ -345,6 +379,7 @@ class FixedAssignmentsComponent(Component):
         parameter = self._connected_parameters.get(name)
         self._connected_parameters.pop(name, None)
         self._connected_parameter_signatures.pop(name, None)
+        self._special_parameter_input_accumulators.pop(name, None)
         if control is None:
             return
         if parameter is not None:
@@ -434,6 +469,9 @@ class FixedAssignmentsComponent(Component):
                 )
             except Exception:
                 pass
+        if not self._special_parameter_input_is_ready(name, value, parameter):
+            self._display_parameter(name, parameter)
+            return
         handled = handle_special_parameter_input(parameter, value)
         if handled:
             after_value = self._parameter_value(parameter)
@@ -470,6 +508,34 @@ class FixedAssignmentsComponent(Component):
         else:
             self._display_parameter(name, parameter)
 
+    def _special_parameter_input_is_ready(self, name, value, parameter):
+        threshold = special_parameter_step_threshold(parameter)
+        if threshold <= 1:
+            return True
+        direction = self._relative_input_direction(value)
+        if direction == 0:
+            return False
+        accumulator = self._special_parameter_input_accumulators.get(name, 0)
+        if accumulator and (accumulator > 0) != (direction > 0):
+            accumulator = 0
+        accumulator += direction
+        if abs(accumulator) >= threshold:
+            self._special_parameter_input_accumulators[name] = 0
+            return True
+        self._special_parameter_input_accumulators[name] = accumulator
+        return False
+
+    def _relative_input_direction(self, value):
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return 0
+        if value > 64:
+            return 1
+        if value < 64:
+            return -1
+        return 0
+
     def _should_log_parameter(self, name, parameter):
         return name == "encoder_22" or is_special_parameter_candidate(parameter)
 
@@ -478,6 +544,39 @@ class FixedAssignmentsComponent(Component):
             return getattr(parameter, "value")
         except (AttributeError, RuntimeError):
             return None
+
+    def _on_submode_switch_encoder_value(self, value, *a):
+        if not self._active:
+            return
+        if value == 64:
+            return
+        self._set_loopcloud_metric_submode(METRIC_AB_SUBMODE if value > 64 else LOOPCLOUD_SUBMODE)
+
+    def _set_loopcloud_metric_submode(self, submode):
+        submode = METRIC_AB_SUBMODE if submode == METRIC_AB_SUBMODE else LOOPCLOUD_SUBMODE
+        if submode == self._loopcloud_metric_submode:
+            self._update_submode_switch_encoder_led(force=True)
+            self._display_loopcloud_metric_submode()
+            return
+        self._loopcloud_metric_submode = submode
+        for name in METRIC_AB_PARAMETER_CONTROLS:
+            self._update_parameter_assignment(name, force=True)
+        self._update_submode_switch_encoder_led(force=True)
+        self._display_loopcloud_metric_submode()
+
+    def _display_loopcloud_metric_submode(self):
+        send_display(
+            self._display_commands.get("encoder_1"),
+            (
+                "Mode",
+                self._loopcloud_metric_submode_display_name(),
+                "",
+            ),
+            trigger=True,
+        )
+
+    def _loopcloud_metric_submode_display_name(self):
+        return "MetricAB" if self._loopcloud_metric_submode == METRIC_AB_SUBMODE else "Loopcloud"
 
     def _parameter_signature(self, name, parameter):
         if not self._parameter_is_enabled(parameter):
@@ -570,7 +669,9 @@ class FixedAssignmentsComponent(Component):
         track = selected_track(self.song)
         loopcloud = first_named_track(self.song, "Loopcloud")
         if name == "encoder_1":
-            return self._device_parameter(loopcloud, 2, 3)
+            return None
+        if self._loopcloud_metric_submode == METRIC_AB_SUBMODE and name in METRIC_AB_PARAMETER_CONTROLS:
+            return self._metric_ab_parameter(METRIC_AB_PARAMETER_CONTROLS[name])
         if name == "encoder_8":
             return self._cue_parameter()
         if name == "encoder_9":
@@ -663,6 +764,11 @@ class FixedAssignmentsComponent(Component):
         return None
 
     def _display_track_for_control(self, control_name):
+        if self._loopcloud_metric_submode == METRIC_AB_SUBMODE and control_name in METRIC_AB_PARAMETER_CONTROLS:
+            try:
+                return self.song.master_track
+            except (AttributeError, RuntimeError):
+                return None
         if control_name == "fader_1":
             return first_named_track(self.song, "Loopcloud")
         if control_name == "encoder_8":
@@ -707,6 +813,21 @@ class FixedAssignmentsComponent(Component):
         if not manual_sent:
             self._led_sender.send_rgb(control, rgb, control_index=control_index, force=force)
 
+    def _update_submode_switch_encoder_led(self, force=False):
+        if not self._active:
+            return
+        control = self._controls.get("encoder_1")
+        if control is None:
+            return
+        rgb = loopcloud_metric_submode_rgb(self._loopcloud_metric_submode == METRIC_AB_SUBMODE)
+        try:
+            control_index = control.message_identifier() - 64
+        except (AttributeError, RuntimeError):
+            return
+        manual_sent = self._set_manual_led_rgb(control, rgb, force=force)
+        if not manual_sent:
+            self._led_sender.send_rgb(control, rgb, control_index=control_index, force=force)
+
     def _device_toggle_state(self, parameter):
         try:
             midpoint = parameter.min + ((parameter.max - parameter.min) / 2.0)
@@ -741,6 +862,31 @@ class FixedAssignmentsComponent(Component):
         parameters = self._cached_ordered_device_parameters(track, device_number)
         index = parameter_number - 1
         return parameters[index] if index < len(parameters) else None
+
+    def _metric_ab_parameter(self, parameter_number):
+        if parameter_number < 1:
+            return None
+        device = self._metric_ab_device()
+        if not liveobj_valid(device):
+            return None
+        parameters = self._ordered_device_parameters(device)
+        index = parameter_number - 1
+        return parameters[index] if index < len(parameters) else None
+
+    def _metric_ab_device(self):
+        try:
+            devices = tuple(self.song.master_track.devices)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+        for device in devices:
+            if not liveobj_valid(device):
+                continue
+            try:
+                if device.name == METRIC_AB_DEVICE_NAME:
+                    return device
+            except (AttributeError, RuntimeError):
+                continue
+        return None
 
     def _cached_raw_device_parameters(self, track, device_number):
         entry = self._device_parameter_cache_entry(track, device_number)
@@ -882,6 +1028,9 @@ class FixedAssignmentsComponent(Component):
         for slot in tuple(self._on_off_slots.values()):
             slot.disconnect()
         self._on_off_slots = {}
+        if self._submode_switch_slot is not None:
+            self._submode_switch_slot.disconnect()
+            self._submode_switch_slot = None
         for slot in tuple(self._parameter_encoder_slots.values()):
             slot.disconnect()
         self._parameter_encoder_slots = {}
