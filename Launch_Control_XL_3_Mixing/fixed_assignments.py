@@ -34,6 +34,7 @@ METRIC_AB_PARAMETER_CONTROLS = {
     "encoder_17": 2,
     "encoder_9": 3,
 }
+METRIC_AB_SWITCH_PARAMETER_NUMBER = 3
 ON_OFF_ENCODER_DEVICES = {
     2: 1,
     3: 4,
@@ -548,9 +549,11 @@ class FixedAssignmentsComponent(Component):
     def _on_submode_switch_encoder_value(self, value, *a):
         if not self._active:
             return
-        if value == 64:
+        direction = self._relative_input_direction(value)
+        if direction == 0:
             return
-        self._set_loopcloud_metric_submode(METRIC_AB_SUBMODE if value > 64 else LOOPCLOUD_SUBMODE)
+        self._set_loopcloud_metric_submode(METRIC_AB_SUBMODE if direction > 0 else LOOPCLOUD_SUBMODE)
+        self._set_metric_ab_switch_from_direction(direction)
 
     def _set_loopcloud_metric_submode(self, submode):
         submode = METRIC_AB_SUBMODE if submode == METRIC_AB_SUBMODE else LOOPCLOUD_SUBMODE
@@ -577,6 +580,32 @@ class FixedAssignmentsComponent(Component):
 
     def _loopcloud_metric_submode_display_name(self):
         return "MetricAB" if self._loopcloud_metric_submode == METRIC_AB_SUBMODE else "Loopcloud"
+
+    def _set_metric_ab_switch_from_direction(self, direction):
+        parameter = self._metric_ab_parameter(METRIC_AB_SWITCH_PARAMETER_NUMBER)
+        if not self._parameter_is_enabled(parameter):
+            return
+        try:
+            minimum = parameter.min
+            maximum = parameter.max
+            if float(maximum) <= float(minimum):
+                return
+            parameter.value = maximum if direction > 0 else minimum
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+        self._refresh_connected_parameter_controls(parameter)
+
+    def _refresh_connected_parameter_controls(self, parameter):
+        for name, connected_parameter in tuple(self._connected_parameters.items()):
+            if connected_parameter is not parameter:
+                continue
+            control = self._controls.get(name)
+            try:
+                control._parameter_value_changed()
+            except (AttributeError, RuntimeError):
+                pass
+            if self._is_parameter_encoder_control(name):
+                self._update_parameter_encoder_led(name, parameter, force=True)
 
     def _parameter_signature(self, name, parameter):
         if not self._parameter_is_enabled(parameter):

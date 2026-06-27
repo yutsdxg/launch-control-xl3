@@ -708,6 +708,7 @@ class FixedAssignmentsTest(unittest.TestCase):
             encoder_1.receive(65)
 
             self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE)
+            self.assertEqual(metric_ab.parameters[2].value, metric_ab.parameters[2].max)
             self.assertIs(controls["fader_1"].connected[-1], metric_ab.parameters[3])
             self.assertIs(controls["encoder_17"].connected[-1], metric_ab.parameters[1])
             self.assertIs(controls["encoder_9"].connected[-1], metric_ab.parameters[2])
@@ -717,6 +718,7 @@ class FixedAssignmentsTest(unittest.TestCase):
             encoder_1.receive(63)
 
             self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+            self.assertEqual(metric_ab.parameters[2].value, metric_ab.parameters[2].min)
             self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
             self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
             self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
