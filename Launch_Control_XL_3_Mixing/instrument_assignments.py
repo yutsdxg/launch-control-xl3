@@ -15,8 +15,11 @@ from .custom_parameter_utils import (
 )
 from .display import send_display, send_unassigned_display
 from .led import LedSender
-from .parameter_steps import current_stepped_value, stepped_parameter_values
-from .special_parameters import REDUCED_SENSITIVITY_INPUT_THRESHOLD
+from .special_parameters import (
+    REDUCED_SENSITIVITY_INPUT_THRESHOLD,
+    _parameter_index,
+    _parameter_value_for_index,
+)
 from .track_resolver import selected_track
 
 ASSIGNMENT_UPDATE_INTERVAL = 0.1
@@ -38,8 +41,7 @@ class InstrumentAssignmentsComponent(Component):
         self._controls = {}
         self._connected_parameters = {}
         self._connected_parameter_signatures = {}
-        self._stepped_encoder_inputs = {}
-        self._stepped_encoder_values = {}
+        self._discrete_encoder_inputs = {}
         self._control_slots = {}
         self._buttons = [None] * BUTTON_COUNT
         self._button_slots = [None] * BUTTON_COUNT
@@ -82,7 +84,7 @@ class InstrumentAssignmentsComponent(Component):
         if self._shift_pressed == pressed:
             return
         self._shift_pressed = pressed
-        self._stepped_encoder_inputs.clear()
+        self._discrete_encoder_inputs.clear()
         if self._active:
             self._update_assignments(force=True)
 
@@ -178,7 +180,7 @@ class InstrumentAssignmentsComponent(Component):
             if self._shift_pressed or self._encoder_direction_is_inverted(name):
                 self._refresh_manual_led_feedback(control)
             return
-        self._clear_stepped_encoder(name)
+        self._discrete_encoder_inputs.pop(name, None)
         if (
             (self._shift_pressed or self._encoder_direction_is_inverted(name))
             and control is not None
@@ -215,7 +217,7 @@ class InstrumentAssignmentsComponent(Component):
             return
         self._connected_parameters.pop(name, None)
         self._connected_parameter_signatures.pop(name, None)
-        self._clear_stepped_encoder(name)
+        self._discrete_encoder_inputs.pop(name, None)
         if control is None:
             return
         try:
@@ -302,19 +304,15 @@ class InstrumentAssignmentsComponent(Component):
             self._parameter_number_for_control(name), "invert_direction"
         )
 
-    def _clear_stepped_encoder(self, name):
-        self._stepped_encoder_inputs.pop(name, None)
-        self._stepped_encoder_values.pop(name, None)
-
-    def _stepped_encoder_input_is_ready(self, name, direction):
-        accumulator = self._stepped_encoder_inputs.get(name, 0)
+    def _discrete_encoder_input_is_ready(self, name, direction):
+        accumulator = self._discrete_encoder_inputs.get(name, 0)
         if accumulator and (accumulator > 0) != (direction > 0):
             accumulator = 0
         accumulator += direction
         if abs(accumulator) >= REDUCED_SENSITIVITY_INPUT_THRESHOLD:
-            self._stepped_encoder_inputs[name] = 0
+            self._discrete_encoder_inputs[name] = 0
             return True
-        self._stepped_encoder_inputs[name] = accumulator
+        self._discrete_encoder_inputs[name] = accumulator
         return False
 
     def _apply_inverted_encoder_value(self, name, parameter, value):
@@ -328,25 +326,18 @@ class InstrumentAssignmentsComponent(Component):
             if maximum <= minimum or delta == 0:
                 return
             options = self._custom_parameter_options(self._parameter_number_for_control(name))
-            if options.get("step_size"):
-                if name not in self._stepped_encoder_values:
-                    self._stepped_encoder_values[name] = stepped_parameter_values(parameter, options)
-                values = self._stepped_encoder_values[name]
-                if not values:
+            item_count = options.get("discrete_count")
+            if item_count:
+                current_index = _parameter_index(parameter, item_count)
+                if current_index is None:
                     return
                 direction = 1 if delta > 0 else -1
-                if not self._stepped_encoder_input_is_ready(name, direction):
+                if not self._discrete_encoder_input_is_ready(name, direction):
                     return
-                current = current_stepped_value(parameter, values, current)
-                # Move only one candidate, even for accelerated MIDI input.
-                if direction > 0:
-                    target = next(
-                        (candidate for candidate in values if candidate > current + 1e-9), values[-1]
-                    )
-                else:
-                    target = next(
-                        (candidate for candidate in reversed(values) if candidate < current - 1e-9), values[0]
-                    )
+                # Share Saturn's normalized index mapping, without probing
+                # the plug-in's display formatter or applying CC acceleration.
+                target_index = max(0, min(item_count - 1, current_index + direction))
+                target = _parameter_value_for_index(parameter, target_index, item_count)
                 if abs(target - current) > 1e-9:
                     parameter.value = target
                 return

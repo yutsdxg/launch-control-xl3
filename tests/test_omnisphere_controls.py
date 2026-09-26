@@ -1,4 +1,4 @@
-"""Omnisphere pitch controls step by octave with consistent reversed feedback."""
+"""Only Omnisphere Tune Octave uses two-event steps; transpose stays continuous."""
 
 import unittest
 
@@ -63,37 +63,67 @@ class OmnisphereControlsTest(unittest.TestCase):
         control.receive(value)
         self.assertAlmostEqual(parameter.value, expected)
 
-    def test_five_pitch_controls_step_through_octaves_without_a_native_mapping(self):
+    def test_pitch_controls_have_reversed_manual_mapping(self):
         for number, name in PITCH_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
-                parameter.value = 0.5
                 control, _ = self.bind_encoder(number)
                 self.assertIsNone(control.mapped_parameter)
                 self.assertIs(control.manual_led_parameter, parameter)
                 self.assertIs(self.component._connected_parameters["encoder_{}".format(number)], parameter)
-
-                # Reversed normalized raw values represent +2, +1, 0, -1,
-                # and -2 octaves (24, 12, 0, -12, -24 semitones).
-                for expected in (0.25, 0.0, 0.0):
-                    self.assert_step(control, parameter, 65, expected)
-                for expected in (0.25, 0.5, 0.75, 1.0, 1.0):
-                    self.assert_step(control, parameter, 63, expected)
                 self.assertEqual(control.native_updates, [])
 
-    def test_pitch_input_strength_does_not_skip_octaves(self):
-        for number, name in PITCH_CONTROLS:
+    def test_transpose_controls_keep_continuous_input_and_acceleration(self):
+        for number, name in PITCH_CONTROLS[:4]:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
-                parameter.value = 0.5
+                parameter.value = 0.6
                 control, _ = self.bind_encoder(number)
-                self.assert_step(control, parameter, 127, 0.25)
-                self.assert_step(control, parameter, 0, 0.5)
+                expected = parameter.value
+                for value in (65, 65, 63, 68, 60, 64):
+                    expected += (64 - value) / 127.0
+                    control.receive(value)
+                    self.assertAlmostEqual(parameter.value, expected)
+                self.assertEqual(control.native_updates, [])
 
-    def test_neutral_input_does_not_change_value_or_pending_direction(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_transpose_controls_clamp_at_raw_endpoints(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                control, _ = self.bind_encoder(number)
+                parameter.value = 0.01
+                control.receive(127)
+                self.assertEqual(parameter.value, 0.0)
+                parameter.value = 0.99
+                control.receive(0)
+                self.assertEqual(parameter.value, 1.0)
+
+    def test_tune_octave_moves_one_of_five_stages_after_two_inputs(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
+        for expected in (0.25, 0.0, 0.0):
+            self.assert_step(control, parameter, 65, expected)
+        for expected in (0.25, 0.5, 0.75, 1.0, 1.0):
+            self.assert_step(control, parameter, 63, expected)
+        self.assertEqual(control.native_updates, [])
+
+    def test_tune_octave_accelerated_input_still_moves_one_stage(self):
+        parameter = self.parameters["1 A Tune Octave"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(23)
+        self.assert_step(control, parameter, 127, 0.25)
+        self.assert_step(control, parameter, 0, 0.5)
+        # Each event counts once, even when its MIDI magnitude differs.
+        control.receive(65)
+        self.assertEqual(parameter.value, 0.5)
+        control.receive(127)
+        self.assertEqual(parameter.value, 0.25)
+
+    def test_neutral_input_does_not_change_tune_or_pending_direction(self):
+        parameter = self.parameters["1 A Tune Octave"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(23)
         control.receive(64)
         self.assertEqual(parameter.value, 0.5)
         control.receive(65)
@@ -102,74 +132,92 @@ class OmnisphereControlsTest(unittest.TestCase):
         control.receive(65)
         self.assertEqual(parameter.value, 0.25)
 
-    def test_direction_change_restarts_the_two_event_threshold(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_tune_direction_change_restarts_the_two_event_threshold(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
         for value in (65, 63, 65):
             control.receive(value)
             self.assertEqual(parameter.value, 0.5)
         control.receive(65)
         self.assertEqual(parameter.value, 0.25)
 
-    def test_pitch_step_uses_the_latest_external_value(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_tune_step_uses_the_latest_external_value(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
         control.receive(65)
         parameter.value = 0.75
         self.component._update_assignments()
         control.receive(65)
         self.assertEqual(parameter.value, 0.5)
 
-    def test_octave_step_advances_past_the_current_display_value(self):
+    def test_tune_step_uses_nearest_stage_from_arbitrary_raw_value(self):
         parameter = self.parameters["1 A Tune Octave"]
-        parameter.str_for_value = lambda raw: "{} octaves".format(round(2 - 4 * raw))
-        parameter.value = 0.55  # Displays zero, like the candidate at raw 0.5.
         control, _ = self.bind_encoder(23)
-        self.assert_step(control, parameter, 65, 0.25)
-        self.assertEqual(parameter.str_for_value(parameter.value), "1 octaves")
-        self.assert_step(control, parameter, 65, 0.0)
-        self.assertEqual(parameter.str_for_value(parameter.value), "2 octaves")
-
-    def test_pitch_snaps_non_octave_values_in_the_input_direction(self):
-        for number, name in PITCH_CONTROLS:
-            with self.subTest(parameter=name):
-                parameter = self.parameters[name]
-                parameter.value = 0.6
-                control, _ = self.bind_encoder(number)
-                self.assert_step(control, parameter, 65, 0.5)
-                parameter.value = 0.6
-                self.assert_step(control, parameter, 63, 0.75)
-
-    def test_pitch_steps_work_with_native_numeric_ranges(self):
-        for number, name, limit, step in (
-            (1, "1 A Transpose Semitones", 24.0, 12.0),
-            (23, "1 A Tune Octave", 2.0, 1.0),
+        for current, value, expected in (
+            (0.55, 65, 0.25),
+            (0.55, 63, 0.75),
+            (0.70, 65, 0.5),
+            (0.30, 63, 0.5),
         ):
-            with self.subTest(parameter=name):
-                parameter = self.parameters[name]
-                parameter.min = -limit
-                parameter.max = limit
-                parameter.value = 0.0
-                parameter.is_quantized = True
-                control, _ = self.bind_encoder(number)
-                self.assert_step(control, parameter, 65, -step)
-                self.assert_step(control, parameter, 63, 0.0)
+            with self.subTest(current=current, value=value):
+                parameter.value = current
+                self.assert_step(control, parameter, value, expected)
 
-    def test_quantized_transpose_skips_intermediate_semitone_items(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
-        parameter.value = 0.5
+    def test_tune_stages_support_non_normalized_raw_bounds(self):
+        parameter = self.parameters["1 A Tune Octave"]
+        parameter.min = -2.0
+        parameter.max = 2.0
+        parameter.value = 0.0
         parameter.is_quantized = True
-        parameter.value_items = tuple(str(value) for value in range(24, -25, -1))
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
+        self.assert_step(control, parameter, 65, -1.0)
+        self.assert_step(control, parameter, 63, 0.0)
+
+    def test_tune_does_not_probe_value_items_or_arbitrary_display_values(self):
+        class ProbeCountingParameter(fixtures.FakeParameter):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.value_items_reads = 0
+                self.formatter_calls = 0
+
+            def __getattribute__(self, name):
+                if name == "value_items":
+                    self.value_items_reads += 1
+                    raise RuntimeError("Only quantized parameters have value items")
+                return super().__getattribute__(name)
+
+            def str_for_value(self, value):
+                self.formatter_calls += 1
+                raise AssertionError("Tune must not probe arbitrary display values")
+
+        original = self.parameters["1 A Tune Octave"]
+        parameter = ProbeCountingParameter(original.name, value=0.5, parent=self.device)
+        self.device.parameters = tuple(
+            parameter if item is original else item for item in self.device.parameters
+        )
+        control, _ = self.bind_encoder(23)
+        for _ in range(5):
+            self.component._update_assignments(force=True)
+        self.assert_step(control, parameter, 65, 0.25)
+        self.assert_step(control, parameter, 63, 0.5)
+        self.assertEqual(parameter.value_items_reads, 0)
+        self.assertEqual(parameter.formatter_calls, 0)
+
+    def test_tune_fixed_stages_take_precedence_over_quantized_items(self):
+        parameter = self.parameters["1 A Tune Octave"]
+        parameter.is_quantized = True
+        parameter.value_items = tuple(str(value) for value in range(49))
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(23)
         self.assert_step(control, parameter, 65, 0.25)
         self.assert_step(control, parameter, 63, 0.5)
 
-    def test_shift_pitch_preview_keeps_values_and_resets_pending_input(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_shift_tune_preview_keeps_values_and_resets_pending_input(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, display = self.bind_encoder(1)
+        control, display = self.bind_encoder(23)
         control.receive(65)
         self.component.set_shift_pressed(True)
         for value in (65, 63, 127):
@@ -184,10 +232,10 @@ class OmnisphereControlsTest(unittest.TestCase):
         self.assert_step(control, parameter, 65, 0.25)
         self.assertEqual(control.native_updates, [])
 
-    def test_inactive_pitch_controls_reset_pending_input(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_inactive_tune_control_resets_pending_input(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
         control.receive(65)
         self.component.set_active(False)
         control.receive(65)
@@ -195,10 +243,10 @@ class OmnisphereControlsTest(unittest.TestCase):
         self.component.set_active(True)
         self.assert_step(control, parameter, 65, 0.25)
 
-    def test_retargeting_pitch_controls_resets_pending_input(self):
-        parameter = self.parameters["1 A Transpose Semitones"]
+    def test_retargeting_tune_control_resets_pending_input(self):
+        parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(1)
+        control, _ = self.bind_encoder(23)
         control.receive(65)
 
         replacement = omnisphere_device()
