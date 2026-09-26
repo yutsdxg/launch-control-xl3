@@ -225,7 +225,7 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 - `instrumentvector` と `wavetable`、`instrumentmeld` と `meld`、`hybrid` と `reverb` は相互 alias。
 - `None` または `SKIP` は空スロット。
 - `{"Parameter": {"occurrence": 2}}` のように同名パラメータの何番目かを指定できる。
-- instrument モードでは `{"Parameter": {"invert_direction": True}}` でエンコーダの値方向を反転し、`{"Parameter": {"invert_led": True}}` でボタンの点灯条件を反転できる。反転LEDのオフ状態は完全消灯とする。
+- instrument モードでは `{"Parameter": {"invert_direction": True}}` でエンコーダの値方向を反転し、`{"Parameter": {"invert_led": True}}` でボタンの点灯条件を反転できる。反転LEDのオフ状態も他のボタンと同じ暗い点灯とする。
 - `CUSTOM_PARAMETER_APPEND_REST = False` なので、カスタム順序にない残りパラメータは末尾へ追加しない。未指定スロットは未割り当て。
 
 現在定義されているカスタム順序:
@@ -245,7 +245,7 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
 | ADPTR MetricAB | `Selected Track`, `Selected Cue`, `AB Switch` |
 
-Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方向を反転し、右回しで音程が上がる。`1 Bypass All Effects` はバイパス中に消灯、エフェクト有効時に点灯する。ボタン押下による min/max のトグル動作と、画面に表示するパラメータ値は変更しない。
+Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方向を反転し、右回しで音程が上がる。`1 Bypass All Effects` はバイパス中に暗く点灯、エフェクト有効時に明るく点灯する。ボタン押下による min/max のトグル動作と、画面に表示するパラメータ値は変更しない。
 
 反転エンコーダは Live の通常接続を解除して手動で値を更新する。相対CCの差分を `64 - value` とし、連続値は範囲の `1/127`、量子化された値は `value_items` の1項目（項目がない場合は1）を単位に動かし、上下限で止める。Shift 中は表示のみ更新する。LED は実際のパラメータ値に追従する。
 

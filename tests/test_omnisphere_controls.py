@@ -161,17 +161,17 @@ class OmnisphereControlsTest(unittest.TestCase):
         self.assertGreater(other.value, 0.5)
         self.assertEqual(parameter.value, 0.5)
 
-    def test_bypass_is_dark_and_effects_enabled_are_lit_after_toggles(self):
+    def test_bypass_is_dim_and_effects_enabled_are_lit_after_toggles(self):
         bypass = self.parameters["1 Bypass All Effects"]
         button = self.bind_button(5)
         self.assertEqual(self.led(button), ("instrument-button", True))
 
         button.receive(127)
         self.assertEqual(bypass.value, bypass.max)
-        self.assertEqual(self.led(button), INSTRUMENT_ASSIGNMENTS.Theme.OFF)
+        self.assertEqual(self.led(button), ("instrument-button", False))
         button.receive(0)
         self.assertEqual(bypass.value, bypass.max)
-        self.assertEqual(self.led(button), INSTRUMENT_ASSIGNMENTS.Theme.OFF)
+        self.assertEqual(self.led(button), ("instrument-button", False))
 
         button.receive(127)
         self.assertEqual(bypass.value, bypass.min)
@@ -182,7 +182,7 @@ class OmnisphereControlsTest(unittest.TestCase):
         button = self.bind_button(5)
         bypass.value = bypass.max
         self.component._update_assignments()
-        self.assertEqual(self.led(button), INSTRUMENT_ASSIGNMENTS.Theme.OFF)
+        self.assertEqual(self.led(button), ("instrument-button", False))
 
         bypass.value = bypass.min
         self.component.refresh_led_feedback()

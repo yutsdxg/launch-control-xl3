@@ -4,7 +4,7 @@ from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
-from .colors import Theme, instrument_button_rgb
+from .colors import instrument_button_rgb
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
 from .custom_parameter_utils import (
     DEVICE_ON_PARAMETER_NAME,
@@ -555,10 +555,6 @@ class InstrumentAssignmentsComponent(Component):
             return
         state = self._button_state(offset)
         rgb = instrument_button_rgb(state)
-        if state is False and self._custom_parameter_option(
-            BUTTON_PARAMETER_OFFSET + offset + 1, "invert_led"
-        ):
-            rgb = Theme.OFF
         self._led_sender.send_rgb(button, rgb, force=force)
 
     def _turn_button_leds_off(self, force=False):
