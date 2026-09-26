@@ -212,8 +212,8 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
                 "normalized_value": DIVA_DUAL_VCO_ECO,
             },
             "assignments": {
-                "encoder_2": "EcoWave1",
-                "encoder_5": "EcoWave2",
+                "encoder_2": {"EcoWave1": {"discrete_count": 4}},
+                "encoder_5": {"EcoWave2": {"discrete_count": 4}},
             },
         },
     ),

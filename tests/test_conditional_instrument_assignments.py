@@ -10,6 +10,9 @@ from test_shift_preview import NativeMappedControl, display_lines
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
 WAVE_CONTROLS = ((2, "Shape1", "EcoWave1"), (5, "Shape2", "EcoWave2"))
+# Verified through Diva's VST3 controller: normalized endpoints/thirds select
+# displayed waveform numbers 1, 2, 3, 4 for both EcoWave parameters.
+ECO_WAVE_VALUES = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
 
 
 def override_rules(*assignments):
@@ -115,10 +118,20 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
         parameters = self.parameters if parameters is None else parameters
         for number, normal, alternate in WAVE_CONTROLS:
             expected = parameters.get(alternate if eco else normal)
-            self.assertIs(self.controls[number].mapped_parameter, expected)
-            self.assertIsNone(self.controls[number].manual_led_parameter)
+            self.assertIs(self.controls[number].mapped_parameter, None if eco else expected)
+            self.assertIs(self.controls[number].manual_led_parameter, expected if eco else None)
             if expected is not None:
                 self.assertEqual(display_lines(self.displays[number])[1], expected.name)
+
+    def assert_two_input_step(self, control, parameter, midi, expected):
+        previous = parameter.value
+        writes = len(parameter.writes)
+        control.receive(midi)
+        self.assertEqual(parameter.value, previous)
+        self.assertEqual(len(parameter.writes), writes)
+        control.receive(midi)
+        self.assertAlmostEqual(parameter.value, expected)
+        self.assertEqual(len(parameter.writes), writes + (abs(previous - expected) > 1e-9))
 
     def test_initial_eco_model_uses_eco_waves_without_changing_values(self):
         self.install_device(*model_device(value=0.75))
@@ -145,7 +158,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
             if isinstance(parameter, WaveParameter):
                 self.assertEqual(parameter.writes, [])
 
-    def test_encoder_input_writes_only_the_current_native_target_once(self):
+    def test_encoder_input_uses_native_shape_and_manual_eco_without_double_writes(self):
         self.bind(2, 5)
         for eco in (False, True, False):
             self.model.value = 0.75 if eco else 0.0
@@ -156,11 +169,99 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
                 writes = {name: len(self.parameters[name].writes) for name in (normal, alternate)}
                 control = self.controls[number]
                 native_count = len(control.native_updates)
-                control.receive(65)
-                self.assertAlmostEqual(target.value, previous + 1.0 / 127.0)
-                self.assertEqual(len(control.native_updates), native_count + 1)
+                if eco:
+                    self.assert_two_input_step(control, target, 65, 1.0)
+                    self.assertEqual(len(control.native_updates), native_count)
+                else:
+                    control.receive(65)
+                    self.assertAlmostEqual(target.value, previous + 1.0 / 127.0)
+                    self.assertEqual(len(control.native_updates), native_count + 1)
                 for name in (normal, alternate):
                     self.assertEqual(len(self.parameters[name].writes), writes[name] + (name == target.name))
+
+    def test_both_eco_waves_step_through_four_values_with_two_inputs_and_stop_at_endpoints(self):
+        self.install_device(*model_device(value=0.75))
+        self.bind(2, 5)
+        for number, _, name in WAVE_CONTROLS:
+            with self.subTest(parameter=name):
+                parameter, control = self.parameters[name], self.controls[number]
+                parameter.value = ECO_WAVE_VALUES[0]
+                parameter.writes.clear()
+                for expected in ECO_WAVE_VALUES[1:]:
+                    self.assert_two_input_step(control, parameter, 65, expected)
+                self.assert_two_input_step(control, parameter, 65, 1.0)
+                for expected in reversed(ECO_WAVE_VALUES[:-1]):
+                    self.assert_two_input_step(control, parameter, 63, expected)
+                self.assert_two_input_step(control, parameter, 63, 0.0)
+                self.assertEqual(len(parameter.writes), 6)
+                self.assertEqual(control.native_updates, [])
+
+    def test_eco_acceleration_counts_once_and_reversal_restarts_pending_input(self):
+        self.install_device(*model_device(value=0.75))
+        self.bind(2, 5)
+        for number, _, name in WAVE_CONTROLS:
+            with self.subTest(parameter=name):
+                parameter, control = self.parameters[name], self.controls[number]
+                parameter.value = 0.0
+                parameter.writes.clear()
+                self.assert_two_input_step(control, parameter, 127, 1.0 / 3.0)
+                self.assert_two_input_step(control, parameter, 127, 2.0 / 3.0)
+                self.assert_two_input_step(control, parameter, 0, 1.0 / 3.0)
+                writes = len(parameter.writes)
+                for midi in (65, 63, 65, 64):
+                    control.receive(midi)
+                    self.assertAlmostEqual(parameter.value, 1.0 / 3.0)
+                    self.assertEqual(len(parameter.writes), writes)
+                control.receive(127)
+                self.assertAlmostEqual(parameter.value, 2.0 / 3.0)
+                self.assertEqual(len(parameter.writes), writes + 1)
+                self.assertEqual(control.native_updates, [])
+
+    def test_model_and_shift_changes_reset_pending_eco_inputs(self):
+        self.install_device(*model_device(value=0.75))
+        self.bind(2, 5)
+        for boundary in ("model", "shift"):
+            with self.subTest(boundary=boundary):
+                for number, _, name in WAVE_CONTROLS:
+                    self.parameters[name].value = 0.0
+                    self.parameters[name].writes.clear()
+                    self.controls[number].receive(65)
+                if boundary == "model":
+                    self.model.value = 0.0
+                    self.component._update_assignments()
+                    self.assert_wave_targets(False)
+                    self.model.value = 0.75
+                    self.component._update_assignments()
+                else:
+                    self.component.set_shift_pressed(True)
+                    for control in self.controls.values():
+                        control.receive(65)
+                        control.receive(127)
+                    self.component.set_shift_pressed(False)
+                self.assert_wave_targets(True)
+                for number, normal, alternate in WAVE_CONTROLS:
+                    parameter, control = self.parameters[alternate], self.controls[number]
+                    self.assertEqual(parameter.writes, [])
+                    self.assert_two_input_step(control, parameter, 65, 1.0 / 3.0)
+                    self.assertEqual(control.native_updates, [])
+                    self.assertEqual(self.parameters[normal].writes, [])
+
+    def test_replacing_device_resets_pending_eco_inputs(self):
+        self.install_device(*model_device(value=0.75))
+        self.bind(2, 5)
+        for control in self.controls.values():
+            control.receive(65)
+        replacement, parameters, _ = model_device(value=0.75)
+        for _, _, name in WAVE_CONTROLS:
+            parameters[name].value = 0.0
+            parameters[name].writes.clear()
+        self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), replacement)
+        self.component._update_assignments()
+        self.assert_wave_targets(True, parameters)
+        for number, _, name in WAVE_CONTROLS:
+            self.assert_two_input_step(self.controls[number], parameters[name], 65, 1.0 / 3.0)
+            self.assertEqual(self.parameters[name].writes, [])
+            self.assertEqual(self.controls[number].native_updates, [])
 
     def test_shift_model_changes_update_preview_and_led_source_without_native_writes(self):
         self.bind(2, 5)

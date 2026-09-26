@@ -287,6 +287,8 @@ Divaの `Tune1`（Encoder 1）と `Tune2`（Encoder 4）は `discrete_values: (0
 
 `CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaはOSCモデルがDual VCO EcoのときだけEncoder 2を `EcoWave1`、Encoder 5を `EcoWave2` に切り替える。他モデルでは基本の `Shape1` / `Shape2` に戻る。
 
+EcoWave1 / EcoWave2には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Shape1 / Shape2は通常の連続操作とする。
+
 ```python
 DIVA_DUAL_VCO_ECO = 0.75
 
@@ -299,8 +301,8 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
                 "normalized_value": DIVA_DUAL_VCO_ECO,
             },
             "assignments": {
-                "encoder_2": "EcoWave1",
-                "encoder_5": "EcoWave2",
+                "encoder_2": {"EcoWave1": {"discrete_count": 4}},
+                "encoder_5": {"EcoWave2": {"discrete_count": 4}},
             },
         },
     ),
