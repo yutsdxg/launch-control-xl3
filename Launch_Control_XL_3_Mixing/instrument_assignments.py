@@ -5,7 +5,11 @@ from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
 from .colors import instrument_button_rgb
-from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
+from .custom_parameter_order import (
+    CUSTOM_DEVICE_PARAMETER_ORDER,
+    CUSTOM_DEVICE_PARAMETER_OVERRIDES,
+    CUSTOM_PARAMETER_APPEND_REST,
+)
 from .custom_parameter_utils import (
     DEVICE_ON_PARAMETER_NAME,
     build_device_order_index,
@@ -15,6 +19,7 @@ from .custom_parameter_utils import (
 )
 from .display import send_display, send_unassigned_display
 from .led import LedSender
+from .parameter_overrides import apply_overrides, bind_overrides, matching_overrides
 from .special_parameters import (
     REDUCED_SENSITIVITY_INPUT_THRESHOLD,
     _parameter_index,
@@ -31,6 +36,7 @@ FADER_PARAMETER_OFFSET = ENCODER_COUNT
 BUTTON_PARAMETER_OFFSET = ENCODER_COUNT + FADER_COUNT
 LOGGER = logging.getLogger(__name__)
 CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
+CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_OVERRIDES)
 
 
 class InstrumentAssignmentsComponent(Component):
@@ -46,8 +52,7 @@ class InstrumentAssignmentsComponent(Component):
         self._buttons = [None] * BUTTON_COUNT
         self._button_slots = [None] * BUTTON_COUNT
         self._display_commands = {}
-        self._target_parameter_cache_signature = None
-        self._target_parameter_cache = ()
+        self._clear_target_parameter_cache()
         self._led_sender = LedSender()
         self._assignment_update_task = self._tasks.add(
             task.loop(
@@ -156,6 +161,7 @@ class InstrumentAssignmentsComponent(Component):
     def _update_assignments(self, force=False):
         if not self._active:
             return
+        self._refresh_target_parameter_cache(check_overrides=True)
         for name in tuple(self._controls):
             self._update_parameter_assignment(name, force=force)
         for offset in range(BUTTON_COUNT):
@@ -266,6 +272,7 @@ class InstrumentAssignmentsComponent(Component):
             return
         if not name.startswith("encoder_"):
             return
+        self._refresh_target_parameter_cache(check_overrides=True)
         self._update_parameter_assignment(name)
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
@@ -388,7 +395,8 @@ class InstrumentAssignmentsComponent(Component):
         device = self._target_device()
         if not liveobj_valid(device) or parameter_number is None or parameter_number < 1:
             return {}
-        order = self._resolve_custom_order(device)
+        self._target_parameters()
+        order = self._effective_custom_order
         if order is None or parameter_number > len(order):
             return {}
         _, options = extract_custom_entry_name_and_options(order[parameter_number - 1])
@@ -419,19 +427,45 @@ class InstrumentAssignmentsComponent(Component):
         return parameters[index] if index < len(parameters) else None
 
     def _target_parameters(self):
+        self._refresh_target_parameter_cache()
+        return self._target_parameter_cache
+
+    def _refresh_target_parameter_cache(self, check_overrides=False):
         device = self._target_device()
         if not liveobj_valid(device):
             self._clear_target_parameter_cache()
-            return ()
+            return
         signature = self._target_signature(device)
         if signature != self._target_parameter_cache_signature:
+            self._clear_target_parameter_cache()
             self._target_parameter_cache_signature = signature
-            self._target_parameter_cache = self._ordered_device_parameters(device)
-        return self._target_parameter_cache
+            try:
+                self._source_parameters = tuple(device.parameters)
+            except (AttributeError, RuntimeError, TypeError):
+                self._source_parameters = ()
+            self._base_custom_order = self._resolve_custom_order(device)
+            rules = self._resolve_device_config(device, CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX)
+            self._override_bindings = bind_overrides(self._source_parameters, rules, self._parameter_name)
+            check_overrides = True
+        if check_overrides:
+            matching = matching_overrides(self._override_bindings)
+            if matching != self._matching_overrides:
+                self._matching_overrides = matching
+                self._effective_custom_order = apply_overrides(
+                    self._base_custom_order, self._override_bindings, matching
+                )
+                self._target_parameter_cache = self._ordered_device_parameters(
+                    device, self._source_parameters, self._effective_custom_order
+                )
 
     def _clear_target_parameter_cache(self):
         self._target_parameter_cache_signature = None
         self._target_parameter_cache = ()
+        self._source_parameters = ()
+        self._base_custom_order = None
+        self._effective_custom_order = None
+        self._override_bindings = ()
+        self._matching_overrides = None
 
     def _target_signature(self, device):
         track = selected_track(self.song)
@@ -465,13 +499,8 @@ class InstrumentAssignmentsComponent(Component):
         device = devices[TARGET_DEVICE_INDEX]
         return device if liveobj_valid(device) else None
 
-    def _ordered_device_parameters(self, device):
-        try:
-            parameters = tuple(device.parameters)
-        except (AttributeError, RuntimeError):
-            return ()
+    def _ordered_device_parameters(self, device, parameters, custom_order):
         parameters = tuple(parameter for parameter in parameters if self._is_assignable_device_parameter(parameter))
-        custom_order = self._resolve_custom_order(device)
         if custom_order is None:
             return parameters
         ordered, missing_requested_names = order_named_items(
@@ -508,9 +537,11 @@ class InstrumentAssignmentsComponent(Component):
             self._object_name(device),
             self._object_attr(device, "class_name"),
             self._object_attr(device, "class_display_name"),
+            parameter,
             self._object_name(parameter),
             self._parameter_attr(parameter, "min"),
             self._parameter_attr(parameter, "max"),
+            self._custom_parameter_options(self._parameter_number_for_control(name)),
         )
 
     def _track_index(self, track):
@@ -556,6 +587,9 @@ class InstrumentAssignmentsComponent(Component):
             return None
 
     def _resolve_custom_order(self, device):
+        return self._resolve_device_config(device, CUSTOM_DEVICE_PARAMETER_ORDER_INDEX)
+
+    def _resolve_device_config(self, device, index):
         name_keys = (
             getattr(device, "name", ""),
             getattr(device, "class_name", ""),
@@ -563,8 +597,8 @@ class InstrumentAssignmentsComponent(Component):
         )
         for key in name_keys:
             normalized = normalize_device_key(key)
-            if normalized and normalized in CUSTOM_DEVICE_PARAMETER_ORDER_INDEX:
-                return CUSTOM_DEVICE_PARAMETER_ORDER_INDEX[normalized]
+            if normalized and normalized in index:
+                return index[normalized]
         return None
 
     def _is_assignable_device_parameter(self, parameter):

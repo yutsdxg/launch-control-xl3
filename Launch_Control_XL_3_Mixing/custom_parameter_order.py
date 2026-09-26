@@ -13,6 +13,10 @@ values, or discrete_values for explicit raw values in ascending order. Both
 use the same two-input threshold as Saturn's style control.
 Use {"Attack": {"occurrence": 2}} to select the second same-named parameter
 in Live's parameter order (the Configure order for plug-ins).
+CUSTOM_DEVICE_PARAMETER_OVERRIDES adds conditional changes to this base order.
+Each rule has a when selector and assignments keyed by physical control name.
+normalized_value compares (value - min) / (max - min), not display units.
+Later matching rules win. Assignment entries use the same format as above.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -29,6 +33,9 @@ OMNISPHERE_TRANSPOSE_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
 # Verified with Diva 1.4.8's controller API; display units are not raw values.
 # Keep their normal direction: larger raw values raise the pitch.
 DIVA_TUNE_VALUES = (0.1, 0.3, 0.5, 0.7, 0.9)
+
+# OSC Model: Triple VCO=0, Dual VCO=0.25, DCO=0.5, Dual VCO Eco=0.75, Digital=1.
+DIVA_DUAL_VCO_ECO = 0.75
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Serum 2": (
@@ -192,6 +199,23 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Selected Track",
         "Selected Cue",
         "AB Switch",
+    ),
+}
+
+CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
+    "Diva": (
+        {
+            # Configure must expose OSC Model as the first Model, plus both EcoWaves.
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_DUAL_VCO_ECO,
+            },
+            "assignments": {
+                "encoder_2": "EcoWave1",
+                "encoder_5": "EcoWave2",
+            },
+        },
     ),
 }
 """

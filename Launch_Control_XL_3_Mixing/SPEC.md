@@ -283,6 +283,37 @@ Divaの `Tune1`（Encoder 1）と `Tune2`（Encoder 4）は `discrete_values: (0
 
 右回しで上昇、左回しで下降し、同方向のMIDI入力2回で現在値に最も近い候補から隣の1段階へ進む。加速入力でも1段階とし、±24で止める。Shift・方向変更・割り当て変更時の蓄積リセットはOmnisphereと共通。値は入力時に上記の固定値を直接代入し、表示値の探索、割り当て時や周期更新でのスナップは行わない。
 
+### モデルなどの選択値による割り当て変更
+
+`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaはOSCモデルがDual VCO EcoのときだけEncoder 2を `EcoWave1`、Encoder 5を `EcoWave2` に切り替える。他モデルでは基本の `Shape1` / `Shape2` に戻る。
+
+```python
+DIVA_DUAL_VCO_ECO = 0.75
+
+CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
+    "Diva": (
+        {
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_DUAL_VCO_ECO,
+            },
+            "assignments": {
+                "encoder_2": "EcoWave1",
+                "encoder_5": "EcoWave2",
+            },
+        },
+    ),
+}
+```
+
+- `when.parameter` は条件に使うConfigure上のパラメータ名。大文字小文字・空白を正規化して完全一致で検索する。`occurrence` は同名の何番目かを1から指定し、省略時は1。現在のDivaではフィルターのModelをConfigureから除き、OSCのModelだけを表出する。
+- `normalized_value` は `(parameter.value - parameter.min) / (parameter.max - parameter.min)` の期待値。画面の数値ではない。誤差 `1e-6` 以内を一致とする。Diva OSC Modelは独立VST3ホストでTriple VCO=0、Dual VCO=0.25、DCO=0.5、Dual VCO Eco=0.75、Digital=1と確認済み。
+- `assignments` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`、`button_1`〜`button_16`。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
+- 判定対象がない・無効・読取不可なら、そのルールは不成立。成立したルールの割り当て先が未表出なら、その操作子は未割り当てとする。DivaではModelに加えEcoWave1とEcoWave2をConfigureに表出させる。
+- パラメータ一覧と判定対象の参照をキャッシュし、既存の0.1秒更新で判定対象の現在値だけを読む。同一対象を使う複数ルールでも1更新に1回とする。成立するルールが変わったときだけ並びを再構成し、変わった操作子だけ接続し直す。表示やLEDも新しいパラメータへ追従し、Shift中は接続せず表示のみ更新する。モデル切替時にパラメータ値を書き換えたり、変更のないTuneの2入力蓄積をリセットしたりしない。
+- `str_for_value` / `value_items` や表示値の探索は使わない。選択トラック・音源の変更、インストゥルメントモードへの入り直しでキャッシュを作り直す。同じ音源のConfigure項目を追加・削除した場合も、モードへ入り直すと新しい一覧を取り込む。
+
 ## 特殊パラメータ処理
 
 通常のパラメータは Live の `connect_to(parameter)` に接続する。例外として、mixing モードのエンコーダに割り当たった特殊パラメータは通常接続せず、値入力をスクリプト側で処理する。フェーダに割り当たった場合は通常接続のまま。
