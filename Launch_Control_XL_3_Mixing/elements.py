@@ -6,6 +6,7 @@ from .colored_encoder import ColoredEncoderElement
 
 CHANNEL_DAW_MODE = 6
 CHANNEL_ENCODER_LED = 15
+CHANNEL_TOUCH = 14
 
 CC_SHIFT_BUTTON = 63
 CC_SOLO_MODIFIER = 65
@@ -23,6 +24,7 @@ RANGE_FADERS = range(5, 13)
 RANGE_UPPER_ENCODERS_ROW_1 = range(77, 85)
 RANGE_UPPER_ENCODERS_ROW_2 = range(85, 93)
 RANGE_LOWER_ENCODERS = range(93, 101)
+RANGE_ENCODER_TOUCH = range(77, 101)
 
 TARGET_TEMP = 54
 TARGET_FADER_BASE = 5
@@ -67,6 +69,12 @@ class Elements(ElementsBase):
             channels=CHANNEL_ENCODER_LED,
             element_factory=ColoredEncoderElement,
         )
+        for index, identifier in enumerate(RANGE_ENCODER_TOUCH, start=1):
+            self.add_button(
+                identifier,
+                "Encoder_{}_Touch".format(index),
+                channel=CHANNEL_TOUCH,
+            )
         self.add_sysex_element(midi.make_connection_message()[:-2], "Connection_Element")
         self.add_display_command_for_target("Temp", TARGET_TEMP, 3, disable_caching=True)
         for index in range(NUM_FADER_TARGETS):

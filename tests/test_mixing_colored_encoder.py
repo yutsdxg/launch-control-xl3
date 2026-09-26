@@ -310,6 +310,48 @@ class MixingSaturnStyleEncoderTest(unittest.TestCase):
             [("rgb", 14, ("parameter", 6.0, True))],
         )
 
+    def test_shift_bypasses_element_special_writes_but_forwards_display_input(self):
+        parameter = FakeParameter(value=2.0)
+        self._map_parameter(parameter)
+        self.encoder.set_shift_pressed(True)
+
+        self.encoder.receive_value(65)
+        self.encoder.notify_value(65)
+
+        self.assertEqual(parameter.value, 2.0)
+        self.assertEqual(self.encoder.received_values, [65])
+        self.assertEqual(self.encoder.notified_values, [65])
+        self.encoder.set_shift_pressed(False)
+        self.encoder.receive_value(65)
+        self.assertEqual(parameter.value, 6.0)
+
+    def test_manual_pan_led_uses_unmapped_parameter_text_and_tracks_changes(self):
+        class PanParameter(FakeParameter):
+            def __str__(self):
+                return "25L" if self.value < 0 else "25R"
+
+        parameter = PanParameter(name="Track Panning", value=-0.25, minimum=-1.0, maximum=1.0)
+        self.encoder.set_manual_led_parameter(parameter)
+        self.encoder._update_parameter_listeners()
+        self.encoder.reset()
+        self.assertEqual(self.encoder.sent_midi[-1], ("rgb", 14, ("pan", "25L")))
+
+        parameter.value = 0.25
+        self.encoder.refresh_manual_led_feedback()
+        self.assertEqual(self.encoder.sent_midi[-1], ("rgb", 14, ("pan", "25R")))
+
+    def test_preview_led_can_be_cleared_and_reassigned(self):
+        parameter = FakeParameter(value=2.0)
+        self.encoder.set_manual_led_parameter(parameter)
+        self.encoder.clear_manual_led_parameter()
+        self.encoder._update_parameter_listeners()
+        self.assertEqual(self.encoder.sent_midi[-1], ("rgb", 14, "off"))
+
+        replacement = FakeParameter(value=6.0)
+        self._map_parameter(replacement)
+        self.encoder._update_parameter_listeners()
+        self.assertEqual(self.encoder.sent_midi[-1], ("rgb", 14, ("parameter", 6.0, True)))
+
     def test_manual_led_rgb_prevents_unmapped_update_from_turning_led_off(self):
         self.encoder.set_manual_led_rgb(("device-toggle", 2, True))
 
