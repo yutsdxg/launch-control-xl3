@@ -15,6 +15,8 @@ from .custom_parameter_utils import (
 )
 from .display import send_display, send_unassigned_display
 from .led import LedSender
+from .parameter_steps import current_stepped_value, stepped_parameter_values
+from .special_parameters import REDUCED_SENSITIVITY_INPUT_THRESHOLD
 from .track_resolver import selected_track
 
 ASSIGNMENT_UPDATE_INTERVAL = 0.1
@@ -36,6 +38,8 @@ class InstrumentAssignmentsComponent(Component):
         self._controls = {}
         self._connected_parameters = {}
         self._connected_parameter_signatures = {}
+        self._stepped_encoder_inputs = {}
+        self._stepped_encoder_values = {}
         self._control_slots = {}
         self._buttons = [None] * BUTTON_COUNT
         self._button_slots = [None] * BUTTON_COUNT
@@ -78,6 +82,7 @@ class InstrumentAssignmentsComponent(Component):
         if self._shift_pressed == pressed:
             return
         self._shift_pressed = pressed
+        self._stepped_encoder_inputs.clear()
         if self._active:
             self._update_assignments(force=True)
 
@@ -173,6 +178,7 @@ class InstrumentAssignmentsComponent(Component):
             if self._shift_pressed or self._encoder_direction_is_inverted(name):
                 self._refresh_manual_led_feedback(control)
             return
+        self._clear_stepped_encoder(name)
         if (
             (self._shift_pressed or self._encoder_direction_is_inverted(name))
             and control is not None
@@ -209,6 +215,7 @@ class InstrumentAssignmentsComponent(Component):
             return
         self._connected_parameters.pop(name, None)
         self._connected_parameter_signatures.pop(name, None)
+        self._clear_stepped_encoder(name)
         if control is None:
             return
         try:
@@ -245,7 +252,7 @@ class InstrumentAssignmentsComponent(Component):
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
             if not self._shift_pressed and self._encoder_direction_is_inverted(name):
-                self._apply_inverted_encoder_value(parameter, value)
+                self._apply_inverted_encoder_value(name, parameter, value)
                 self._refresh_manual_led_feedback(self._controls.get(name))
             self._display_parameter(name, parameter)
         elif self._shift_pressed:
@@ -295,15 +302,53 @@ class InstrumentAssignmentsComponent(Component):
             self._parameter_number_for_control(name), "invert_direction"
         )
 
-    def _apply_inverted_encoder_value(self, parameter, value):
+    def _clear_stepped_encoder(self, name):
+        self._stepped_encoder_inputs.pop(name, None)
+        self._stepped_encoder_values.pop(name, None)
+
+    def _stepped_encoder_input_is_ready(self, name, direction):
+        accumulator = self._stepped_encoder_inputs.get(name, 0)
+        if accumulator and (accumulator > 0) != (direction > 0):
+            accumulator = 0
+        accumulator += direction
+        if abs(accumulator) >= REDUCED_SENSITIVITY_INPUT_THRESHOLD:
+            self._stepped_encoder_inputs[name] = 0
+            return True
+        self._stepped_encoder_inputs[name] = accumulator
+        return False
+
+    def _apply_inverted_encoder_value(self, name, parameter, value):
         # These encoders have no native MIDI map: reverse the binary-offset
-        # delta once, retaining its magnitude and the parameter's real value.
+        # direction once, preserving the parameter's real display value.
         try:
             minimum = float(parameter.min)
             maximum = float(parameter.max)
             current = float(parameter.value)
             delta = 64 - int(value)
             if maximum <= minimum or delta == 0:
+                return
+            options = self._custom_parameter_options(self._parameter_number_for_control(name))
+            if options.get("step_size"):
+                if name not in self._stepped_encoder_values:
+                    self._stepped_encoder_values[name] = stepped_parameter_values(parameter, options)
+                values = self._stepped_encoder_values[name]
+                if not values:
+                    return
+                direction = 1 if delta > 0 else -1
+                if not self._stepped_encoder_input_is_ready(name, direction):
+                    return
+                current = current_stepped_value(parameter, values, current)
+                # Move only one candidate, even for accelerated MIDI input.
+                if direction > 0:
+                    target = next(
+                        (candidate for candidate in values if candidate > current + 1e-9), values[-1]
+                    )
+                else:
+                    target = next(
+                        (candidate for candidate in reversed(values) if candidate < current - 1e-9), values[0]
+                    )
+                if abs(target - current) > 1e-9:
+                    parameter.value = target
                 return
             step = (maximum - minimum) / 127.0
             if getattr(parameter, "is_quantized", False):
@@ -318,15 +363,18 @@ class InstrumentAssignmentsComponent(Component):
         except (AttributeError, RuntimeError, TypeError, ValueError):
             pass
 
-    def _custom_parameter_option(self, parameter_number, option):
+    def _custom_parameter_options(self, parameter_number):
         device = self._target_device()
         if not liveobj_valid(device) or parameter_number is None or parameter_number < 1:
-            return False
+            return {}
         order = self._resolve_custom_order(device)
         if order is None or parameter_number > len(order):
-            return False
+            return {}
         _, options = extract_custom_entry_name_and_options(order[parameter_number - 1])
-        return isinstance(options, dict) and bool(options.get(option, False))
+        return options if isinstance(options, dict) else {}
+
+    def _custom_parameter_option(self, parameter_number, option):
+        return bool(self._custom_parameter_options(parameter_number).get(option, False))
 
     def _parameter_number_for_control(self, name):
         if name.startswith("encoder_"):
@@ -377,6 +425,7 @@ class InstrumentAssignmentsComponent(Component):
             self._object_name(track),
             TARGET_DEVICE_INDEX,
             device_count,
+            device,
             self._object_name(device),
             self._object_attr(device, "class_name"),
             self._object_attr(device, "class_display_name"),
@@ -434,6 +483,7 @@ class InstrumentAssignmentsComponent(Component):
             self._track_index(track),
             self._object_name(track),
             TARGET_DEVICE_INDEX,
+            device,
             self._object_name(device),
             self._object_attr(device, "class_name"),
             self._object_attr(device, "class_display_name"),

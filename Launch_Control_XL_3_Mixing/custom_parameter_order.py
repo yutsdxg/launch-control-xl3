@@ -8,6 +8,9 @@ Device keys can be display names, class names, or class display names. Trailing
 numbers are ignored by the resolver. Use None or "SKIP" for an empty slot.
 Instrument entries can use invert_direction for encoders and invert_led for
 buttons: {"Parameter": {"invert_direction": True}}.
+Reversed encoders can add step_size and display_min/max for discrete steps
+in display units, with the same two-input threshold as Saturn's style control.
+The display bounds are a fallback when the plug-in's labels cannot be read.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -64,13 +67,21 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
     ),
     "Omnisphere": (
         # Encoder upper
-        {"1 A Transpose Semitones": {"invert_direction": True}},
+        {"1 A Transpose Semitones": {
+            "invert_direction": True, "step_size": 12, "display_min": -24, "display_max": 24,
+        }},
         "1 A Level",
-        {"1 B Transpose Semitones": {"invert_direction": True}},
+        {"1 B Transpose Semitones": {
+            "invert_direction": True, "step_size": 12, "display_min": -24, "display_max": 24,
+        }},
         "1 B Level",
-        {"1 C Transpose Semitones": {"invert_direction": True}},
+        {"1 C Transpose Semitones": {
+            "invert_direction": True, "step_size": 12, "display_min": -24, "display_max": 24,
+        }},
         "1 C Level",
-        {"1 D Transpose Semitones": {"invert_direction": True}},
+        {"1 D Transpose Semitones": {
+            "invert_direction": True, "step_size": 12, "display_min": -24, "display_max": 24,
+        }},
         "1 D Level",
         # Encoder middle
         "1 A Shape",
@@ -88,7 +99,9 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "1 Global Flt Env Vel",
         "1 Global Ambi Amount",
         "1 Polyphony",
-        {"1 A Tune Octave": {"invert_direction": True}},
+        {"1 A Tune Octave": {
+            "invert_direction": True, "step_size": 1, "display_min": -2, "display_max": 2,
+        }},
         "Master Gain",
         # Fader
         "1 Global Flt Env Atk",

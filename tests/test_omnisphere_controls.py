@@ -1,4 +1,4 @@
-"""Omnisphere's reversed controls keep native values and clear feedback."""
+"""Omnisphere pitch controls step by octave with consistent reversed feedback."""
 
 import unittest
 
@@ -7,6 +7,13 @@ from test_shift_preview import NativeMappedControl, display_lines
 
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
+PITCH_CONTROLS = (
+    (1, "1 A Transpose Semitones"),
+    (3, "1 B Transpose Semitones"),
+    (5, "1 C Transpose Semitones"),
+    (7, "1 D Transpose Semitones"),
+    (23, "1 A Tune Octave"),
+)
 
 
 def omnisphere_device():
@@ -49,14 +56,15 @@ class OmnisphereControlsTest(unittest.TestCase):
         self.component.set_active(True)
         return control, display
 
-    def test_five_pitch_controls_reverse_direction_without_a_native_mapping(self):
-        for number, name in (
-            (1, "1 A Transpose Semitones"),
-            (3, "1 B Transpose Semitones"),
-            (5, "1 C Transpose Semitones"),
-            (7, "1 D Transpose Semitones"),
-            (23, "1 A Tune Octave"),
-        ):
+    def assert_step(self, control, parameter, value, expected):
+        previous = parameter.value
+        control.receive(value)
+        self.assertAlmostEqual(parameter.value, previous)
+        control.receive(value)
+        self.assertAlmostEqual(parameter.value, expected)
+
+    def test_five_pitch_controls_step_through_octaves_without_a_native_mapping(self):
+        for number, name in PITCH_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 parameter.value = 0.5
@@ -65,50 +73,104 @@ class OmnisphereControlsTest(unittest.TestCase):
                 self.assertIs(control.manual_led_parameter, parameter)
                 self.assertIs(self.component._connected_parameters["encoder_{}".format(number)], parameter)
 
-                control.receive(64)
-                self.assertEqual(parameter.value, 0.5)
-                control.receive(65)
-                self.assertAlmostEqual(parameter.value, 0.5 - 1.0 / 127.0)
-                control.receive(63)
-                self.assertAlmostEqual(parameter.value, 0.5)
+                # Reversed normalized raw values represent +2, +1, 0, -1,
+                # and -2 octaves (24, 12, 0, -12, -24 semitones).
+                for expected in (0.25, 0.0, 0.0):
+                    self.assert_step(control, parameter, 65, expected)
+                for expected in (0.25, 0.5, 0.75, 1.0, 1.0):
+                    self.assert_step(control, parameter, 63, expected)
                 self.assertEqual(control.native_updates, [])
 
-    def test_pitch_updates_use_the_external_value_and_clamp_to_bounds(self):
+    def test_pitch_input_strength_does_not_skip_octaves(self):
+        for number, name in PITCH_CONTROLS:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = 0.5
+                control, _ = self.bind_encoder(number)
+                self.assert_step(control, parameter, 127, 0.25)
+                self.assert_step(control, parameter, 0, 0.5)
+
+    def test_neutral_input_does_not_change_value_or_pending_direction(self):
         parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
         control, _ = self.bind_encoder(1)
-        parameter.value = 0.25
+        control.receive(64)
+        self.assertEqual(parameter.value, 0.5)
         control.receive(65)
-        self.assertAlmostEqual(parameter.value, 0.25 - 1.0 / 127.0)
+        control.receive(64)
+        self.assertEqual(parameter.value, 0.5)
+        control.receive(65)
+        self.assertEqual(parameter.value, 0.25)
 
-        parameter.value = parameter.min
-        control.receive(127)
-        self.assertEqual(parameter.value, parameter.min)
-        parameter.value = parameter.max
-        control.receive(0)
-        self.assertEqual(parameter.value, parameter.max)
+    def test_direction_change_restarts_the_two_event_threshold(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(1)
+        for value in (65, 63, 65):
+            control.receive(value)
+            self.assertEqual(parameter.value, 0.5)
+        control.receive(65)
+        self.assertEqual(parameter.value, 0.25)
 
-    def test_quantized_pitch_uses_one_item_or_integer_step(self):
+    def test_pitch_step_uses_the_latest_external_value(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(1)
+        control.receive(65)
+        parameter.value = 0.75
+        self.component._update_assignments()
+        control.receive(65)
+        self.assertEqual(parameter.value, 0.5)
+
+    def test_octave_step_advances_past_the_current_display_value(self):
         parameter = self.parameters["1 A Tune Octave"]
-        parameter.is_quantized = True
-        for minimum, maximum, items, initial, expected in (
-            (0.0, 1.0, ("Low", "Middle", "High"), 0.5, 0.0),
-            (-2.0, 2.0, (), 0.0, -1.0),
-        ):
-            with self.subTest(value_items=items):
-                parameter.min = minimum
-                parameter.max = maximum
-                parameter.value_items = items
-                parameter.value = initial
-                control, _ = self.bind_encoder(23)
-                control.receive(65)
-                self.assertEqual(parameter.value, expected)
-                control.receive(63)
-                self.assertEqual(parameter.value, initial)
+        parameter.str_for_value = lambda raw: "{} octaves".format(round(2 - 4 * raw))
+        parameter.value = 0.55  # Displays zero, like the candidate at raw 0.5.
+        control, _ = self.bind_encoder(23)
+        self.assert_step(control, parameter, 65, 0.25)
+        self.assertEqual(parameter.str_for_value(parameter.value), "1 octaves")
+        self.assert_step(control, parameter, 65, 0.0)
+        self.assertEqual(parameter.str_for_value(parameter.value), "2 octaves")
 
-    def test_shift_pitch_preview_keeps_values_and_restores_manual_direction(self):
+    def test_pitch_snaps_non_octave_values_in_the_input_direction(self):
+        for number, name in PITCH_CONTROLS:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = 0.6
+                control, _ = self.bind_encoder(number)
+                self.assert_step(control, parameter, 65, 0.5)
+                parameter.value = 0.6
+                self.assert_step(control, parameter, 63, 0.75)
+
+    def test_pitch_steps_work_with_native_numeric_ranges(self):
+        for number, name, limit, step in (
+            (1, "1 A Transpose Semitones", 24.0, 12.0),
+            (23, "1 A Tune Octave", 2.0, 1.0),
+        ):
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.min = -limit
+                parameter.max = limit
+                parameter.value = 0.0
+                parameter.is_quantized = True
+                control, _ = self.bind_encoder(number)
+                self.assert_step(control, parameter, 65, -step)
+                self.assert_step(control, parameter, 63, 0.0)
+
+    def test_quantized_transpose_skips_intermediate_semitone_items(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
+        parameter.is_quantized = True
+        parameter.value_items = tuple(str(value) for value in range(24, -25, -1))
+        control, _ = self.bind_encoder(1)
+        self.assert_step(control, parameter, 65, 0.25)
+        self.assert_step(control, parameter, 63, 0.5)
+
+    def test_shift_pitch_preview_keeps_values_and_resets_pending_input(self):
         parameter = self.parameters["1 A Transpose Semitones"]
         parameter.value = 0.5
         control, display = self.bind_encoder(1)
+        control.receive(65)
         self.component.set_shift_pressed(True)
         for value in (65, 63, 127):
             control.receive(value)
@@ -119,9 +181,38 @@ class OmnisphereControlsTest(unittest.TestCase):
 
         self.component.set_shift_pressed(False)
         self.assertIsNone(control.mapped_parameter)
-        control.receive(65)
-        self.assertLess(parameter.value, 0.5)
+        self.assert_step(control, parameter, 65, 0.25)
         self.assertEqual(control.native_updates, [])
+
+    def test_inactive_pitch_controls_reset_pending_input(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(1)
+        control.receive(65)
+        self.component.set_active(False)
+        control.receive(65)
+        self.assertEqual(parameter.value, 0.5)
+        self.component.set_active(True)
+        self.assert_step(control, parameter, 65, 0.25)
+
+    def test_retargeting_pitch_controls_resets_pending_input(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = 0.5
+        control, _ = self.bind_encoder(1)
+        control.receive(65)
+
+        replacement = omnisphere_device()
+        replacement_pitch = next(
+            item for item in replacement.parameters if item.name == parameter.name
+        )
+        replacement_pitch.value = 0.5
+        self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), replacement)
+        self.component._update_assignments()
+
+        self.assertIsNone(control.mapped_parameter)
+        self.assertIs(control.manual_led_parameter, replacement_pitch)
+        self.assert_step(control, replacement_pitch, 65, 0.25)
+        self.assertEqual(parameter.value, 0.5)
 
     def test_level_and_replacement_instrument_keep_native_clockwise_direction(self):
         level = self.parameters["1 A Level"]
