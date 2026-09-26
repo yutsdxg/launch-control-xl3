@@ -177,12 +177,12 @@ class InstrumentAssignmentsComponent(Component):
             and parameter_signature == self._connected_parameter_signatures.get(name)
             and self._parameter_is_enabled(parameter)
         ):
-            if self._shift_pressed or self._encoder_direction_is_inverted(name):
+            if self._shift_pressed or self._encoder_uses_manual_mapping(name):
                 self._refresh_manual_led_feedback(control)
             return
         self._discrete_encoder_inputs.pop(name, None)
         if (
-            (self._shift_pressed or self._encoder_direction_is_inverted(name))
+            (self._shift_pressed or self._encoder_uses_manual_mapping(name))
             and control is not None
             and self._parameter_is_enabled(parameter)
         ):
@@ -253,8 +253,8 @@ class InstrumentAssignmentsComponent(Component):
             self._update_parameter_assignment(name)
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
-            if not self._shift_pressed and self._encoder_direction_is_inverted(name):
-                self._apply_inverted_encoder_value(name, parameter, value)
+            if not self._shift_pressed and self._encoder_uses_manual_mapping(name):
+                self._apply_encoder_value(name, parameter, value)
                 self._refresh_manual_led_feedback(self._controls.get(name))
             self._display_parameter(name, parameter)
         elif self._shift_pressed:
@@ -299,9 +299,14 @@ class InstrumentAssignmentsComponent(Component):
         number = self._parameter_number_for_control(name)
         return self._parameter_by_number(number)
 
-    def _encoder_direction_is_inverted(self, name):
-        return name.startswith("encoder_") and self._custom_parameter_option(
-            self._parameter_number_for_control(name), "invert_direction"
+    def _encoder_uses_manual_mapping(self, name):
+        if not name.startswith("encoder_"):
+            return False
+        options = self._custom_parameter_options(self._parameter_number_for_control(name))
+        return bool(
+            options.get("invert_direction")
+            or options.get("discrete_values") is not None
+            or options.get("discrete_count")
         )
 
     def _discrete_encoder_input_is_ready(self, name, direction):
@@ -315,20 +320,22 @@ class InstrumentAssignmentsComponent(Component):
         self._discrete_encoder_inputs[name] = accumulator
         return False
 
-    def _apply_inverted_encoder_value(self, name, parameter, value):
-        # These encoders have no native MIDI map: reverse the binary-offset
-        # direction once, preserving the parameter's real display value.
+    def _apply_encoder_value(self, name, parameter, value):
+        # These encoders have no native MIDI map. Apply the configured direction
+        # once, preserving the parameter's real display value.
         try:
             minimum = float(parameter.min)
             maximum = float(parameter.max)
             current = float(parameter.value)
-            delta = 64 - int(value)
+            options = self._custom_parameter_options(self._parameter_number_for_control(name))
+            delta = int(value) - 64
+            if options.get("invert_direction"):
+                delta = -delta
             if maximum <= minimum or delta == 0:
                 return
-            options = self._custom_parameter_options(self._parameter_number_for_control(name))
             raw_values = options.get("discrete_values")
             if raw_values is not None:
-                # Measured raw values bypass Live's display conversion entirely.
+                # Explicit raw values bypass Live's display conversion entirely.
                 # Invalid lists must not fall back to continuous pitch changes.
                 raw_values = tuple(float(raw) for raw in raw_values)
                 if (

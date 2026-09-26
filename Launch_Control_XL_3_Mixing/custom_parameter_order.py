@@ -8,7 +8,7 @@ Device keys can be display names, class names, or class display names. Trailing
 numbers are ignored by the resolver. Use None or "SKIP" for an empty slot.
 Instrument entries can use invert_direction for encoders and invert_led for
 buttons: {"Parameter": {"invert_direction": True}}.
-Reversed encoders can add discrete_count for a fixed number of evenly spaced
+Encoders can add discrete_count for a fixed number of evenly spaced
 values, or discrete_values for explicit raw values in ascending order. Both
 use the same two-input threshold as Saturn's style control.
 Use {"Attack": {"occurrence": 2}} to select the second same-named parameter
@@ -24,6 +24,10 @@ CUSTOM_PARAMETER_APPEND_REST = False
 # points inside each pitch range, not measured boundaries or midpoints.
 # The user confirmed the encoder behavior on hardware with these values.
 OMNISPHERE_TRANSPOSE_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
+
+# Diva exposes Tune1/Tune2 in semitones, so use the desired pitches directly.
+# Keep their normal direction: larger raw values raise the pitch.
+DIVA_TUNE_VALUES = (-24.0, -12.0, 0.0, 12.0, 24.0)
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Serum 2": (
@@ -130,10 +134,10 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
     ),
     "Diva": (
         # Encoder upper
-        "Tune1",
+        {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
         "Shape1",
         "Volume1",
-        "Tune2",
+        {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
         "Shape2",
         "Volume2",
         "Feedback1",
