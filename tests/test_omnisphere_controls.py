@@ -1,6 +1,8 @@
-"""Only Omnisphere Tune Octave uses two-event steps; transpose stays continuous."""
+"""Omnisphere pitch controls use two-event steps without probing plug-in values."""
 
+import struct
 import unittest
+from unittest.mock import patch
 
 import test_mixing as fixtures
 from test_shift_preview import NativeMappedControl, display_lines
@@ -14,6 +16,9 @@ PITCH_CONTROLS = (
     (7, "1 D Transpose Semitones"),
     (23, "1 A Tune Octave"),
 )
+# Recorded raw values for GUI pitches +24, +12, 0, -12, and -24 respectively.
+# These are observations inside each pitch's range, not inferred boundaries.
+TRANSPOSE_RAW_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
 
 
 def omnisphere_device():
@@ -73,30 +78,238 @@ class OmnisphereControlsTest(unittest.TestCase):
                 self.assertIs(self.component._connected_parameters["encoder_{}".format(number)], parameter)
                 self.assertEqual(control.native_updates, [])
 
-    def test_transpose_controls_keep_continuous_input_and_acceleration(self):
+    def test_transpose_controls_write_each_measured_stage_in_both_directions(self):
         for number, name in PITCH_CONTROLS[:4]:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
-                parameter.value = 0.6
+                parameter.value = TRANSPOSE_RAW_VALUES[-1]
                 control, _ = self.bind_encoder(number)
-                expected = parameter.value
-                for value in (65, 65, 63, 68, 60, 64):
-                    expected += (64 - value) / 127.0
-                    control.receive(value)
-                    self.assertAlmostEqual(parameter.value, expected)
+                # Clockwise reduces the raw value and raises the actual pitch.
+                for expected in reversed(TRANSPOSE_RAW_VALUES[:-1]):
+                    self.assert_step(control, parameter, 65, expected)
+                    self.assertEqual(parameter.value, expected)
+                for expected in TRANSPOSE_RAW_VALUES[1:]:
+                    self.assert_step(control, parameter, 63, expected)
+                    self.assertEqual(parameter.value, expected)
                 self.assertEqual(control.native_updates, [])
 
-    def test_transpose_controls_clamp_at_raw_endpoints(self):
+    def test_transpose_controls_clamp_at_measured_endpoints_not_raw_maximum(self):
         for number, name in PITCH_CONTROLS[:4]:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
-                parameter.value = 0.01
+                for current, midi, expected in (
+                    (0.0, 65, 0.0),
+                    (0.01, 65, 0.0),
+                    (0.984252, 63, 0.984252),
+                    (0.99, 63, 0.984252),
+                    (1.0, 63, 0.984252),
+                ):
+                    parameter.value = current
+                    self.assert_step(control, parameter, midi, expected)
+                    self.assertEqual(parameter.value, expected)
+                    self.assertNotEqual(parameter.value, 1.0)
+
+    def test_transpose_acceleration_counts_as_one_event_and_one_stage(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, _ = self.bind_encoder(number)
+                self.assert_step(control, parameter, 127, TRANSPOSE_RAW_VALUES[1])
+                self.assert_step(control, parameter, 0, TRANSPOSE_RAW_VALUES[2])
+                control.receive(65)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
                 control.receive(127)
-                self.assertEqual(parameter.value, 0.0)
-                parameter.value = 0.99
-                control.receive(0)
-                self.assertEqual(parameter.value, 1.0)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[1])
+
+    def test_neutral_transpose_input_preserves_the_pending_direction(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, _ = self.bind_encoder(number)
+                control.receive(64)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                control.receive(65)
+                control.receive(64)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                control.receive(65)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[1])
+
+    def test_transpose_direction_change_restarts_the_two_event_threshold(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, _ = self.bind_encoder(number)
+                for value in (65, 63, 65):
+                    control.receive(value)
+                    self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                control.receive(65)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[1])
+
+    def test_transpose_step_uses_nearest_stage_of_latest_external_value(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                control, _ = self.bind_encoder(number)
+                for current, midi, expected in (
+                    (0.72, 65, TRANSPOSE_RAW_VALUES[2]),
+                    (0.28, 63, TRANSPOSE_RAW_VALUES[2]),
+                    (0.54, 65, TRANSPOSE_RAW_VALUES[1]),
+                    (0.54, 63, TRANSPOSE_RAW_VALUES[3]),
+                ):
+                    parameter.value = TRANSPOSE_RAW_VALUES[2]
+                    control.receive(midi)
+                    self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                    parameter.value = current
+                    self.component._update_assignments()
+                    control.receive(midi)
+                    self.assertEqual(parameter.value, expected)
+
+    def test_transpose_measured_values_take_precedence_over_discrete_count(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = TRANSPOSE_RAW_VALUES[2]
+        control, _ = self.bind_encoder(1)
+        options = dict(self.component._custom_parameter_options(1), discrete_count=3)
+        with patch.object(self.component, "_custom_parameter_options", return_value=options):
+            self.assert_step(control, parameter, 65, TRANSPOSE_RAW_VALUES[1])
+            self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[1])
+
+    def test_invalid_transpose_stages_do_not_fall_back_to_continuous_changes(self):
+        parameter = self.parameters["1 A Transpose Semitones"]
+        parameter.value = TRANSPOSE_RAW_VALUES[2]
+        control, _ = self.bind_encoder(1)
+        for values in (
+            (), (0.5,), (0.5, 0.0), (0.0, 0.5, 0.5), (-0.1, 0.5),
+            (0.0, 1.1), (0.0, float("nan")), (0.0, float("inf")), (0.0, "invalid"),
+        ):
+            with self.subTest(values=values):
+                options = {"invert_direction": True, "discrete_values": values, "discrete_count": 5}
+                with patch.object(self.component, "_custom_parameter_options", return_value=options):
+                    for midi in (65, 65, 63, 63, 127, 127):
+                        control.receive(midi)
+                        self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+
+    def test_float32_transpose_endpoint_does_not_cause_redundant_writes(self):
+        class WriteCountingParameter(fixtures.FakeParameter):
+            def __init__(self, *args, **kwargs):
+                self.value_writes = []
+                super().__init__(*args, **kwargs)
+
+            def __setattr__(self, name, value):
+                if name == "value":
+                    self.value_writes.append(value)
+                super().__setattr__(name, value)
+
+        rounded = struct.unpack("f", struct.pack("f", TRANSPOSE_RAW_VALUES[-1]))[0]
+        original = self.parameters["1 A Transpose Semitones"]
+        parameter = WriteCountingParameter(original.name, value=rounded, parent=self.device)
+        self.device.parameters = tuple(
+            parameter if item is original else item for item in self.device.parameters
+        )
+        control, _ = self.bind_encoder(1)
+        parameter.value_writes.clear()
+        for _ in range(4):
+            control.receive(63)
+        self.assertEqual(parameter.value, rounded)
+        self.assertEqual(parameter.value_writes, [])
+
+    def test_transpose_never_probes_value_items_or_display_formatter(self):
+        class ProbeCountingParameter(fixtures.FakeParameter):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.value_items_reads = 0
+                self.formatter_calls = 0
+
+            def __getattribute__(self, name):
+                if name == "value_items":
+                    self.value_items_reads += 1
+                    raise RuntimeError("Only quantized parameters have value items")
+                return super().__getattribute__(name)
+
+            def str_for_value(self, value):
+                self.formatter_calls += 1
+                raise AssertionError("Transpose must not probe arbitrary display values")
+
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                self.component.set_active(False)
+                original = self.parameters[name]
+                parameter = ProbeCountingParameter(
+                    name, value=TRANSPOSE_RAW_VALUES[2], parent=self.device
+                )
+                self.device.parameters = tuple(
+                    parameter if item is original else item for item in self.device.parameters
+                )
+                control, _ = self.bind_encoder(number)
+                for quantized in (False, True):
+                    parameter.is_quantized = quantized
+                    for _ in range(5):
+                        self.component._update_assignments(force=True)
+                    self.assert_step(control, parameter, 65, TRANSPOSE_RAW_VALUES[1])
+                    self.assert_step(control, parameter, 63, TRANSPOSE_RAW_VALUES[2])
+                self.assertEqual(parameter.value_items_reads, 0)
+                self.assertEqual(parameter.formatter_calls, 0)
+
+    def test_shift_transpose_preview_resets_pending_input(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, display = self.bind_encoder(number)
+                control.receive(65)
+                self.component.set_shift_pressed(True)
+                for value in (65, 63, 127):
+                    control.receive(value)
+                    self.component._update_assignments(force=True)
+                    self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                    self.assertIsNone(control.mapped_parameter)
+                self.assertEqual(
+                    display_lines(display)[1:], (parameter.name[:16], str(parameter.value))
+                )
+                self.component.set_shift_pressed(False)
+                self.assert_step(control, parameter, 65, TRANSPOSE_RAW_VALUES[1])
+                self.assertEqual(control.native_updates, [])
+
+    def test_inactive_transpose_control_resets_pending_input(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, _ = self.bind_encoder(number)
+                control.receive(65)
+                self.component.set_active(False)
+                control.receive(65)
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
+                self.component.set_active(True)
+                self.assert_step(control, parameter, 65, TRANSPOSE_RAW_VALUES[1])
+
+    def test_retargeting_transpose_control_resets_pending_input(self):
+        for number, name in PITCH_CONTROLS[:4]:
+            with self.subTest(parameter=name):
+                self.selected.devices = (
+                    fixtures.FakeDevice(1), fixtures.FakeDevice(2), self.device
+                )
+                self.component._update_assignments()
+                parameter = self.parameters[name]
+                parameter.value = TRANSPOSE_RAW_VALUES[2]
+                control, _ = self.bind_encoder(number)
+                control.receive(65)
+                replacement = omnisphere_device()
+                replacement_pitch = next(
+                    item for item in replacement.parameters if item.name == name
+                )
+                replacement_pitch.value = TRANSPOSE_RAW_VALUES[2]
+                self.selected.devices = (
+                    fixtures.FakeDevice(1), fixtures.FakeDevice(2), replacement
+                )
+                self.component._update_assignments()
+                self.assertIsNone(control.mapped_parameter)
+                self.assertIs(control.manual_led_parameter, replacement_pitch)
+                self.assert_step(control, replacement_pitch, 65, TRANSPOSE_RAW_VALUES[1])
+                self.assertEqual(parameter.value, TRANSPOSE_RAW_VALUES[2])
 
     def test_tune_octave_moves_one_of_five_stages_after_two_inputs(self):
         parameter = self.parameters["1 A Tune Octave"]

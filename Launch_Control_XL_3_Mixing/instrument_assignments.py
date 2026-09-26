@@ -326,6 +326,29 @@ class InstrumentAssignmentsComponent(Component):
             if maximum <= minimum or delta == 0:
                 return
             options = self._custom_parameter_options(self._parameter_number_for_control(name))
+            raw_values = options.get("discrete_values")
+            if raw_values is not None:
+                # Measured raw values bypass Live's display conversion entirely.
+                # Invalid lists must not fall back to continuous pitch changes.
+                raw_values = tuple(float(raw) for raw in raw_values)
+                if (
+                    len(raw_values) < 2
+                    or not all(minimum <= raw <= maximum for raw in raw_values)
+                    or not all(left < right for left, right in zip(raw_values, raw_values[1:]))
+                ):
+                    return
+                direction = 1 if delta > 0 else -1
+                if not self._discrete_encoder_input_is_ready(name, direction):
+                    return
+                current_index = min(
+                    range(len(raw_values)), key=lambda index: abs(raw_values[index] - current)
+                )
+                target_index = max(0, min(len(raw_values) - 1, current_index + direction))
+                target = raw_values[target_index]
+                # Live may round the stored raw value to float32 precision.
+                if abs(target - current) > 1e-7:
+                    parameter.value = target
+                return
             item_count = options.get("discrete_count")
             if item_count:
                 current_index = _parameter_index(parameter, item_count)

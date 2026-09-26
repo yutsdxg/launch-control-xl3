@@ -9,12 +9,19 @@ numbers are ignored by the resolver. Use None or "SKIP" for an empty slot.
 Instrument entries can use invert_direction for encoders and invert_led for
 buttons: {"Parameter": {"invert_direction": True}}.
 Reversed encoders can add discrete_count for a fixed number of evenly spaced
-values, with the same two-input threshold as Saturn's style control.
+values, or discrete_values for explicit raw values in ascending order. Both
+use the same two-input threshold as Saturn's style control.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
 # True: append remaining Live parameters after the listed entries.
 CUSTOM_PARAMETER_APPEND_REST = False
+
+# Observed with the Omnisphere GUI, not Live's differing semitone labels.
+# Raw ascending order: +24, +12, 0, -12, -24 semitones. These are observed
+# points inside each pitch range, not measured boundaries or midpoints.
+# The user confirmed the encoder behavior on hardware with these values.
+OMNISPHERE_TRANSPOSE_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Serum 2": (
@@ -66,13 +73,21 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
     ),
     "Omnisphere": (
         # Encoder upper
-        {"1 A Transpose Semitones": {"invert_direction": True}},
+        {"1 A Transpose Semitones": {
+            "invert_direction": True, "discrete_values": OMNISPHERE_TRANSPOSE_VALUES
+        }},
         "1 A Level",
-        {"1 B Transpose Semitones": {"invert_direction": True}},
+        {"1 B Transpose Semitones": {
+            "invert_direction": True, "discrete_values": OMNISPHERE_TRANSPOSE_VALUES
+        }},
         "1 B Level",
-        {"1 C Transpose Semitones": {"invert_direction": True}},
+        {"1 C Transpose Semitones": {
+            "invert_direction": True, "discrete_values": OMNISPHERE_TRANSPOSE_VALUES
+        }},
         "1 C Level",
-        {"1 D Transpose Semitones": {"invert_direction": True}},
+        {"1 D Transpose Semitones": {
+            "invert_direction": True, "discrete_values": OMNISPHERE_TRANSPOSE_VALUES
+        }},
         "1 D Level",
         # Encoder middle
         "1 A Shape",
