@@ -6,6 +6,8 @@ numbers to use a custom order instead of Live's raw parameter order.
 
 Device keys can be display names, class names, or class display names. Trailing
 numbers are ignored by the resolver. Use None or "SKIP" for an empty slot.
+Instrument entries can use invert_direction for encoders and invert_led for
+buttons: {"Parameter": {"invert_direction": True}}.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -62,13 +64,13 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
     ),
     "Omnisphere": (
         # Encoder upper
-        "1 A Transpose Semitones",
+        {"1 A Transpose Semitones": {"invert_direction": True}},
         "1 A Level",
-        "1 B Transpose Semitones",
+        {"1 B Transpose Semitones": {"invert_direction": True}},
         "1 B Level",
-        "1 C Transpose Semitones",
+        {"1 C Transpose Semitones": {"invert_direction": True}},
         "1 C Level",
-        "1 D Transpose Semitones",
+        {"1 D Transpose Semitones": {"invert_direction": True}},
         "1 D Level",
         # Encoder middle
         "1 A Shape",
@@ -86,7 +88,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "1 Global Flt Env Vel",
         "1 Global Ambi Amount",
         "1 Polyphony",
-        "1 A Tune Octave",
+        {"1 A Tune Octave": {"invert_direction": True}},
         "Master Gain",
         # Fader
         "1 Global Flt Env Atk",
@@ -102,7 +104,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "1 B Layer On",
         "1 C Layer On",
         "1 D Layer On",
-        "1 Bypass All Effects",
+        {"1 Bypass All Effects": {"invert_led": True}},
         "1 Arp On",
         None,
         None,

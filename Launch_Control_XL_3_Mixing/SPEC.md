@@ -225,6 +225,7 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 - `instrumentvector` と `wavetable`、`instrumentmeld` と `meld`、`hybrid` と `reverb` は相互 alias。
 - `None` または `SKIP` は空スロット。
 - `{"Parameter": {"occurrence": 2}}` のように同名パラメータの何番目かを指定できる。
+- instrument モードでは `{"Parameter": {"invert_direction": True}}` でエンコーダの値方向を反転し、`{"Parameter": {"invert_led": True}}` でボタンの点灯条件を反転できる。反転LEDのオフ状態は完全消灯とする。
 - `CUSTOM_PARAMETER_APPEND_REST = False` なので、カスタム順序にない残りパラメータは末尾へ追加しない。未指定スロットは未割り当て。
 
 現在定義されているカスタム順序:
@@ -236,13 +237,17 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, empty, `Main Vol` |
 | Serum 2 | Fader 1-8: `Env 2 Attack`, `Env 2 Decay`, `Env 2 Sustain`, `Env 2 Release`, `Env 1 Attack`, `Env 1 Decay`, `Env 1 Sustain`, `Env 1 Release` |
 | Serum 2 | Button 1-8: `Sub Enable`, `A Enable`, `B Enable`, `C Enable`, `Noise Enable`, `Clip Player Enable`, `Arp Enable`, empty |
-| Omnisphere | Enc 1-8: `1 A Transpose Semitones`, empty, `1 B Transpose Semitones`, empty, `1 C Transpose Semitones`, empty, `1 D Transpose Semitones`, empty |
-| Omnisphere | Enc 9-16: `1 A Shape`, `1 A Level`, `1 B Shape`, `1 B Level`, `1 C Shape`, `1 C Level`, `1 D Shape`, `1 D Level` |
-| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, empty, empty, empty, empty, `Master Gain` |
+| Omnisphere | Enc 1-8: `1 A Transpose Semitones`, `1 A Level`, `1 B Transpose Semitones`, `1 B Level`, `1 C Transpose Semitones`, `1 C Level`, `1 D Transpose Semitones`, `1 D Level` |
+| Omnisphere | Enc 9-16: `1 A Shape`, `1 A Symmetry`, `1 B Shape`, `1 B Symmetry`, `1 C Shape`, `1 C Symmetry`, `1 D Shape`, `1 D Symmetry` |
+| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
 | ADPTR MetricAB | `Selected Track`, `Selected Cue`, `AB Switch` |
+
+Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方向を反転し、右回しで音程が上がる。`1 Bypass All Effects` はバイパス中に消灯、エフェクト有効時に点灯する。ボタン押下による min/max のトグル動作と、画面に表示するパラメータ値は変更しない。
+
+反転エンコーダは Live の通常接続を解除して手動で値を更新する。相対CCの差分を `64 - value` とし、連続値は範囲の `1/127`、量子化された値は `value_items` の1項目（項目がない場合は1）を単位に動かし、上下限で止める。Shift 中は表示のみ更新する。LED は実際のパラメータ値に追従する。
 
 ## 特殊パラメータ処理
 

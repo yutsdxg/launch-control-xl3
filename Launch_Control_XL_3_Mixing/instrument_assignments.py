@@ -4,11 +4,12 @@ from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
-from .colors import instrument_button_rgb
+from .colors import Theme, instrument_button_rgb
 from .custom_parameter_order import CUSTOM_DEVICE_PARAMETER_ORDER, CUSTOM_PARAMETER_APPEND_REST
 from .custom_parameter_utils import (
     DEVICE_ON_PARAMETER_NAME,
     build_device_order_index,
+    extract_custom_entry_name_and_options,
     normalize_device_key,
     order_named_items,
 )
@@ -169,10 +170,14 @@ class InstrumentAssignmentsComponent(Component):
             and parameter_signature == self._connected_parameter_signatures.get(name)
             and self._parameter_is_enabled(parameter)
         ):
-            if self._shift_pressed:
+            if self._shift_pressed or self._encoder_direction_is_inverted(name):
                 self._refresh_manual_led_feedback(control)
             return
-        if self._shift_pressed and control is not None and self._parameter_is_enabled(parameter):
+        if (
+            (self._shift_pressed or self._encoder_direction_is_inverted(name))
+            and control is not None
+            and self._parameter_is_enabled(parameter)
+        ):
             # Keep a display/LED assignment while removing Live's native MIDI mapping.
             # Set the LED source first so release_parameter() does not turn it off.
             self._set_manual_led_parameter(control, parameter)
@@ -239,6 +244,9 @@ class InstrumentAssignmentsComponent(Component):
             self._update_parameter_assignment(name)
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
+            if not self._shift_pressed and self._encoder_direction_is_inverted(name):
+                self._apply_inverted_encoder_value(parameter, value)
+                self._refresh_manual_led_feedback(self._controls.get(name))
             self._display_parameter(name, parameter)
         elif self._shift_pressed:
             send_unassigned_display(self._display_commands.get(name), name)
@@ -281,6 +289,44 @@ class InstrumentAssignmentsComponent(Component):
     def _parameter_for_control(self, name):
         number = self._parameter_number_for_control(name)
         return self._parameter_by_number(number)
+
+    def _encoder_direction_is_inverted(self, name):
+        return name.startswith("encoder_") and self._custom_parameter_option(
+            self._parameter_number_for_control(name), "invert_direction"
+        )
+
+    def _apply_inverted_encoder_value(self, parameter, value):
+        # These encoders have no native MIDI map: reverse the binary-offset
+        # delta once, retaining its magnitude and the parameter's real value.
+        try:
+            minimum = float(parameter.min)
+            maximum = float(parameter.max)
+            current = float(parameter.value)
+            delta = 64 - int(value)
+            if maximum <= minimum or delta == 0:
+                return
+            step = (maximum - minimum) / 127.0
+            if getattr(parameter, "is_quantized", False):
+                items = tuple(getattr(parameter, "value_items", ()) or ())
+                step = (maximum - minimum) / (len(items) - 1) if len(items) > 1 else 1.0
+                target = minimum + (round((current - minimum) / step) + delta) * step
+            else:
+                target = current + delta * step
+            target = max(minimum, min(maximum, target))
+            if target != current:
+                parameter.value = target
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+
+    def _custom_parameter_option(self, parameter_number, option):
+        device = self._target_device()
+        if not liveobj_valid(device) or parameter_number is None or parameter_number < 1:
+            return False
+        order = self._resolve_custom_order(device)
+        if order is None or parameter_number > len(order):
+            return False
+        _, options = extract_custom_entry_name_and_options(order[parameter_number - 1])
+        return isinstance(options, dict) and bool(options.get(option, False))
 
     def _parameter_number_for_control(self, name):
         if name.startswith("encoder_"):
@@ -496,7 +542,10 @@ class InstrumentAssignmentsComponent(Component):
             midpoint = minimum + ((maximum - minimum) / 2.0)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
-        return current > midpoint
+        is_on = current > midpoint
+        if self._custom_parameter_option(BUTTON_PARAMETER_OFFSET + offset + 1, "invert_led"):
+            return not is_on
+        return is_on
 
     def _update_button_led(self, offset, force=False):
         button = self._buttons[offset]
@@ -506,6 +555,10 @@ class InstrumentAssignmentsComponent(Component):
             return
         state = self._button_state(offset)
         rgb = instrument_button_rgb(state)
+        if state is False and self._custom_parameter_option(
+            BUTTON_PARAMETER_OFFSET + offset + 1, "invert_led"
+        ):
+            rgb = Theme.OFF
         self._led_sender.send_rgb(button, rgb, force=force)
 
     def _turn_button_leds_off(self, force=False):
