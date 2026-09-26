@@ -17,6 +17,8 @@ class ControlRouterComponent(Component):
         self._shift_button = None
         self._shift_slot = None
         self._shift_pressed = False
+        self._encoder_touch_controls = {}
+        self._encoder_touch_slots = {}
 
     def set_target_components(self, fixed_assignments=None, instrument_assignments=None, track_buttons=None):
         self._fixed_assignments = fixed_assignments
@@ -50,6 +52,27 @@ class ControlRouterComponent(Component):
     def _forward_shift_state(self):
         self._call_target(self._fixed_assignments, "set_shift_pressed", self._shift_pressed, "fixed", "shift")
         self._call_target(self._instrument_assignments, "set_shift_pressed", self._shift_pressed, "instrument", "shift")
+
+    def _set_encoder_touch(self, name, button):
+        if self._encoder_touch_controls.get(name) is button:
+            return
+        slot = self._encoder_touch_slots.pop(name, None)
+        if slot is not None:
+            slot.disconnect()
+        self._encoder_touch_controls[name] = button
+        if button is not None:
+            self._encoder_touch_slots[name] = self.register_slot(
+                button,
+                lambda value, *a, _name=name: self._on_encoder_touch(_name, value),
+                "value",
+            )
+
+    def _on_encoder_touch(self, name, value):
+        if not self._shift_pressed or value <= 0:
+            return
+        # Shift+turn arrives on the hardware touch channel, without a value CC.
+        self._call_target(self._fixed_assignments, "preview_encoder", name, "fixed", name)
+        self._call_target(self._instrument_assignments, "preview_encoder", name, "instrument", name)
 
     def _set_parameter_control(self, name, control):
         previous = self._parameter_controls.get(name)
@@ -132,6 +155,10 @@ class ControlRouterComponent(Component):
         if self._shift_slot is not None:
             self._shift_slot.disconnect()
             self._shift_slot = None
+        for slot in self._encoder_touch_slots.values():
+            slot.disconnect()
+        self._encoder_touch_slots.clear()
+        self._encoder_touch_controls.clear()
         for control in self._parameter_controls.values():
             self._set_control_shift_state(control, False)
         super().disconnect()
@@ -151,6 +178,13 @@ def _make_display_setter(name):
     return _setter
 
 
+def _make_encoder_touch_setter(name):
+    def _setter(self, button):
+        self._set_encoder_touch(name, button)
+
+    return _setter
+
+
 def _make_track_button_setter(index):
     def _setter(self, button):
         self._set_track_button(index, button)
@@ -162,6 +196,7 @@ for _number in range(1, ENCODER_COUNT + 1):
     _name = "encoder_{}".format(_number)
     setattr(ControlRouterComponent, "set_{}".format(_name), _make_parameter_control_setter(_name))
     setattr(ControlRouterComponent, "set_{}_display".format(_name), _make_display_setter(_name))
+    setattr(ControlRouterComponent, "set_{}_touch".format(_name), _make_encoder_touch_setter(_name))
 
 for _number in range(1, FADER_COUNT + 1):
     _name = "fader_{}".format(_number)

@@ -486,14 +486,34 @@ class FixedAssignmentsComponent(Component):
     def _on_parameter_encoder_value(self, name, value):
         self._on_parameter_control_value(name, value)
 
+    def preview_encoder(self, name):
+        """Display an encoder assignment without treating touch as a value input."""
+        if not self._active or not self._shift_pressed or name not in self._controls:
+            return
+        if not self._is_encoder_control(name):
+            return
+        if name == "encoder_1":
+            self._display_loopcloud_metric_submode()
+            return
+        encoder_number = int(name.split("_")[1])
+        if encoder_number in ON_OFF_ENCODER_DEVICES:
+            parameter = self.device_on_parameter(ON_OFF_ENCODER_DEVICES[encoder_number])
+        else:
+            self._update_parameter_assignment(name)
+            parameter = self._connected_parameters.get(name)
+        self._display_preview_parameter(name, parameter)
+
     def _on_parameter_control_value(self, name, value):
         if not self._active:
             return
         if self._is_encoder_control(name) and value == 64:
             return
         if self._shift_pressed:
-            self._update_parameter_assignment(name)
-            self._display_preview_parameter(name, self._connected_parameters.get(name))
+            if self._is_encoder_control(name):
+                self.preview_encoder(name)
+            else:
+                self._update_parameter_assignment(name)
+                self._display_preview_parameter(name, self._connected_parameters.get(name))
             return
         parameter = self._connected_parameters.get(name)
         if parameter is None:
@@ -604,7 +624,7 @@ class FixedAssignmentsComponent(Component):
         if direction == 0:
             return
         if self._shift_pressed:
-            self._display_loopcloud_metric_submode()
+            self.preview_encoder("encoder_1")
             return
         if direction < 0:
             if self._loopcloud_metric_submode == METRIC_AB_SUBMODE:
@@ -843,7 +863,7 @@ class FixedAssignmentsComponent(Component):
             return
         parameter = self.device_on_parameter(ON_OFF_ENCODER_DEVICES[encoder_number])
         if self._shift_pressed:
-            self._display_preview_parameter("encoder_{}".format(encoder_number), parameter)
+            self.preview_encoder("encoder_{}".format(encoder_number))
             return
         if not self._parameter_is_enabled(parameter):
             return

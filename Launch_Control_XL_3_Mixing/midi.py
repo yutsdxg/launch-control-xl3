@@ -9,5 +9,9 @@ def make_connection_message(connect=True):
     return SYSEX_HEADER + (2, 127 if connect else 0, SYSEX_END)
 
 
+def make_touch_output_message(enabled=True):
+    return (182, 71, 127 if enabled else 0)
+
+
 def make_rgb_led_message(control_index, rgb):
     return SYSEX_HEADER + RGB_LED_COMMAND + (control_index,) + tuple(rgb) + (SYSEX_END,)

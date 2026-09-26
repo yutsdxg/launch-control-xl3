@@ -22,6 +22,7 @@
   - 入力 2 本: 通常入力、`SCRIPT` 入力
   - 出力 2 本: 通常出力、`SYNC` + `SCRIPT` 出力
 - 接続時 SysEx: `F0 00 20 29 02 15 02 7F F7`
+- 接続時にタッチ出力を有効化: `B6 47 7F`（チャンネル7、CC71、127）。切断時は `B6 47 00` で無効化する。
 - 切断時 SysEx: `F0 00 20 29 02 15 02 00 F7`
 - 識別後、相対エンコーダモード設定として以下の生 MIDI を送信する:
   - `(182, 69, 127)`
@@ -30,7 +31,7 @@
 
 ## MIDI 要素
 
-CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6`、フェーダとエンコーダは `CHANNEL_ENCODER_LED = 15` を使う。その他のボタンは `ElementsBase.add_button` の既定チャンネルに従う。
+CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェーダとエンコーダの値入力は `CHANNEL_ENCODER_LED = 15`、エンコーダタッチは `CHANNEL_TOUCH = 14` を使う。その他のボタンは `ElementsBase.add_button` の既定チャンネルに従う（内部チャンネル番号は0始まり）。
 
 | 要素 | CC / 範囲 | 内部名 | 備考 |
 | --- | --- | --- | --- |
@@ -49,6 +50,7 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 | Encoders 1-8 | 77-84 | `Upper_Encoders` row 1 | `MapMode.LinearBinaryOffset` |
 | Encoders 9-16 | 85-92 | `Upper_Encoders` row 2 | `MapMode.LinearBinaryOffset` |
 | Encoders 17-24 | 93-100 | `Lower_Encoders` | `MapMode.LinearBinaryOffset` |
+| Encoder touch 1-24 | 77-100 | `Encoder_1_Touch` ... `24` | チャンネル15、127がtouch on、0がtouch off。値変更の入力とは別に受ける |
 
 表示ターゲットは LCXL3 のディスプレイ向けで、MK2 では同一再現できない可能性が高い。
 
@@ -80,9 +82,12 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 - Value Scalingでは物理位置とパラメータ値の差を徐々に縮める。一定の移動量をそのまま現在値へ加減する方式とは異なる。Shift解除後の再接続直後の追従は実機で確認する。
 - トラックボタン、Instrumentのパラメータボタン、モード切替、ロケータ、再生・録音ボタンはShift中も従来どおり動作する。エンコーダLEDは割り当て先の色・現在値・Pan方向を維持する。
 - `Control_Router` がShiftを一度受け、両割り当てコンポーネントの `set_shift_pressed(bool)` に配布する。非アクティブなモードにも状態を保持する。
+- Shift＋回転は本体のタッチ操作に相当する。通常の相対値CCを受ける前提にせず、チャンネル15のエンコーダタッチ入力を `preview_encoder(name)` へ送って現在のアサインを表示する。Shiftなしのタッチとtouch offは無視し、タッチ値127をパラメータ操作値として扱わない。
 - Shift中は表示用の論理アサインを保持したままLiveへのMIDIパラメータ接続を解除する。定期更新、トラック変更、モード変更でも再接続せず、解除時に最新のアサインへ復帰する。特殊パラメータの入力蓄積はShiftの押下／解除でリセットし、押下中の操作は蓄積しない。
 
 参考: [Ableton LiveのTakeover Mode](https://www.ableton.com/en/manual/midi-and-key-remote-control/#takeover-mode)
+
+タッチ出力と表示の仕様: [Novation DAW mode](https://userguides.novationmusic.com/hc/en-gb/articles/27840466544402-Launch-Control-XL-3-programmer-s-DAW-mode)
 
 ## Mixing モードの固定割り当て
 

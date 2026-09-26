@@ -208,12 +208,28 @@ class InstrumentAssignmentsComponent(Component):
             return
         if name.startswith("encoder_") and value == 64:
             return
+        if self._shift_pressed and name.startswith("encoder_"):
+            self.preview_encoder(name)
+            return
         if self._shift_pressed:
             self._update_parameter_assignment(name)
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
             self._display_parameter(name, parameter)
         elif self._shift_pressed:
+            send_unassigned_display(self._display_commands.get(name), name)
+
+    def preview_encoder(self, name):
+        """Touch input is display-only and must never enter a parameter value path."""
+        if not self._active or not self._shift_pressed or name not in self._controls:
+            return
+        if not name.startswith("encoder_"):
+            return
+        self._update_parameter_assignment(name)
+        parameter = self._connected_parameters.get(name)
+        if self._parameter_is_enabled(parameter):
+            self._display_parameter(name, parameter)
+        else:
             send_unassigned_display(self._display_commands.get(name), name)
 
     def _on_button_value(self, offset, value):

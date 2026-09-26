@@ -9,6 +9,7 @@ def create_mappings(_control_surface):
             display = "lower_encoder_{}_display_command".format(index - 17)
         control_router["encoder_{}".format(index)] = control
         control_router["encoder_{}_display".format(index)] = display
+        control_router["encoder_{}_touch".format(index)] = "encoder_{}_touch".format(index)
     for index in range(1, 9):
         control_router["fader_{}".format(index)] = "faders_raw[{}]".format(index - 1)
         control_router["fader_{}_display".format(index)] = "fader_{}_display_command".format(index - 1)

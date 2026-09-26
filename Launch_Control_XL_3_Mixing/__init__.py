@@ -51,8 +51,8 @@ class Specification(ControlSurfaceSpecification):
     control_surface_skin = create_skin(skin=Skin, colors=Rgb)
     create_mappings_function = create_mappings
     identity_response_id_bytes = (0, 32, 41, -1, 1, 0, 1)
-    hello_messages = (midi.make_connection_message(),)
-    goodbye_messages = (midi.make_connection_message(connect=False),)
+    hello_messages = (midi.make_connection_message(), midi.make_touch_output_message())
+    goodbye_messages = (midi.make_touch_output_message(enabled=False), midi.make_connection_message(connect=False))
     component_map = {
         "Control_Router": ControlRouterComponent,
         "Fixed_Assignments": FixedAssignmentsComponent,
