@@ -96,6 +96,32 @@ class FixedAssignmentsComponent(Component):
 
     def _set_display_command(self, name, command):
         self._display_commands[name] = command
+        self._prepare_encoder_display(name)
+
+    def _prepare_encoder_display(self, name):
+        if not self._active or not self._is_encoder_control(name):
+            return
+        if name == "encoder_1":
+            self._display_loopcloud_metric_submode(trigger=False)
+            return
+        encoder_number = int(name.split("_")[1])
+        if encoder_number in ON_OFF_ENCODER_DEVICES:
+            parameter = self.device_on_parameter(ON_OFF_ENCODER_DEVICES[encoder_number])
+        else:
+            parameter = self._connected_parameters.get(name)
+        self._display_preview_parameter(name, parameter, trigger=False)
+
+    def refresh_display_feedback(self):
+        if not self._active:
+            return
+        # A reconnect may reset the hardware without changing the assignments.
+        for name, command in self._display_commands.items():
+            if self._is_encoder_control(name):
+                try:
+                    command.clear_send_cache()
+                except (AttributeError, RuntimeError):
+                    pass
+        self._update_assignments()
 
     def set_shift_pressed(self, pressed):
         pressed = bool(pressed)
@@ -129,6 +155,7 @@ class FixedAssignmentsComponent(Component):
                 "value",
             )
         self._update_parameter_assignment(name, force=True)
+        self._prepare_encoder_display(name)
 
     def _set_on_off_encoder(self, encoder_number, control):
         name = "encoder_{}".format(encoder_number)
@@ -147,6 +174,7 @@ class FixedAssignmentsComponent(Component):
                 "value",
             )
         self._update_on_off_encoder_led(encoder_number, force=True)
+        self._prepare_encoder_display(name)
 
     def set_encoder_2(self, control):
         self._set_on_off_encoder(2, control)
@@ -357,6 +385,7 @@ class FixedAssignmentsComponent(Component):
                 "value",
             )
         self._update_submode_switch_encoder_led(force=True)
+        self._prepare_encoder_display(name)
 
     def _update_assignments(self, force=False):
         if not self._active:
@@ -368,6 +397,9 @@ class FixedAssignmentsComponent(Component):
                 self._update_parameter_assignment(name, force=force)
         for encoder_number in ON_OFF_ENCODER_DEVICES:
             self._update_on_off_encoder_led(encoder_number, force=True)
+        # Hardware Shift+turn can show its stored text without sending a value CC.
+        for name in self._controls:
+            self._prepare_encoder_display(name)
 
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
@@ -648,10 +680,11 @@ class FixedAssignmentsComponent(Component):
         self._loopcloud_metric_submode = submode
         for name in METRIC_AB_PARAMETER_CONTROLS:
             self._update_parameter_assignment(name, force=True)
+            self._prepare_encoder_display(name)
         self._update_submode_switch_encoder_led(force=True)
         self._display_loopcloud_metric_submode()
 
-    def _display_loopcloud_metric_submode(self):
+    def _display_loopcloud_metric_submode(self, trigger=True):
         send_display(
             self._display_commands.get("encoder_1"),
             (
@@ -659,7 +692,7 @@ class FixedAssignmentsComponent(Component):
                 self._loopcloud_metric_submode_display_name(),
                 "",
             ),
-            trigger=True,
+            trigger=trigger,
         )
 
     def _loopcloud_metric_submode_display_name(self):
@@ -874,13 +907,13 @@ class FixedAssignmentsComponent(Component):
         self._update_on_off_encoder_led(encoder_number, force=True)
         self._display_parameter("encoder_{}".format(encoder_number), parameter)
 
-    def _display_preview_parameter(self, control_name, parameter):
+    def _display_preview_parameter(self, control_name, parameter, trigger=True):
         if self._parameter_is_enabled(parameter):
-            self._display_parameter(control_name, parameter)
+            self._display_parameter(control_name, parameter, trigger=trigger)
         else:
-            send_unassigned_display(self._display_commands.get(control_name), control_name)
+            send_unassigned_display(self._display_commands.get(control_name), control_name, trigger=trigger)
 
-    def _display_parameter(self, control_name, parameter):
+    def _display_parameter(self, control_name, parameter, trigger=True):
         if not self._parameter_is_enabled(parameter):
             return
         send_display(
@@ -890,7 +923,7 @@ class FixedAssignmentsComponent(Component):
                 self._object_name(parameter) or "-",
                 self._parameter_value_text(parameter) or "-",
             ),
-            trigger=True,
+            trigger=trigger,
         )
 
     def _display_header(self, control_name, parameter):

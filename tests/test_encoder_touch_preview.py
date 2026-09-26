@@ -52,14 +52,17 @@ class TouchPreviewChecks:
 
     def test_touch_ignores_inactive_and_unshifted_components(self):
         _, shift, touch, control, display = self.touch_binding(self.encoder_name)
+        prepared = list(display.sent)
+        self.assertTrue(all(not immediate and not trigger for _, _, immediate, trigger in prepared))
         touch.receive(127)
         self.component.preview_encoder(self.encoder_name)
-        self.assertEqual(display.sent, [])
+        self.assertEqual(display.sent, prepared)
         shift.receive(127)
         self.component.set_active(False)
+        prepared = list(display.sent)
         touch.receive(127)
         self.component.preview_encoder(self.encoder_name)
-        self.assertEqual(display.sent, [])
+        self.assertEqual(display.sent, prepared)
         self.assertEqual(control.native_updates, [])
 
     def test_touch_resolves_track_change_and_missing_target_without_polling(self):

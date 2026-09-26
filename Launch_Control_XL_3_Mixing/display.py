@@ -38,9 +38,9 @@ def send_display(command, lines, show_immediately=False, trigger=False):
     return True
 
 
-def send_unassigned_display(command, control_name):
+def send_unassigned_display(command, control_name, trigger=True):
     return send_display(
         command,
         (control_name.replace("_", " ").title(), "Unassigned", ""),
-        trigger=True,
+        trigger=trigger,
     )

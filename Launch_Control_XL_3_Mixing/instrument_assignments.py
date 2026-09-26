@@ -88,6 +88,27 @@ class InstrumentAssignmentsComponent(Component):
 
     def _set_display_command(self, name, command):
         self._display_commands[name] = command
+        self._prepare_encoder_display(name)
+
+    def _prepare_encoder_display(self, name):
+        if not self._active or not name.startswith("encoder_"):
+            return
+        parameter = self._connected_parameters.get(name)
+        if self._parameter_is_enabled(parameter):
+            self._display_parameter(name, parameter, trigger=False)
+        else:
+            send_unassigned_display(self._display_commands.get(name), name, trigger=False)
+
+    def refresh_display_feedback(self):
+        if not self._active:
+            return
+        for name, command in self._display_commands.items():
+            if name.startswith("encoder_"):
+                try:
+                    command.clear_send_cache()
+                except (AttributeError, RuntimeError):
+                    pass
+        self._update_assignments()
 
     def _set_parameter_control(self, name, control):
         previous = self._controls.get(name)
@@ -105,6 +126,7 @@ class InstrumentAssignmentsComponent(Component):
                 "value",
             )
         self._update_parameter_assignment(name, force=True)
+        self._prepare_encoder_display(name)
 
     def _set_button(self, offset, button):
         previous = self._buttons[offset]
@@ -130,6 +152,8 @@ class InstrumentAssignmentsComponent(Component):
             self._update_parameter_assignment(name, force=force)
         for offset in range(BUTTON_COUNT):
             self._update_button_led(offset)
+        for name in self._controls:
+            self._prepare_encoder_display(name)
 
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
@@ -489,7 +513,7 @@ class InstrumentAssignmentsComponent(Component):
             if button is not None:
                 self._led_sender.send_rgb(button, instrument_button_rgb(None), force=force)
 
-    def _display_parameter(self, control_name, parameter):
+    def _display_parameter(self, control_name, parameter, trigger=True):
         send_display(
             self._display_commands.get(control_name),
             (
@@ -497,7 +521,7 @@ class InstrumentAssignmentsComponent(Component):
                 self._object_name(parameter) or "-",
                 self._parameter_value_text(parameter) or "-",
             ),
-            trigger=True,
+            trigger=trigger,
         )
 
     def _object_name(self, obj):

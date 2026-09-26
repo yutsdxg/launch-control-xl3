@@ -90,6 +90,10 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
             self.send_midi(message)
         self._apply_selected_mode()
         self._refresh_led_feedback()
+        for name in ("Fixed_Assignments", "Instrument_Assignments"):
+            component = self._component(name)
+            if component is not None:
+                component.refresh_display_feedback()
 
     def _setup_components(self):
         control_router = self._component("Control_Router")

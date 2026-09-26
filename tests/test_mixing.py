@@ -807,7 +807,8 @@ class FixedAssignmentsTest(unittest.TestCase):
         self.component.set_encoder_1(encoder_1)
 
         self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
-        self.assertEqual(display.sent, [])
+        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
+        self.assertTrue(all(not immediate and not trigger for _, _, immediate, trigger in display.sent))
 
         encoder_1.receive(65)
 

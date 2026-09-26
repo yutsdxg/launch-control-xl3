@@ -68,6 +68,7 @@ class ParameterPreviewChecks:
                     self.assertIs(control.manual_led_parameter, parameter)
                 for value in (127, 0, 65):
                     control.receive(value)
+                    self.assertTrue(display.sent[-1][3])
                     self.component._update_assignments()
                     self.assertIsNone(control.mapped_parameter)
                     self.assertEqual(parameter.value, 0.5)
@@ -75,7 +76,6 @@ class ParameterPreviewChecks:
                 self.assertEqual(display_lines(display), self.expected_lines(name, parameter))
                 self.assertEqual(display.sent[-1][0], 98)
                 self.assertFalse(display.sent[-1][2])
-                self.assertTrue(display.sent[-1][3])
 
                 self.component.set_shift_pressed(False)
                 self.assertIs(control.mapped_parameter, parameter)
