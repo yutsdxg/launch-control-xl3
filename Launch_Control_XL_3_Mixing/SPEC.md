@@ -241,8 +241,15 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, empty, empty, empty, empty, `Master Gain` |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
+| Diva | Enc 1-8: `Tune1`, `Shape1`, `Volume1`, `Tune2`, `Shape2`, `Volume2`, `Feedback1`, `NoiseVol` |
+| Diva | Enc 9-16: all empty |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`, empty, `Output` |
+| Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
+| Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
 | ADPTR MetricAB | `Selected Track`, `Selected Cue`, `AB Switch` |
+
+DivaはLiveのConfigureでフィルターエンベロープの組を先、アンプエンベロープの組を後に並べた状態を前提とする。`occurrence` は同名パラメータのLive内の出現順であり、DivaのENV番号や役割を自動判別する指定ではない。同名パラメータのConfigure順を入れ替える場合は、この指定も合わせて変更する。
 
 ## 特殊パラメータ処理
 

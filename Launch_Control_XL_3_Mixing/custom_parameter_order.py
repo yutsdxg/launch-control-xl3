@@ -6,6 +6,8 @@ numbers to use a custom order instead of Live's raw parameter order.
 
 Device keys can be display names, class names, or class display names. Trailing
 numbers are ignored by the resolver. Use None or "SKIP" for an empty slot.
+Use {"Attack": {"occurrence": 2}} to select the second same-named parameter
+in Live's parameter order (the Configure order for plug-ins).
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -104,6 +106,56 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "1 D Layer On",
         "1 Bypass All Effects",
         "1 Arp On",
+        None,
+        None,
+    ),
+    "Diva": (
+        # Encoder upper
+        "Tune1",
+        "Shape1",
+        "Volume1",
+        "Tune2",
+        "Shape2",
+        "Volume2",
+        "Feedback1",
+        "NoiseVol",
+        # Encoder middle
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        # Encoder lower
+        "Frequency",
+        "Resonance",
+        "Freq Mod Depth",
+        "KeyFollow",
+        "Filter FM",
+        "Mode",
+        None,
+        "Output",
+        # Configure order: filter envelope first, amp envelope second.
+        # occurrence follows Live's order, not Diva's internal ENV number.
+        # Fader 1-4: Filter envelope
+        {"Attack": {"occurrence": 1}},
+        {"Decay": {"occurrence": 1}},
+        {"Sustain": {"occurrence": 1}},
+        {"Release": {"occurrence": 1}},
+        # Fader 5-8: Amp envelope
+        {"Attack": {"occurrence": 2}},
+        {"Decay": {"occurrence": 2}},
+        {"Sustain": {"occurrence": 2}},
+        {"Release": {"occurrence": 2}},
+        # Button upper
+        "OnOff",
+        "Active #FX1",
+        "Active #FX2",
+        None,
+        None,
+        None,
         None,
         None,
     ),
