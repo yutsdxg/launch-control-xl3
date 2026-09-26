@@ -118,6 +118,8 @@ def _install_component_stubs():
 
     class Theme:
         OFF = "off"
+        MODE_MIXING = "yellow"
+        MODE_INSTRUMENT = "blue"
         DEVICE_ON = "device-on"
         DEVICE_OFF = "device-off"
         SOLO_ON = "solo-on"
@@ -140,7 +142,7 @@ def _install_component_stubs():
         is_on,
     )
     colors.loopcloud_metric_submode_rgb = lambda is_metric_ab: ("submode", is_metric_ab)
-    colors.mode_button_rgb = lambda is_active: ("mode", is_active)
+    colors.mode_button_rgb = lambda is_active, base_rgb: ("mode", is_active, base_rgb)
     colors.instrument_button_rgb = lambda is_on: ("instrument-button", is_on)
     sys.modules["Launch_Control_XL_3_Mixing.colors"] = colors
 
@@ -474,16 +476,16 @@ class ModeManagerTest(unittest.TestCase):
     def test_initial_mode_is_mixing_and_page_leds_show_current_mode(self):
         self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_MIXING)
         self.assertEqual(self.changes, [MODE_MANAGER.MODE_MIXING])
-        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", True))
-        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", False))
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", True, "yellow"))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", False, "blue"))
 
     def test_page_down_selects_instrument_and_page_up_returns_to_mixing(self):
         self.instrument_button.receive(127)
 
         self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_INSTRUMENT)
         self.assertEqual(self.changes[-1], MODE_MANAGER.MODE_INSTRUMENT)
-        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", False))
-        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", True))
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", False, "yellow"))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", True, "blue"))
 
         self.mixing_button.receive(127)
 

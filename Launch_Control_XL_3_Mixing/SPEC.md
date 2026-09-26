@@ -72,7 +72,7 @@ CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェー�
 
 `mixing` モードでは `Fixed_Assignments` と `Track_Buttons` を active、`Instrument_Assignments` を inactive にする。`instrument` モードでは逆に `Instrument_Assignments` のみ active にする。
 
-モード LED は白系 RGB で、選択中は明るさ `0.25`、非選択は `0.03`。
+Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は青。選択中は明るさ `0.25`、非選択は `0.03` とし、他のボタンと同じ輝度係数を使う。
 
 ## Shiftによるアサイン確認
 
@@ -288,7 +288,8 @@ RGB LED 送信は SysEx `F0 00 20 29 02 15 01 53 <control_index> <r> <g> <b> F7`
 | Device On off 明るさ | `0.03` |
 | Encoder 1 Loopcloud | yellow、明るさ `0.25` |
 | Encoder 1 MetricAB | orange、明るさ `0.25` |
-| Mode button active/inactive | white、`0.25` / `0.03` |
+| Page up / Mixing active/inactive | yellow、`0.25` / `0.03` |
+| Page down / Instrument active/inactive | blue、`0.25` / `0.03` |
 | Instrument button on/off | white、`0.25` / `0.03` |
 | Track active/mute | track color、`0.25` / `0.03` |
 | Solo track | blue |
