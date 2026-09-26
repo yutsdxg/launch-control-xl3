@@ -82,7 +82,7 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 
 | 物理操作子 | 割り当て |
 | --- | --- |
-| Encoder 1 | Loopcloud / MetricAB サブモード切り替え。パラメータ接続なし |
+| Encoder 1 | Loopcloud / MetricAB サブモード切り替えと `Loopcloud` トラック solo 操作。パラメータ接続なし |
 | Encoder 2 | 選択トラック Device 1 の `Device On` |
 | Encoder 3 | 選択トラック Device 4 の `Device On` |
 | Encoder 4 | 選択トラック Device 5 の `Device On` |
@@ -112,9 +112,17 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 | Fader 7 | 選択トラック Device 9 Parameter 1 |
 | Fader 8 | 選択トラック Volume |
 
+Encoder 1 は `Loopcloud` サブモード中、`Loopcloud` トラックの `solo` をサブ状態として扱う。`Loopcloud` トラックは固定割り当てと同じく名前完全一致の最初のトラックを使い、状態は内部フラグではなく `track.solo` を直接読む。左方向へ回すと `Loopcloud` トラックを solo on、solo on 中に右方向へ回すと solo off にし、どちらも `loopcloud` サブモードのままにする。表示は solo on 中だけ `Loopcloud Solo` にする。
+
 ### MetricAB サブモード
 
-Encoder 1 を右方向へ回すと `metric_ab`、左方向へ回すと `loopcloud` へ戻る。入力値 `64` は無視する。右方向は MetricAB の AB Switch を最大値、左方向は最小値にする。
+Encoder 1 の入力値 `64` は無視する。現在の状態ごとの動作は以下。
+
+| 現在の状態 | 左方向 | 右方向 |
+| --- | --- | --- |
+| `metric_ab` | `loopcloud` へ戻し、MetricAB の AB Switch を最小値にする | `metric_ab` のまま、MetricAB の AB Switch を最大値にする |
+| `loopcloud`、`Loopcloud.solo == False` | `Loopcloud.solo = True` | `metric_ab` へ切り替え、MetricAB の AB Switch を最大値にする |
+| `loopcloud`、`Loopcloud.solo == True` | `Loopcloud.solo = True` のまま | `Loopcloud.solo = False`。`loopcloud` のまま |
 
 MetricAB デバイスは Master トラック上から `device.name == "ADPTR MetricAB"` で検索する。`class_name` や `class_display_name` が一致しても、`name` が完全一致しなければ対象外。
 

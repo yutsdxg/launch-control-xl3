@@ -552,7 +552,17 @@ class FixedAssignmentsComponent(Component):
         direction = self._relative_input_direction(value)
         if direction == 0:
             return
-        self._set_loopcloud_metric_submode(METRIC_AB_SUBMODE if direction > 0 else LOOPCLOUD_SUBMODE)
+        if direction < 0:
+            if self._loopcloud_metric_submode == METRIC_AB_SUBMODE:
+                self._set_loopcloud_metric_submode(LOOPCLOUD_SUBMODE)
+                self._set_metric_ab_switch_from_direction(direction)
+            else:
+                self._set_loopcloud_solo(True)
+            return
+        if self._loopcloud_metric_submode == LOOPCLOUD_SUBMODE and self._loopcloud_is_solo():
+            self._set_loopcloud_solo(False)
+            return
+        self._set_loopcloud_metric_submode(METRIC_AB_SUBMODE)
         self._set_metric_ab_switch_from_direction(direction)
 
     def _set_loopcloud_metric_submode(self, submode):
@@ -579,7 +589,32 @@ class FixedAssignmentsComponent(Component):
         )
 
     def _loopcloud_metric_submode_display_name(self):
-        return "MetricAB" if self._loopcloud_metric_submode == METRIC_AB_SUBMODE else "Loopcloud"
+        if self._loopcloud_metric_submode == METRIC_AB_SUBMODE:
+            return "MetricAB"
+        return "Loopcloud Solo" if self._loopcloud_is_solo() else "Loopcloud"
+
+    def _loopcloud_track(self):
+        return first_named_track(self.song, "Loopcloud")
+
+    def _loopcloud_is_solo(self):
+        track = self._loopcloud_track()
+        if not liveobj_valid(track):
+            return False
+        try:
+            return bool(track.solo)
+        except (AttributeError, RuntimeError):
+            return False
+
+    def _set_loopcloud_solo(self, is_solo):
+        track = self._loopcloud_track()
+        if not liveobj_valid(track):
+            return
+        try:
+            track.solo = bool(is_solo)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+        self._update_submode_switch_encoder_led(force=True)
+        self._display_loopcloud_metric_submode()
 
     def _set_metric_ab_switch_from_direction(self, direction):
         parameter = self._metric_ab_parameter(METRIC_AB_SWITCH_PARAMETER_NUMBER)

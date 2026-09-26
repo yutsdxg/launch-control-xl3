@@ -718,6 +718,7 @@ class FixedAssignmentsTest(unittest.TestCase):
             encoder_1.receive(63)
 
             self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+            self.assertFalse(self.loopcloud.solo)
             self.assertEqual(metric_ab.parameters[2].value, metric_ab.parameters[2].min)
             self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
             self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
@@ -821,6 +822,35 @@ class FixedAssignmentsTest(unittest.TestCase):
         encoder_1.receive(63)
 
         self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
+        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
+
+    def test_encoder_1_left_in_loopcloud_solos_loopcloud_track(self):
+        display = FakeDisplayCommand()
+        encoder_1 = FakeManualLedControl(identifier=77)
+
+        self.component.set_encoder_1_display(display)
+        self.component.set_encoder_1(encoder_1)
+
+        encoder_1.receive(63)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertTrue(self.loopcloud.solo)
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
+        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud Solo", ""))
+
+    def test_encoder_1_right_in_loopcloud_solo_clears_solo_without_switching_to_metric_ab(self):
+        display = FakeDisplayCommand()
+        encoder_1 = FakeManualLedControl(identifier=77)
+        self.loopcloud.solo = True
+
+        self.component.set_encoder_1_display(display)
+        self.component.set_encoder_1(encoder_1)
+
+        encoder_1.receive(65)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertFalse(self.loopcloud.solo)
         self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
         self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
 
