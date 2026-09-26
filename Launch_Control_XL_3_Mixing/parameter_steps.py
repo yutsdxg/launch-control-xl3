@@ -50,26 +50,43 @@ def _raw_for_display(format_value, target, minimum, maximum, first, last):
         return minimum
     if target == last:
         return maximum
-    increasing = last > first
-    for _ in range(32):
-        midpoint = (minimum + maximum) / 2.0
-        displayed = _number(format_value(midpoint))
-        if displayed is None:
-            return None
-        if abs(displayed - target) < 1e-7:
-            return midpoint
-        if (displayed < target) == increasing:
-            minimum = midpoint
-        else:
-            maximum = midpoint
+    sign = 1 if last > first else -1
+    # Find both edges of the displayed value's interval. The first matching
+    # probe can sit on a rounding boundary and change pitch when stored.
+    edges = []
+    for tolerance in (-1e-7, 1e-7):
+        lower, upper = minimum, maximum
+        for _ in range(32):
+            midpoint = (lower + upper) / 2.0
+            displayed = _number(format_value(midpoint))
+            if displayed is None:
+                return None
+            if sign * (displayed - target) < tolerance:
+                lower = midpoint
+            else:
+                upper = midpoint
+        edges.append((lower + upper) / 2.0)
+    midpoint = sum(edges) / 2.0
+    displayed = _number(format_value(midpoint))
+    return midpoint if displayed is not None and abs(displayed - target) < 1e-7 else None
+
+
+def _musical_formatter(parameter, minimum, maximum):
+    try:
+        format_value = parameter.str_for_value
+        first, last = _number(format_value(minimum)), _number(format_value(maximum))
+        if first is not None and last is not None and _musical_range(first, last):
+            return format_value, first, last
+    except _ERRORS:
+        pass
     return None
 
 
 def _formatted_values(parameter, minimum, maximum, step):
-    format_value = parameter.str_for_value
-    first, last = _number(format_value(minimum)), _number(format_value(maximum))
-    if first is None or last is None or not _musical_range(first, last):
+    formatter = _musical_formatter(parameter, minimum, maximum)
+    if formatter is None:
         return ()
+    format_value, first, last = formatter
     values = tuple(_raw_for_display(format_value, target, minimum, maximum, first, last)
                    for target in _grid(min(first, last), max(first, last), step))
     return tuple(sorted(values)) if None not in values else ()
@@ -88,7 +105,7 @@ def stepped_parameter_values(parameter, options):
     except _ERRORS + (KeyError,):
         return ()
 
-    for resolve in (_item_values, _formatted_values):
+    for resolve in (_formatted_values, _item_values):
         try:
             values = resolve(parameter, minimum, maximum, step)
             if values:
@@ -106,25 +123,32 @@ def current_stepped_value(parameter, candidates, current):
         minimum, maximum = float(parameter.min), float(parameter.max)
         if maximum <= minimum:
             return current
+        # Live/plug-ins may store a Python float as float32. Treat that
+        # round-trip as the same candidate so it cannot trap the next step.
+        nearest = min(candidates, key=lambda candidate: abs(candidate - current), default=None)
+        if nearest is not None and abs(nearest - current) <= (maximum - minimum) * 1e-7:
+            return nearest
+        display_readers = []
+        formatter = _musical_formatter(parameter, minimum, maximum)
+        if formatter is not None:
+            display_readers.append(lambda raw: _number(formatter[0](raw)))
         numbers = _item_numbers(parameter)
         if numbers:
-            def display_number(raw):
+            def item_number(raw):
                 index = int(round((raw - minimum) * (len(numbers) - 1) / (maximum - minimum)))
                 return numbers[min(max(index, 0), len(numbers) - 1)]
-        else:
-            def display_number(raw):
-                return _number(parameter.str_for_value(raw))
-            first, last = display_number(minimum), display_number(maximum)
-            if first is None or last is None or not _musical_range(first, last):
-                return current
-        displayed = display_number(current)
-        if displayed is None:
-            return current
-        matches = []
-        for candidate in candidates:
-            label = display_number(candidate)
-            if label is not None and abs(label - displayed) < 1e-7:
-                matches.append(candidate)
-        return min(matches, key=lambda candidate: abs(candidate - current)) if matches else current
+            display_readers.append(item_number)
+        for display_number in display_readers:
+            try:
+                displayed = display_number(current)
+                labels = tuple(display_number(candidate) for candidate in candidates)
+                if displayed is None or None in labels:
+                    continue
+                matches = [candidate for candidate, label in zip(candidates, labels)
+                           if abs(label - displayed) < 1e-7]
+                return min(matches, key=lambda candidate: abs(candidate - current)) if matches else current
+            except _ERRORS:
+                continue
+        return current
     except _ERRORS:
         return current
