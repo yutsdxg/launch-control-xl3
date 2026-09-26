@@ -1,6 +1,6 @@
 from ableton.v3.control_surface import Component
 
-from .colors import mode_button_rgb
+from .colors import Theme, mode_button_rgb
 from .led import LedSender
 
 MODE_MIXING = "mixing"
@@ -82,7 +82,7 @@ class ModeManagerComponent(Component):
     def _update_mode_leds(self, force=False):
         if self._mixing_button is not None:
             active = self._selected_mode == MODE_MIXING
-            rgb = mode_button_rgb(active)
+            rgb = mode_button_rgb(active, Theme.MODE_MIXING)
             self._led_sender.send_rgb(
                 self._mixing_button,
                 rgb,
@@ -90,7 +90,7 @@ class ModeManagerComponent(Component):
             )
         if self._instrument_button is not None:
             active = self._selected_mode == MODE_INSTRUMENT
-            rgb = mode_button_rgb(active)
+            rgb = mode_button_rgb(active, Theme.MODE_INSTRUMENT)
             self._led_sender.send_rgb(
                 self._instrument_button,
                 rgb,
