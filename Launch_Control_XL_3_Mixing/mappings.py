@@ -1,5 +1,5 @@
 def create_mappings(_control_surface):
-    control_router = {}
+    control_router = {"shift_button": "shift_button"}
     for index in range(1, 25):
         if index <= 16:
             control = "upper_encoders_raw[{}]".format(index - 1)
@@ -15,7 +15,6 @@ def create_mappings(_control_surface):
     for index in range(1, 17):
         control_router["track_button_{}".format(index)] = "track_button_{}".format(index)
     track_buttons = {
-        "shift_button": "shift_button",
         "solo_modifier_button": "solo_modifier_button",
         "mute_modifier_button": "mute_modifier_button",
     }

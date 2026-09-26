@@ -14,17 +14,49 @@ class ControlRouterComponent(Component):
         self._parameter_controls = {}
         self._display_commands = {}
         self._track_button_controls = {}
+        self._shift_button = None
+        self._shift_slot = None
+        self._shift_pressed = False
 
     def set_target_components(self, fixed_assignments=None, instrument_assignments=None, track_buttons=None):
         self._fixed_assignments = fixed_assignments
         self._instrument_assignments = instrument_assignments
         self._track_buttons = track_buttons
+        self._forward_shift_state()
         self._forward_all()
+
+    def set_shift_button(self, button):
+        if button is self._shift_button:
+            return
+        if self._shift_slot is not None:
+            self._shift_slot.disconnect()
+        self._shift_button = button
+        self._shift_slot = self.register_slot(button, self._on_shift_value, "value") if button is not None else None
+        self._on_shift_value(0)
+
+    def _on_shift_value(self, value):
+        pressed = value > 0
+        if self._shift_pressed == pressed:
+            return
+        self._shift_pressed = pressed
+        # Guard element-level special handlers before changing parameter connections.
+        for control in self._parameter_controls.values():
+            self._set_control_shift_state(control, pressed)
+        self._forward_shift_state()
+
+    def _set_control_shift_state(self, control, pressed):
+        self._call_target(control, "set_shift_pressed", pressed, "control", "shift")
+
+    def _forward_shift_state(self):
+        self._call_target(self._fixed_assignments, "set_shift_pressed", self._shift_pressed, "fixed", "shift")
+        self._call_target(self._instrument_assignments, "set_shift_pressed", self._shift_pressed, "instrument", "shift")
 
     def _set_parameter_control(self, name, control):
         previous = self._parameter_controls.get(name)
         if previous is control:
             return
+        self._set_control_shift_state(previous, False)
+        self._set_control_shift_state(control, self._shift_pressed)
         self._parameter_controls[name] = control
         self._forward_parameter_control(name)
 
@@ -95,6 +127,14 @@ class ControlRouterComponent(Component):
             method(value)
         except RuntimeError:
             pass
+
+    def disconnect(self):
+        if self._shift_slot is not None:
+            self._shift_slot.disconnect()
+            self._shift_slot = None
+        for control in self._parameter_controls.values():
+            self._set_control_shift_state(control, False)
+        super().disconnect()
 
 
 def _make_parameter_control_setter(name):

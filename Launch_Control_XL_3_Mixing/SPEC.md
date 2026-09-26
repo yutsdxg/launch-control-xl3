@@ -34,7 +34,7 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 
 | 要素 | CC / 範囲 | 内部名 | 備考 |
 | --- | --- | --- | --- |
-| Shift | 63 | `Shift_Button` | トラックボタン処理では状態保持のみ。現状アクション変更には使わない |
+| Shift | 63 | `Shift_Button` | 押下中のエンコーダ／フェーダ操作はアサイン表示のみ |
 | Solo modifier | 65 | `Solo_Modifier_Button` | トラックボタンを solo モードへ切り替え |
 | Mute modifier | 66 | `Mute_Modifier_Button` | トラックボタンを mute モードへ切り替え |
 | Track right | 102 | `Track_Right_Button` | 次ロケータ |
@@ -71,6 +71,18 @@ CC は 10 進数表記。`Shift_Button` だけ明示的に `CHANNEL_DAW_MODE = 6
 `mixing` モードでは `Fixed_Assignments` と `Track_Buttons` を active、`Instrument_Assignments` を inactive にする。`instrument` モードでは逆に `Instrument_Assignments` のみ active にする。
 
 モード LED は白系 RGB で、選択中は明るさ `0.25`、非選択は `0.03`。
+
+## Shiftによるアサイン確認
+
+- Mixing／Instrumentの両モードで、Shiftを押しながらエンコーダ／フェーダを動かすと、通常と同じ「デバイス名またはトラック名・パラメータ名・現在値」の3行を表示する。割り当て先がない、または無効な場合は「操作子名・Unassigned・空行」を表示する。
+- Shift中の操作では値を書き換えない。Device On、Loopcloud Solo、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
+- フェーダをShift中に上端／下端から中央へ戻しても、パラメータ値は維持される。Shift解除そのものは値を変更せず、次の操作から既存の絶対値マッピングへ戻る。独自の相対制御やオフセット補正は行わず、Liveの既存takeover設定を維持する。
+- Value Scalingでは物理位置とパラメータ値の差を徐々に縮める。一定の移動量をそのまま現在値へ加減する方式とは異なる。Shift解除後の再接続直後の追従は実機で確認する。
+- トラックボタン、Instrumentのパラメータボタン、モード切替、ロケータ、再生・録音ボタンはShift中も従来どおり動作する。エンコーダLEDは割り当て先の色・現在値・Pan方向を維持する。
+- `Control_Router` がShiftを一度受け、両割り当てコンポーネントの `set_shift_pressed(bool)` に配布する。非アクティブなモードにも状態を保持する。
+- Shift中は表示用の論理アサインを保持したままLiveへのMIDIパラメータ接続を解除する。定期更新、トラック変更、モード変更でも再接続せず、解除時に最新のアサインへ復帰する。特殊パラメータの入力蓄積はShiftの押下／解除でリセットし、押下中の操作は蓄積しない。
+
+参考: [Ableton LiveのTakeover Mode](https://www.ableton.com/en/manual/midi-and-key-remote-control/#takeover-mode)
 
 ## Mixing モードの固定割り当て
 
@@ -170,7 +182,7 @@ Encoder 2-7 は通常のパラメータ接続ではなく、相対入力方向�
 | Solo | Solo modifier を押す | 対象トラックの `solo` をトグル。選択は変更しない |
 | Mute | Mute modifier を押す | 対象トラックの `mute` をトグル。選択は変更しない |
 
-Solo/Mute modifier はラッチ式。同じ modifier をもう一度押すと Select へ戻る。Solo から Mute を押すと Mute へ切り替わる。Shift は現在、押下状態を保存して LED を更新するだけで、トラックボタン動作は変えない。
+Solo/Mute modifier はラッチ式。同じ modifier をもう一度押すと Select へ戻る。Solo から Mute を押すと Mute へ切り替わる。Shift はエンコーダ／フェーダのアサイン確認に使い、トラックボタン動作は変えない。
 
 トラックボタン LED:
 

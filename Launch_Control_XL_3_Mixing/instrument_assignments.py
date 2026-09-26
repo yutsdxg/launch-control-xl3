@@ -12,7 +12,7 @@ from .custom_parameter_utils import (
     normalize_device_key,
     order_named_items,
 )
-from .display import send_display
+from .display import send_display, send_unassigned_display
 from .led import LedSender
 from .track_resolver import selected_track
 
@@ -31,6 +31,7 @@ class InstrumentAssignmentsComponent(Component):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         self._active = False
+        self._shift_pressed = False
         self._controls = {}
         self._connected_parameters = {}
         self._connected_parameter_signatures = {}
@@ -70,6 +71,14 @@ class InstrumentAssignmentsComponent(Component):
     def set_midi_sender(self, midi_sender):
         self._led_sender.set_midi_sender(midi_sender)
         self.refresh_led_feedback()
+
+    def set_shift_pressed(self, pressed):
+        pressed = bool(pressed)
+        if self._shift_pressed == pressed:
+            return
+        self._shift_pressed = pressed
+        if self._active:
+            self._update_assignments(force=True)
 
     def refresh_led_feedback(self):
         if not self._active:
@@ -136,6 +145,19 @@ class InstrumentAssignmentsComponent(Component):
             and parameter_signature == self._connected_parameter_signatures.get(name)
             and self._parameter_is_enabled(parameter)
         ):
+            if self._shift_pressed:
+                self._refresh_manual_led_feedback(control)
+            return
+        if self._shift_pressed and control is not None and self._parameter_is_enabled(parameter):
+            # Keep a display/LED assignment while removing Live's native MIDI mapping.
+            # Set the LED source first so release_parameter() does not turn it off.
+            self._set_manual_led_parameter(control, parameter)
+            try:
+                control.release_parameter()
+            except (AttributeError, RuntimeError):
+                pass
+            self._connected_parameters[name] = parameter
+            self._connected_parameter_signatures[name] = parameter_signature
             return
         self._release_parameter_control(name, control)
         if control is None:
@@ -154,12 +176,30 @@ class InstrumentAssignmentsComponent(Component):
             self._release_parameter_control(name, control)
 
     def _release_parameter_control(self, name, control):
+        if not self._active and name not in self._connected_parameters:
+            return
         self._connected_parameters.pop(name, None)
         self._connected_parameter_signatures.pop(name, None)
         if control is None:
             return
         try:
+            control.clear_manual_led_parameter()
+        except (AttributeError, RuntimeError):
+            pass
+        try:
             control.release_parameter()
+        except (AttributeError, RuntimeError):
+            pass
+
+    def _set_manual_led_parameter(self, control, parameter):
+        try:
+            control.set_manual_led_parameter(parameter)
+        except (AttributeError, RuntimeError):
+            pass
+
+    def _refresh_manual_led_feedback(self, control):
+        try:
+            control.refresh_manual_led_feedback()
         except (AttributeError, RuntimeError):
             pass
 
@@ -168,9 +208,13 @@ class InstrumentAssignmentsComponent(Component):
             return
         if name.startswith("encoder_") and value == 64:
             return
+        if self._shift_pressed:
+            self._update_parameter_assignment(name)
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
             self._display_parameter(name, parameter)
+        elif self._shift_pressed:
+            send_unassigned_display(self._display_commands.get(name), name)
 
     def _on_button_value(self, offset, value):
         if not self._active:

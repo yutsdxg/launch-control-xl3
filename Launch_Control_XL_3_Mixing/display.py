@@ -36,3 +36,11 @@ def send_display(command, lines, show_immediately=False, trigger=False):
     except (AttributeError, RuntimeError):
         return False
     return True
+
+
+def send_unassigned_display(command, control_name):
+    return send_display(
+        command,
+        (control_name.replace("_", " ").title(), "Unassigned", ""),
+        trigger=True,
+    )
