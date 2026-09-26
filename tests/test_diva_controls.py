@@ -1,5 +1,6 @@
-"""Diva Tune controls use fixed semitone values without native MIDI writes."""
+"""Diva Tune controls use normalized values without native MIDI writes."""
 
+import struct
 import unittest
 from unittest.mock import patch
 
@@ -9,17 +10,36 @@ from test_shift_preview import NativeMappedControl, display_lines
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
 TUNE_CONTROLS = ((1, "Tune1"), (4, "Tune2"))
-OCTAVE_VALUES = (-24, -12, 0, 12, 24)
+# Independently observed through Diva 1.4.8's VST3 controller, parameter IDs
+# 86/87: these normalized values display -24, -12, 0, +12, +24 semitones.
+# Keep these expectations separate from the configuration under test.
+OCTAVE_VALUES = (0.1, 0.3, 0.5, 0.7, 0.9)
 
 
-def diva_device(parameter_type=fixtures.FakeParameter):
+class DivaTuneParameter(fixtures.FakeParameter):
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        # The real controller reads assigned values back at float32 precision.
+        self._value = struct.unpack("f", struct.pack("f", value))[0]
+
+    def __str__(self):
+        return "{:.2f}".format(self.value * 60.0 - 30.0)
+
+
+def diva_device(parameter_type=DivaTuneParameter):
     device = fixtures.FakeInstrumentDevice("Diva")
     parameters = [fixtures.FakeParameter("Device On", parent=device)]
     for entry in INSTRUMENT_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER["Diva"]:
         name, _ = INSTRUMENT_ASSIGNMENTS.extract_custom_entry_name_and_options(entry)
         if name:
             if name in ("Tune1", "Tune2"):
-                parameters.append(parameter_type(name, minimum=-30, maximum=30, parent=device))
+                parameters.append(
+                    parameter_type(name, value=0.5, minimum=0.0, maximum=1.0, parent=device)
+                )
             else:
                 parameters.append(fixtures.FakeParameter(name, parent=device))
     device.parameters = tuple(parameters)
@@ -50,7 +70,7 @@ class DivaControlsTest(unittest.TestCase):
         control.receive(midi)
         self.assertEqual(parameter.value, previous)
         control.receive(midi)
-        self.assertEqual(parameter.value, expected)
+        self.assertAlmostEqual(parameter.value, expected, places=6)
 
     def retarget(self, device):
         self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), device)
@@ -70,18 +90,32 @@ class DivaControlsTest(unittest.TestCase):
                     self.assert_step(control, parameter, 63, expected)
                 self.assertEqual(control.native_updates, [])
 
+    def test_both_tunes_leave_zero_pitch_after_two_inputs_in_either_direction(self):
+        for number, name in TUNE_CONTROLS:
+            with self.subTest(parameter=name):
+                parameter = self.parameters[name]
+                control, _ = self.bind_encoder(number)
+                self.assertEqual((parameter.min, parameter.max), (0.0, 1.0))
+                self.assertEqual(str(parameter), "0.00")
+                self.assert_step(control, parameter, 65, 0.7)
+                self.assertEqual(str(parameter), "12.00")
+                parameter.value = 0.5
+                self.assert_step(control, parameter, 63, 0.3)
+                self.assertEqual(str(parameter), "-12.00")
+                self.assertEqual(control.native_updates, [])
+
     def test_acceleration_counts_once_and_reversing_restarts_the_threshold(self):
         for number, name in TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
-                self.assert_step(control, parameter, 127, 12)
-                self.assert_step(control, parameter, 0, 0)
+                self.assert_step(control, parameter, 127, 0.7)
+                self.assert_step(control, parameter, 0, 0.5)
                 for midi in (65, 63, 65, 64):
                     control.receive(midi)
-                    self.assertEqual(parameter.value, 0)
+                    self.assertEqual(parameter.value, 0.5)
                 control.receive(127)
-                self.assertEqual(parameter.value, 12)
+                self.assertAlmostEqual(parameter.value, 0.7, places=6)
                 self.assertEqual(control.native_updates, [])
 
     def test_endpoints_clamp_to_octaves_inside_the_parameter_range(self):
@@ -89,7 +123,9 @@ class DivaControlsTest(unittest.TestCase):
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
-                for current, midi, expected in ((-24, 63, -24), (-30, 63, -24), (24, 65, 24), (30, 65, 24)):
+                for current, midi, expected in (
+                    (0.1, 63, 0.1), (0.0, 63, 0.1), (0.9, 65, 0.9), (1.0, 65, 0.9)
+                ):
                     parameter.value = current
                     self.assert_step(control, parameter, midi, expected)
 
@@ -98,14 +134,16 @@ class DivaControlsTest(unittest.TestCase):
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
-                for current, midi, expected in ((-13, 65, 0), (13, 63, 0), (2, 65, 12), (-2, 63, -12)):
-                    parameter.value = 0
+                for current, midi, expected in (
+                    (0.28, 65, 0.5), (0.72, 63, 0.5), (0.53, 65, 0.7), (0.47, 63, 0.3)
+                ):
+                    parameter.value = 0.5
                     control.receive(midi)
-                    self.assertEqual(parameter.value, 0)
+                    self.assertEqual(parameter.value, 0.5)
                     parameter.value = current
                     self.component._update_assignments()
                     control.receive(midi)
-                    self.assertEqual(parameter.value, expected)
+                    self.assertAlmostEqual(parameter.value, expected, places=6)
 
     def test_shift_is_display_only_and_resets_pending_steps(self):
         for number, name in TUNE_CONTROLS:
@@ -117,13 +155,13 @@ class DivaControlsTest(unittest.TestCase):
                 for midi in (65, 63, 127):
                     control.receive(midi)
                     self.component._update_assignments(force=True)
-                    self.assertEqual(parameter.value, 0)
+                    self.assertEqual(parameter.value, 0.5)
                     self.assertIsNone(control.mapped_parameter)
-                self.assertEqual(display_lines(display)[1:], (name, str(parameter.value)))
+                self.assertEqual(display_lines(display)[1:], (name, "0.00"))
                 self.component.set_shift_pressed(False)
                 self.assertIsNone(control.mapped_parameter)
                 self.assertIs(control.manual_led_parameter, parameter)
-                self.assert_step(control, parameter, 65, 12)
+                self.assert_step(control, parameter, 65, 0.7)
                 self.assertEqual(control.native_updates, [])
 
     def test_retargeting_resets_pending_steps_and_keeps_new_tune_manually_mapped(self):
@@ -138,8 +176,8 @@ class DivaControlsTest(unittest.TestCase):
                 self.retarget(replacement)
                 self.assertIsNone(control.mapped_parameter)
                 self.assertIs(control.manual_led_parameter, parameter)
-                self.assert_step(control, parameter, 65, 12)
-                self.assertEqual(original.value, 0)
+                self.assert_step(control, parameter, 65, 0.7)
+                self.assertEqual(original.value, 0.5)
                 self.assertEqual(control.native_updates, [])
 
     def test_other_diva_encoders_keep_native_continuous_mapping(self):
@@ -156,12 +194,12 @@ class DivaControlsTest(unittest.TestCase):
         with patch.object(self.component, "_custom_parameter_options", return_value={"discrete_count": 5}):
             control, _ = self.bind_encoder(1)
             self.assertIsNone(control.mapped_parameter)
-            self.assert_step(control, parameter, 65, 15)
-            self.assert_step(control, parameter, 63, 0)
+            self.assert_step(control, parameter, 65, 0.75)
+            self.assert_step(control, parameter, 63, 0.5)
             self.assertEqual(control.native_updates, [])
 
     def test_fixed_octaves_never_probe_value_items_or_display_formatter(self):
-        class ProbeCountingParameter(fixtures.FakeParameter):
+        class ProbeCountingParameter(DivaTuneParameter):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.value_items_reads = 0
@@ -186,8 +224,8 @@ class DivaControlsTest(unittest.TestCase):
                 for quantized in (False, True):
                     parameter.is_quantized = quantized
                     self.component._update_assignments(force=True)
-                    self.assert_step(control, parameter, 65, 12)
-                    self.assert_step(control, parameter, 63, 0)
+                    self.assert_step(control, parameter, 65, 0.7)
+                    self.assert_step(control, parameter, 63, 0.5)
                 self.assertEqual(parameter.value_items_reads, 0)
                 self.assertEqual(parameter.formatter_calls, 0)
 

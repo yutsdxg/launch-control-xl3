@@ -25,9 +25,10 @@ CUSTOM_PARAMETER_APPEND_REST = False
 # The user confirmed the encoder behavior on hardware with these values.
 OMNISPHERE_TRANSPOSE_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
 
-# Diva exposes Tune1/Tune2 in semitones, so use the desired pitches directly.
+# Diva VST3 uses normalized values: -24, -12, 0, +12, +24 semitones.
+# Verified with Diva 1.4.8's controller API; display units are not raw values.
 # Keep their normal direction: larger raw values raise the pitch.
-DIVA_TUNE_VALUES = (-24.0, -12.0, 0.0, 12.0, 24.0)
+DIVA_TUNE_VALUES = (0.1, 0.3, 0.5, 0.7, 0.9)
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Serum 2": (
