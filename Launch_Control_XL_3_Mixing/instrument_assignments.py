@@ -19,7 +19,7 @@ from .custom_parameter_utils import (
 )
 from .display import send_display, send_unassigned_display
 from .led import LedSender
-from .parameter_actions import apply_left_turn_action, bind_left_turn_actions
+from .parameter_actions import apply_left_turn_action, bind_left_turn_actions, bind_relative_targets
 from .parameter_overrides import apply_overrides, bind_overrides, matching_overrides
 from .special_parameters import (
     REDUCED_SENSITIVITY_INPUT_THRESHOLD,
@@ -269,8 +269,12 @@ class InstrumentAssignmentsComponent(Component):
             if not self._shift_pressed and self._encoder_uses_manual_mapping(name):
                 # Physical left is evaluated before the primary's inversion.
                 if value < 64:
-                    apply_left_turn_action(self._left_turn_actions.get(name))
+                    for binding in self._left_turn_actions.get(name, ()):
+                        apply_left_turn_action(binding)
                 self._apply_encoder_value(name, parameter, value)
+                for target, options in self._relative_targets.get(name, ()):
+                    if target != parameter and self._parameter_is_enabled(target):
+                        self._apply_encoder_value(name, target, value, options=options)
                 self._refresh_manual_led_feedback(self._controls.get(name))
             self._display_parameter(name, parameter)
         elif self._shift_pressed:
@@ -325,6 +329,7 @@ class InstrumentAssignmentsComponent(Component):
             or options.get("discrete_values") is not None
             or options.get("discrete_count")
             or options.get("on_left") is not None
+            or options.get("relative_targets") is not None
         )
 
     def _discrete_encoder_input_is_ready(self, name, direction):
@@ -338,14 +343,15 @@ class InstrumentAssignmentsComponent(Component):
         self._discrete_encoder_inputs[name] = accumulator
         return False
 
-    def _apply_encoder_value(self, name, parameter, value):
+    def _apply_encoder_value(self, name, parameter, value, options=None):
         # These encoders have no native MIDI map. Apply the configured direction
         # once, preserving the parameter's real display value.
         try:
             minimum = float(parameter.min)
             maximum = float(parameter.max)
             current = float(parameter.value)
-            options = self._custom_parameter_options(self._parameter_number_for_control(name))
+            if options is None:
+                options = self._custom_parameter_options(self._parameter_number_for_control(name))
             delta = int(value) - 64
             if options.get("invert_direction"):
                 delta = -delta
@@ -471,12 +477,16 @@ class InstrumentAssignmentsComponent(Component):
                 self._left_turn_actions = bind_left_turn_actions(
                     self._source_parameters, self._effective_custom_order, self._parameter_name
                 )
+                self._relative_targets = bind_relative_targets(
+                    self._source_parameters, self._effective_custom_order, self._parameter_name
+                )
 
     def _clear_target_parameter_cache(self):
         self._target_parameter_cache_signature = None
         self._target_parameter_cache = ()
         self._source_parameters = ()
         self._left_turn_actions = {}
+        self._relative_targets = {}
         self._base_custom_order = None
         self._effective_custom_order = None
         self._override_bindings = ()

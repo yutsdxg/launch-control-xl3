@@ -21,6 +21,9 @@ Encoder options can add on_left to set a companion parameter on a physical
 left turn, before applying invert_direction to the primary parameter:
 {"on_left": {"parameter": "Source", "occurrence": 1, "normalized_value": 0.0}}.
 The companion uses an exact name match and is unchanged by right turns or Shift.
+on_left also accepts a tuple/list of these actions. relative_targets accepts
+additional continuous controls with parameter, occurrence and invert_direction;
+each moves from its own current value. Display/LED follow the primary parameter.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -149,7 +152,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
     ),
     "Diva": (
-        # Encoder upper: model-specific, except the shared DepthMod on Encoder 8.
+        # Encoder upper: assigned per oscillator model below.
         None,
         None,
         None,
@@ -157,16 +160,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
-        {"DepthMod Dpt1": {
-            "occurrence": 1,
-            "invert_direction": True,
-            "on_left": {
-                "parameter": "DepthMod Src1",
-                "occurrence": 1,
-                # Diva 1.4.8 controller API: normalized 0.0 displays "none".
-                "normalized_value": 0.0,
-            },
-        }},
+        None,
         # Encoder middle: assigned per oscillator model below.
         None,
         None,
@@ -183,7 +177,18 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "KeyFollow",
         "Filter FM",
         "Mode",
-        None,
+        {"DepthMod Dpt1": {
+            "occurrence": 1,
+            "invert_direction": True,
+            "relative_targets": (
+                {"parameter": "DepthMod Dpt1", "occurrence": 2, "invert_direction": True},
+            ),
+            # Diva 1.4.8 controller API: normalized 0.0 displays "none".
+            "on_left": (
+                {"parameter": "DepthMod Src1", "occurrence": 1, "normalized_value": 0.0},
+                {"parameter": "DepthMod Src1", "occurrence": 2, "normalized_value": 0.0},
+            ),
+        }},
         "Output",
         # Configure order: filter envelope first, amp envelope second.
         # occurrence follows Live's order, not Diva's internal ENV number.

@@ -165,8 +165,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
                 self.assertEqual(display_lines(self.displays[number])[1], expected.name)
 
     def assert_upper_targets(self, model):
-        names = {8: "DepthMod Dpt1"}
-        names.update(MODEL_ASSIGNMENTS.get(model, {}))
+        names = MODEL_ASSIGNMENTS.get(model, {})
         for number in range(1, 17):
             name = names.get(number)
             parameter = self.parameters.get(name)
@@ -198,7 +197,11 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
         self.component.set_fader_1(faders[0])
         self.component.set_fader_5(faders[1])
         attacks = [parameter for parameter in self.device.parameters if parameter.name == "Attack"]
-        shared = {number: self.controls[number].mapped_parameter for number in range(17, 25)}
+        shared = {
+            number: (self.controls[number].mapped_parameter, self.controls[number].manual_led_parameter)
+            for number in range(17, 25)
+        }
+        self.assertIs(shared[23][1], self.parameters["DepthMod Dpt1"])
         for normalized in (0.0, 0.25, 0.5, 1.0):
             with self.subTest(model=normalized):
                 self.model.value = normalized
@@ -210,8 +213,9 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
                 self.model.value = normalized
                 self.component._update_assignments()
                 self.assert_upper_targets(normalized)
-                for number, parameter in shared.items():
+                for number, (parameter, led_parameter) in shared.items():
                     self.assertIs(self.controls[number].mapped_parameter, parameter)
+                    self.assertIs(self.controls[number].manual_led_parameter, led_parameter)
                 self.assertIs(faders[0].mapped_parameter, attacks[0])
                 self.assertIs(faders[1].mapped_parameter, attacks[1])
         for parameter in self.parameters.values():

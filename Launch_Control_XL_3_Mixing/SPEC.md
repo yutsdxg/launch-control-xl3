@@ -242,8 +242,8 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
-| Diva | Enc 1-16: Enc 8は共通の反転`DepthMod Dpt1`。残りはOSCモデル別のオーバーライドで割り当てる（下記参照） |
-| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`, empty, `Output` |
+| Diva | Enc 1-16: ベースはすべて空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
 | Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
 | Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
@@ -284,7 +284,7 @@ DivaはLiveのConfigureでフィルターエンベロープの組を先、アン
 
 ### モデルなどの選択値による割り当て変更
 
-`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaのEncoder 1〜16は共通のEncoder 8を除き、ベースを `None` にしてOSCモデルごとに割り当てる。
+`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaのEncoder 1〜16はベースを `None` にしてOSCモデルごとに割り当てる。Encoder 8は未割り当て。
 
 | OSCモデル | Encoder 1〜7 | Encoder 9〜16 |
 | --- | --- | --- |
@@ -295,7 +295,7 @@ DivaはLiveのConfigureでフィルターエンベロープの組を先、アン
 | Digital | Tune1, DigitalType1, FM, Tune2, DigitalType2, OscMix, Feedback | PulseWidth, DigitalShape2, 空, DigitalShape3, DigitalShape4, 空, 空, 空 |
 | 未定義のモデル／Model未表出 | すべて空 | すべて空 |
 
-上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_8` を省略すると共通操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
+上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
 
 EcoWave1 / EcoWave2（Encoder 2 / 5）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2は通常の連続操作とする。
 
@@ -319,7 +319,7 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
                 "encoder_5": "Shape2",
                 "encoder_6": "Volume2",
                 "encoder_7": "Feedback",
-                # Encoder 8 inherits the shared DepthMod assignment.
+                # Encoder 8 is unassigned in the base configuration.
                 "encoder_9": None,
                 "encoder_10": None,
                 "encoder_11": None,
@@ -358,27 +358,31 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
 - パラメータ一覧と判定対象の参照をキャッシュし、既存の0.1秒更新で判定対象の現在値だけを読む。同一対象を使う複数ルールでも1更新に1回とする。成立するルールが変わったときだけ並びを再構成し、変わった操作子だけ接続し直す。表示やLEDも新しいパラメータへ追従し、Shift中は接続せず表示のみ更新する。モデル切替時にパラメータ値を書き換えたり、変更のないTuneの2入力蓄積をリセットしたりしない。
 - `str_for_value` / `value_items` や表示値の探索は使わない。選択トラック・音源の変更、インストゥルメントモードへの入り直しでキャッシュを作り直す。同じ音源のConfigure項目を追加・削除した場合も、モードへ入り直すと新しい一覧を取り込む。
 
-### 左回し時に別パラメータを固定値へ設定
+### 複数パラメータの相対操作と左回し時の固定値設定
 
-Divaの共通Encoder 8は、Configureで1つ目の `DepthMod Dpt1` を反転操作する。右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目の `DepthMod Src1` を `none` にする。
+Divaの共通Encoder 23は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
 
 ```python
 {"DepthMod Dpt1": {
     "occurrence": 1,
     "invert_direction": True,
-    "on_left": {
-        "parameter": "DepthMod Src1",
-        "occurrence": 1,
-        "normalized_value": 0.0,
-    },
+    "relative_targets": (
+        {"parameter": "DepthMod Dpt1", "occurrence": 2, "invert_direction": True},
+    ),
+    "on_left": (
+        {"parameter": "DepthMod Src1", "occurrence": 1, "normalized_value": 0.0},
+        {"parameter": "DepthMod Src1", "occurrence": 2, "normalized_value": 0.0},
+    ),
 }}
 ```
 
 - `on_left` の方向は `invert_direction` 適用前の物理入力（CC < 64）で判定する。Depthが上限でもSource解除は行う。右回しはSourceを変更しない。
+- `on_left` は従来の辞書1つ、または辞書のtuple/listを指定できる。各Sourceを独立に処理し、1つが欠落・無効でも残りを設定する。
+- `relative_targets` は同じ入力で相対操作する追加対象の辞書、または辞書のtuple/list。対象ごとに `invert_direction` を指定する。各パラメータの値域に対する1/127刻みでそれぞれの現在値から動かし、上下限を個別に適用する。主対象の値をコピーせず、主対象の `discrete_values` / `discrete_count` や2入力蓄積も継承しない。量子化パラメータは通常の手動相対操作と同じ項目単位になる。同じ追加対象や主対象の重複指定で2回動かさない。
 - 追加対象の名前は大文字小文字・空白を正規化した完全一致で検索し、`occurrence` はConfigure順の同名パラメータを1から数える。省略時は1。`normalized_value` は0〜1で指定し、対象の実際のmin/maxへ変換する。
 - Diva VST3 1.4.8の変換APIで、LFO1/2の `DepthMod Src1`（ParamID 60/70）とも `none` が正規化値0であることを確認した。LFO番号とConfigureの出現順は別物なので、操作対象はConfigure順で指定する。
-- 設定先が既に目標値なら再書込みしない。割り当て・周期更新・Shiftプレビュー・CC64・非アクティブ時にも書き込まない。主パラメータが未割当・無効なら追加設定も実行しない。追加先が欠落・無効でも主パラメータは通常どおり動く。
-- `on_left` を持つエンコーダも通常接続を解除して手動操作する。追加先の参照は割り当て変更時にキャッシュする。入力時に最新のトラック／モデルへ割り当てを揃えてから、追加設定と主パラメータ操作を実行する。
+- 設定先が既に目標値なら再書込みしない。割り当て・周期更新・Shiftプレビュー・CC64・非アクティブ時にも書き込まない。主パラメータが未割当・無効なら追加設定も実行しない。追加先が欠落・無効でも主パラメータや他の追加先は通常どおり動く。
+- `on_left` / `relative_targets` を持つエンコーダも通常接続を解除して手動操作する。追加先の参照は割り当て変更時にキャッシュする。入力時に最新のトラック／モデルへ割り当てを揃えてから、追加設定と主パラメータ操作を実行する。
 
 ## 特殊パラメータ処理
 
