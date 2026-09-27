@@ -35,6 +35,7 @@ OMNISPHERE_TRANSPOSE_VALUES = (0.0, 0.2519685, 0.5054741, 0.7407507, 0.984252)
 DIVA_TUNE_VALUES = (0.1, 0.3, 0.5, 0.7, 0.9)
 
 # OSC Model: Triple VCO=0, Dual VCO=0.25, DCO=0.5, Dual VCO Eco=0.75, Digital=1.
+DIVA_TRIPLE_VCO = 0.0
 DIVA_DUAL_VCO_ECO = 0.75
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
@@ -141,16 +142,16 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
     ),
     "Diva": (
-        # Encoder upper
-        {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
-        "Shape1",
-        "Volume1",
-        {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
-        "Shape2",
-        "Volume2",
-        "Feedback1",
-        "NoiseVol",
-        # Encoder middle
+        # Encoder upper: assigned per oscillator model below.
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        # Encoder middle: assigned per oscillator model below.
         None,
         None,
         None,
@@ -205,6 +206,32 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
 CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
     "Diva": (
         {
+            # Triple VCO: keep OSC Model exposed in Configure.
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_TRIPLE_VCO,
+            },
+            "assignments": {
+                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_2": "Volume1",
+                "encoder_3": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_4": "Volume2",
+                "encoder_5": {"Tune3": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_6": "Volume3",
+                "encoder_7": "Feedback1",
+                "encoder_8": "NoiseVol",
+                "encoder_9": "Shape1",
+                "encoder_10": None,
+                "encoder_11": "Shape2",
+                "encoder_12": None,
+                "encoder_13": "Shape3",
+                "encoder_14": None,
+                "encoder_15": None,
+                "encoder_16": None,
+            },
+        },
+        {
             # Configure must expose OSC Model as the first Model, plus both EcoWaves.
             "when": {
                 "parameter": "Model",
@@ -212,8 +239,8 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
                 "normalized_value": DIVA_DUAL_VCO_ECO,
             },
             "assignments": {
-                "encoder_2": {"EcoWave1": {"discrete_count": 4}},
-                "encoder_5": {"EcoWave2": {"discrete_count": 4}},
+                "encoder_9": {"EcoWave1": {"discrete_count": 4}},
+                "encoder_11": {"EcoWave2": {"discrete_count": 4}},
             },
         },
     ),

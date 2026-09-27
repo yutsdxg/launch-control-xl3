@@ -1,20 +1,22 @@
-"""Diva OSC model changes retarget only the two waveform controls."""
+"""Diva OSC models select their upper controls and retain shared assignments."""
 
 import unittest
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import test_mixing as fixtures
-from test_diva_controls import diva_device
+from test_diva_controls import TUNE_CONTROLS, diva_device
 from test_shift_preview import NativeMappedControl, display_lines
 
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
-WAVE_CONTROLS = ((2, "Shape1", "EcoWave1"), (5, "Shape2", "EcoWave2"))
+WAVE_CONTROLS = ((9, "Shape1", "EcoWave1"), (11, "Shape2", "EcoWave2"))
 # Verified through Diva's VST3 controller: normalized endpoints/thirds select
 # displayed waveform numbers 1, 2, 3, 4 for both EcoWave parameters.
 ECO_WAVE_VALUES = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
 
 
+@contextmanager
 def override_rules(*assignments):
     rules = tuple(
         {
@@ -23,7 +25,12 @@ def override_rules(*assignments):
         }
         for entries in assignments
     )
-    return patch.object(INSTRUMENT_ASSIGNMENTS, "CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX", {"diva": rules})
+    # Generic rule behavior uses its own baseline and does not depend on Diva's
+    # model-specific production layout.
+    base = (None, "Shape1", None, None, "Shape2")
+    with patch.object(INSTRUMENT_ASSIGNMENTS, "CUSTOM_DEVICE_PARAMETER_ORDER_INDEX", {"diva": base}):
+        with patch.object(INSTRUMENT_ASSIGNMENTS, "CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX", {"diva": rules}):
+            yield
 
 
 class ModelParameter(fixtures.FakeParameter):
@@ -75,7 +82,8 @@ class WaveParameter(fixtures.FakeParameter):
 
 def model_device(value=0.0, minimum=0.0, maximum=1.0, include_model=True, missing=()):
     device = diva_device()
-    parameters = [parameter for parameter in device.parameters if parameter.name not in missing]
+    parameters = [parameter for parameter in device.parameters
+                  if parameter.name not in missing and parameter.name not in ("Model", "EcoWave1", "EcoWave2")]
     for index, parameter in enumerate(parameters):
         if parameter.name in ("Shape1", "Shape2"):
             parameters[index] = WaveParameter(parameter.name, value=0.2, parent=device)
@@ -114,14 +122,27 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
             self.controls[number], self.displays[number] = control, display
         self.component.set_active(True)
 
-    def assert_wave_targets(self, eco, parameters=None):
+    def assert_wave_targets(self, eco, parameters=None, triple=True):
         parameters = self.parameters if parameters is None else parameters
         for number, normal, alternate in WAVE_CONTROLS:
-            expected = parameters.get(alternate if eco else normal)
+            expected = parameters.get(alternate if eco else normal) if eco or triple else None
             self.assertIs(self.controls[number].mapped_parameter, None if eco else expected)
             self.assertIs(self.controls[number].manual_led_parameter, expected if eco else None)
             if expected is not None:
                 self.assertEqual(display_lines(self.displays[number])[1], expected.name)
+
+    def assert_upper_targets(self, model):
+        triple = {
+            1: "Tune1", 2: "Volume1", 3: "Tune2", 4: "Volume2", 5: "Tune3", 6: "Volume3",
+            7: "Feedback1", 8: "NoiseVol", 9: "Shape1", 11: "Shape2", 13: "Shape3",
+        }
+        names = triple if model == 0.0 else {9: "EcoWave1", 11: "EcoWave2"} if model == 0.75 else {}
+        for number in range(1, 17):
+            name = names.get(number)
+            parameter = self.parameters.get(name)
+            manual = name is not None and name.startswith(("Tune", "EcoWave"))
+            self.assertIs(self.controls[number].mapped_parameter, None if manual else parameter)
+            self.assertIs(self.controls[number].manual_led_parameter, parameter if manual else None)
 
     def assert_two_input_step(self, control, parameter, midi, expected):
         previous = parameter.value
@@ -135,31 +156,40 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_initial_eco_model_uses_eco_waves_without_changing_values(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         self.assert_wave_targets(True)
         for parameter in self.parameters.values():
             if isinstance(parameter, WaveParameter):
                 self.assertEqual(parameter.writes, [])
 
-    def test_all_other_models_switch_to_eco_and_back_without_writing_parameters(self):
-        self.bind(2, 5)
+    def test_models_select_only_their_upper_assignments_and_preserve_shared_controls(self):
+        self.bind(*range(1, 25))
+        faders = (NativeMappedControl(relative=False), NativeMappedControl(relative=False))
+        self.component.set_fader_1(faders[0])
+        self.component.set_fader_5(faders[1])
+        attacks = [parameter for parameter in self.device.parameters if parameter.name == "Attack"]
+        shared = {number: self.controls[number].mapped_parameter for number in range(17, 25)}
         for normalized in (0.0, 0.25, 0.5, 1.0):
             with self.subTest(model=normalized):
                 self.model.value = normalized
                 self.component._update_assignments()
-                self.assert_wave_targets(False)
+                self.assert_upper_targets(normalized)
                 self.model.value = 0.75
                 self.component._update_assignments()
-                self.assert_wave_targets(True)
+                self.assert_upper_targets(0.75)
                 self.model.value = normalized
                 self.component._update_assignments()
-                self.assert_wave_targets(False)
+                self.assert_upper_targets(normalized)
+                for number, parameter in shared.items():
+                    self.assertIs(self.controls[number].mapped_parameter, parameter)
+                self.assertIs(faders[0].mapped_parameter, attacks[0])
+                self.assertIs(faders[1].mapped_parameter, attacks[1])
         for parameter in self.parameters.values():
             if isinstance(parameter, WaveParameter):
                 self.assertEqual(parameter.writes, [])
 
     def test_encoder_input_uses_native_shape_and_manual_eco_without_double_writes(self):
-        self.bind(2, 5)
+        self.bind(9, 11)
         for eco in (False, True, False):
             self.model.value = 0.75 if eco else 0.0
             self.component._update_assignments()
@@ -181,7 +211,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_both_eco_waves_step_through_four_values_with_two_inputs_and_stop_at_endpoints(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         for number, _, name in WAVE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter, control = self.parameters[name], self.controls[number]
@@ -198,7 +228,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_eco_acceleration_counts_once_and_reversal_restarts_pending_input(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         for number, _, name in WAVE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter, control = self.parameters[name], self.controls[number]
@@ -219,7 +249,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_model_and_shift_changes_reset_pending_eco_inputs(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         for boundary in ("model", "shift"):
             with self.subTest(boundary=boundary):
                 for number, _, name in WAVE_CONTROLS:
@@ -248,7 +278,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_replacing_device_resets_pending_eco_inputs(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         for control in self.controls.values():
             control.receive(65)
         replacement, parameters, _ = model_device(value=0.75)
@@ -264,7 +294,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
             self.assertEqual(self.controls[number].native_updates, [])
 
     def test_shift_model_changes_update_preview_and_led_source_without_native_writes(self):
-        self.bind(2, 5)
+        self.bind(9, 11)
         self.component.set_shift_pressed(True)
         for eco in (True, False, True):
             self.model.value = 0.75 if eco else 0.0
@@ -284,7 +314,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
                 self.assertEqual(parameter.writes, [])
 
     def test_selected_track_and_replaced_device_get_independent_model_state(self):
-        self.bind(2, 5)
+        self.bind(9, 11)
         replacement, parameters, model = model_device(value=0.75)
         track = fixtures.FakeTrack(
             "Replacement", devices=(fixtures.FakeDevice(1), fixtures.FakeDevice(2), replacement)
@@ -304,26 +334,26 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
         self.component._update_assignments()
         self.assert_wave_targets(True, next_parameters)
 
-    def test_missing_model_keeps_base_assignment(self):
+    def test_missing_model_leaves_all_upper_controls_unassigned(self):
         self.install_device(*model_device(include_model=False))
-        self.bind(2, 5)
+        self.bind(*range(1, 17))
         self.component._update_assignments()
-        self.assert_wave_targets(False)
+        self.assert_upper_targets(None)
 
     def test_retarget_to_device_without_model_does_not_keep_previous_override(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         self.assert_wave_targets(True)
         replacement, parameters, _ = model_device(include_model=False)
         self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), replacement)
         self.component._update_assignments()
-        self.assert_wave_targets(False, parameters)
+        self.assert_wave_targets(False, parameters, triple=False)
 
     def test_selector_occurrence_uses_first_model_when_names_repeat(self):
         second = ModelParameter("Model", value=0.75, parent=self.device)
         parameters = tuple(self.device.parameters) + (second,)
         self.device.parameters = fixtures.CountingParameterSequence(self.device, parameters)
-        self.bind(2, 5)
+        self.bind(9, 11)
         self.assert_wave_targets(False)
         self.model.value = 0.75
         second.value = 0.0
@@ -333,23 +363,31 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_missing_override_target_leaves_only_that_control_unassigned(self):
         self.install_device(*model_device(value=0.75, missing=("EcoWave1",)))
-        self.bind(2, 5)
+        self.bind(9, 11)
         self.assert_wave_targets(True)
-        self.assertIsNone(self.component._connected_parameters.get("encoder_2"))
-        self.controls[2].receive(65)
-        self.assertEqual(self.controls[2].native_updates, [])
+        self.assertIsNone(self.component._connected_parameters.get("encoder_9"))
+        self.controls[9].receive(65)
+        self.assertEqual(self.controls[9].native_updates, [])
         self.model.value = 0.0
         self.component._update_assignments()
         self.assert_wave_targets(False)
 
-    def test_model_change_preserves_pending_tune_inputs(self):
-        self.bind(1, 2, 4, 5)
-        for number in (1, 4):
+    def test_leaving_triple_unassigns_tunes_and_resets_pending_inputs(self):
+        self.bind(1, 3, 5, 9, 11)
+        for number, _ in TUNE_CONTROLS:
             self.controls[number].receive(65)
         self.model.value = 0.75
         self.component._update_assignments()
         self.assert_wave_targets(True)
-        for number, name in ((1, "Tune1"), (4, "Tune2")):
+        for number, name in TUNE_CONTROLS:
+            self.assertIsNone(self.controls[number].mapped_parameter)
+            self.assertIsNone(self.controls[number].manual_led_parameter)
+            self.controls[number].receive(65)
+            self.assertEqual(self.parameters[name].value, 0.5)
+        self.model.value = 0.0
+        self.component._update_assignments()
+        for number, name in TUNE_CONTROLS:
+            self.controls[number].receive(65)
             self.assertEqual(self.parameters[name].value, 0.5)
             self.controls[number].receive(65)
             self.assertAlmostEqual(self.parameters[name].value, 0.7, places=6)
@@ -428,7 +466,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
 
     def test_repeated_updates_read_model_once_without_reenumeration_or_reconnection(self):
         self.install_device(*model_device(value=0.75))
-        self.bind(2, 5)
+        self.bind(9, 11)
         parameter_reads = self.device.parameter_read_count
         model_reads = self.model.value_reads
         connections = {number: len(control.connected) for number, control in self.controls.items()}
@@ -451,17 +489,17 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
         for minimum, maximum, eco_value, other_value in ((0.0, 4.0, 3.0, 2.0), (-2.0, 2.0, 1.0, 0.0)):
             with self.subTest(bounds=(minimum, maximum)):
                 self.install_device(*model_device(value=eco_value, minimum=minimum, maximum=maximum))
-                self.bind(2, 5)
+                self.bind(9, 11)
                 self.assert_wave_targets(True)
                 self.model.value = other_value
                 self.component._update_assignments()
-                self.assert_wave_targets(False)
+                self.assert_wave_targets(False, triple=False)
 
-    def test_invalid_model_range_keeps_base_assignment(self):
+    def test_invalid_model_range_leaves_all_upper_controls_unassigned(self):
         self.install_device(*model_device(value=0.75, minimum=1.0, maximum=1.0))
-        self.bind(2, 5)
+        self.bind(*range(1, 17))
         self.component._update_assignments()
-        self.assert_wave_targets(False)
+        self.assert_upper_targets(None)
 
 
 if __name__ == "__main__":

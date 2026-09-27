@@ -9,7 +9,7 @@ from test_shift_preview import NativeMappedControl, display_lines
 
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
-TUNE_CONTROLS = ((1, "Tune1"), (4, "Tune2"))
+TUNE_CONTROLS = ((1, "Tune1"), (3, "Tune2"), (5, "Tune3"))
 # Independently observed through Diva 1.4.8's VST3 controller, parameter IDs
 # 86/87: these normalized values display -24, -12, 0, +12, +24 semitones.
 # Keep these expectations separate from the configuration under test.
@@ -33,15 +33,20 @@ class DivaTuneParameter(fixtures.FakeParameter):
 def diva_device(parameter_type=DivaTuneParameter):
     device = fixtures.FakeInstrumentDevice("Diva")
     parameters = [fixtures.FakeParameter("Device On", parent=device)]
-    for entry in INSTRUMENT_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER["Diva"]:
-        name, _ = INSTRUMENT_ASSIGNMENTS.extract_custom_entry_name_and_options(entry)
-        if name:
-            if name in ("Tune1", "Tune2"):
-                parameters.append(
-                    parameter_type(name, value=0.5, minimum=0.0, maximum=1.0, parent=device)
-                )
-            else:
-                parameters.append(fixtures.FakeParameter(name, parent=device))
+    # Parameter inventory is independent of physical control assignments. In
+    # particular, Model and inactive models' parameters remain exposed in Live.
+    names = (
+        "Model", "Tune1", "Tune2", "Tune3", "Volume1", "Volume2", "Volume3",
+        "Feedback1", "NoiseVol", "Shape1", "Shape2", "Shape3", "EcoWave1", "EcoWave2",
+        "Frequency", "Resonance", "Freq Mod Depth", "KeyFollow", "Filter FM", "Mode", "Output",
+        "Attack", "Decay", "Sustain", "Release", "Attack", "Decay", "Sustain", "Release",
+        "OnOff", "Active #FX1", "Active #FX2",
+    )
+    for name in names:
+        if name in ("Tune1", "Tune2", "Tune3"):
+            parameters.append(parameter_type(name, value=0.5, minimum=0.0, maximum=1.0, parent=device))
+        else:
+            parameters.append(fixtures.FakeParameter(name, parent=device))
     device.parameters = tuple(parameters)
     return device
 
@@ -76,7 +81,7 @@ class DivaControlsTest(unittest.TestCase):
         self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), device)
         self.component._update_assignments()
 
-    def test_both_tunes_step_through_all_octaves_in_normal_direction_without_native_writes(self):
+    def test_all_three_tunes_step_through_all_octaves_in_normal_direction_without_native_writes(self):
         for number, name in TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
@@ -90,7 +95,7 @@ class DivaControlsTest(unittest.TestCase):
                     self.assert_step(control, parameter, 63, expected)
                 self.assertEqual(control.native_updates, [])
 
-    def test_both_tunes_leave_zero_pitch_after_two_inputs_in_either_direction(self):
+    def test_all_three_tunes_leave_zero_pitch_after_two_inputs_in_either_direction(self):
         for number, name in TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
@@ -182,7 +187,7 @@ class DivaControlsTest(unittest.TestCase):
 
     def test_other_diva_encoders_keep_native_continuous_mapping(self):
         parameter = self.parameters["Shape1"]
-        control, _ = self.bind_encoder(2)
+        control, _ = self.bind_encoder(9)
         self.assertIs(control.mapped_parameter, parameter)
         self.assertIsNone(control.manual_led_parameter)
         control.receive(65)
