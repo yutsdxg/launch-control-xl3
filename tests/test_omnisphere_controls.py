@@ -14,7 +14,7 @@ PITCH_CONTROLS = (
     (3, "1 B Transpose Semitones"),
     (5, "1 C Transpose Semitones"),
     (7, "1 D Transpose Semitones"),
-    (23, "1 A Tune Octave"),
+    (22, "1 A Tune Octave"),
 )
 # Recorded raw values for GUI pitches +24, +12, 0, -12, and -24 respectively.
 # These are observations inside each pitch's range, not inferred boundaries.
@@ -314,7 +314,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_tune_octave_moves_one_of_five_stages_after_two_inputs(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         for expected in (0.25, 0.0, 0.0):
             self.assert_step(control, parameter, 65, expected)
         for expected in (0.25, 0.5, 0.75, 1.0, 1.0):
@@ -324,7 +324,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_tune_octave_accelerated_input_still_moves_one_stage(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         self.assert_step(control, parameter, 127, 0.25)
         self.assert_step(control, parameter, 0, 0.5)
         # Each event counts once, even when its MIDI magnitude differs.
@@ -336,7 +336,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_neutral_input_does_not_change_tune_or_pending_direction(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         control.receive(64)
         self.assertEqual(parameter.value, 0.5)
         control.receive(65)
@@ -348,7 +348,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_tune_direction_change_restarts_the_two_event_threshold(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         for value in (65, 63, 65):
             control.receive(value)
             self.assertEqual(parameter.value, 0.5)
@@ -358,7 +358,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_tune_step_uses_the_latest_external_value(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         control.receive(65)
         parameter.value = 0.75
         self.component._update_assignments()
@@ -367,7 +367,7 @@ class OmnisphereControlsTest(unittest.TestCase):
 
     def test_tune_step_uses_nearest_stage_from_arbitrary_raw_value(self):
         parameter = self.parameters["1 A Tune Octave"]
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         for current, value, expected in (
             (0.55, 65, 0.25),
             (0.55, 63, 0.75),
@@ -384,7 +384,7 @@ class OmnisphereControlsTest(unittest.TestCase):
         parameter.max = 2.0
         parameter.value = 0.0
         parameter.is_quantized = True
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         self.assert_step(control, parameter, 65, -1.0)
         self.assert_step(control, parameter, 63, 0.0)
 
@@ -410,7 +410,7 @@ class OmnisphereControlsTest(unittest.TestCase):
         self.device.parameters = tuple(
             parameter if item is original else item for item in self.device.parameters
         )
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         for _ in range(5):
             self.component._update_assignments(force=True)
         self.assert_step(control, parameter, 65, 0.25)
@@ -423,14 +423,14 @@ class OmnisphereControlsTest(unittest.TestCase):
         parameter.is_quantized = True
         parameter.value_items = tuple(str(value) for value in range(49))
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         self.assert_step(control, parameter, 65, 0.25)
         self.assert_step(control, parameter, 63, 0.5)
 
     def test_shift_tune_preview_keeps_values_and_resets_pending_input(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, display = self.bind_encoder(23)
+        control, display = self.bind_encoder(22)
         control.receive(65)
         self.component.set_shift_pressed(True)
         for value in (65, 63, 127):
@@ -448,7 +448,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_inactive_tune_control_resets_pending_input(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         control.receive(65)
         self.component.set_active(False)
         control.receive(65)
@@ -459,7 +459,7 @@ class OmnisphereControlsTest(unittest.TestCase):
     def test_retargeting_tune_control_resets_pending_input(self):
         parameter = self.parameters["1 A Tune Octave"]
         parameter.value = 0.5
-        control, _ = self.bind_encoder(23)
+        control, _ = self.bind_encoder(22)
         control.receive(65)
 
         replacement = omnisphere_device()

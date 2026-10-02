@@ -261,17 +261,17 @@ class EncoderCompanionActionsTest(DepthControlFixture, unittest.TestCase):
 
 
 class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
-    """Exercise the production Encoder 23 assignment and both Configure pairs."""
+    """Exercise the production Encoder 22 assignment and both Configure pairs."""
 
     def setUp(self):
-        self.install_depth_control(23)
+        self.install_depth_control(22)
 
     @contextmanager
     def configured_options(self, **updates):
         base = list(ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX["diva"])
-        options = dict(base[22]["DepthMod Dpt1"])
+        options = dict(base[21]["DepthMod Dpt1"])
         options.update(updates)
-        base[22] = {"DepthMod Dpt1": options}
+        base[21] = {"DepthMod Dpt1": options}
         with patch.object(ASSIGNMENTS, "CUSTOM_DEVICE_PARAMETER_ORDER_INDEX", {"diva": tuple(base)}):
             self.component.set_active(False)
             self.component.set_active(True)
@@ -335,7 +335,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
         self.component.set_shift_pressed(True)
         for midi in (63, 65, 0):
             self.control.receive(midi)
-        self.component.preview_encoder("encoder_23")
+        self.component.preview_encoder("encoder_22")
         self.component.set_shift_pressed(False)
         self.component.set_active(False)
         self.control.receive(63)
@@ -389,7 +389,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
                 for parameter in depths + sources:
                     self.assertEqual(parameter.writes, [])
 
-    def test_encoder_23_is_shared_and_encoder_8_controls_only_feedback(self):
+    def test_encoder_22_is_shared_and_encoder_8_controls_only_feedback(self):
         previous_control = NativeMappedControl()
         self.component.set_encoder_8(previous_control)
         for normalized in (0.0, 0.25, 0.5, 0.75, 1.0, 0.125):
@@ -434,7 +434,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
 
     def test_model_change_rebinds_all_targets_before_the_next_periodic_refresh(self):
         rules = ({"when": {"parameter": "Model", "normalized_value": 1.0},
-                  "assignments": {"encoder_23": {"DepthMod Dpt1": {
+                  "assignments": {"encoder_22": {"DepthMod Dpt1": {
                       "occurrence": 2, "invert_direction": True,
                       "relative_targets": ({"parameter": "DepthMod Dpt1", "occurrence": 1,
                                             "invert_direction": False},),
@@ -456,7 +456,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
 
     def test_override_can_remove_the_whole_compound_assignment_without_stale_writes(self):
         rules = ({"when": {"parameter": "Model", "normalized_value": 1.0},
-                  "assignments": {"encoder_23": None}},)
+                  "assignments": {"encoder_22": None}},)
         with patch.object(ASSIGNMENTS, "CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX", {"diva": rules}):
             self.component.set_active(False)
             self.component.set_active(True)
@@ -500,7 +500,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
                 self.assertEqual(source.writes, [])
 
     def test_action_lists_are_supported_as_well_as_tuples(self):
-        options = ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX["diva"][22]["DepthMod Dpt1"]
+        options = ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX["diva"][21]["DepthMod Dpt1"]
         with self.configured_options(on_left=list(options["on_left"]),
                                      relative_targets=list(options["relative_targets"])):
             self.control.receive(63)
