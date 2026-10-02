@@ -192,7 +192,7 @@ class ConditionalInstrumentAssignmentsTest(unittest.TestCase):
             number: (self.controls[number].mapped_parameter, self.controls[number].manual_led_parameter)
             for number in range(17, 25)
         }
-        self.assertIs(shared[23][1], self.parameters["DepthMod Dpt1"])
+        self.assertIs(shared[22][1], self.parameters["DepthMod Dpt1"])
         for normalized in (0.0, 0.25, 0.5, 1.0):
             with self.subTest(model=normalized):
                 self.model.value = normalized
