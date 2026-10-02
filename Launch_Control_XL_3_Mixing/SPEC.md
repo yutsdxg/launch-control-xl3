@@ -227,13 +227,15 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 - 通常のパラメータには接続しない。最初の有効なMIDI入力1件で、対応キーのdown／upを1組送る。加速CCの差分量は使わず、入力1件を1回として数える。
 - 既定では連続入力の各1件で1回押す。回転を止めた後のタイマー連打や未送出イベントのキューは持たない。方向反転と、停止後の新しい操作は最初の入力で即座に押す。
 - 調整は `keyboard_navigation.py` の次の定数で行う。`REPEAT_INPUTS_PER_PRESS = 1` は継続中に1回押すための同方向入力数、`MIN_PRESS_INTERVAL = 0.0` は継続中の最小押下間隔（秒）、`GESTURE_GAP = 0.25` は操作を区切る無入力時間（秒）。継続中は入力数と間隔を両方満たした次の入力で押し、入力が止まった後には押さない。初回と反転時は入力数・間隔にかかわらず即時押下する。
-- キー送出は、スクリプトが動くLive自身のPIDとmacOSの前面アプリPIDが一致するときだけ行う。Live内でフォーカスを持つUIに通常の上下キーとして届くため、利用時は音源のプリセット一覧へフォーカスを置く。他アプリが前面なら送出せず、入力蓄積も残さない。
-- macOS標準フレームワークをPythonの内蔵拡張 `_ctypes` から呼び出す。Bome MIDI Translator Proや追加Pythonパッケージは不要。Live内のPythonで `_ctypes` が利用可能で、Liveにアクセシビリティ権限が必要。macOSの「システム設定 → プライバシーとセキュリティ → アクセシビリティ」でAbleton Liveを許可する。
-- `_ctypes`、macOS API、権限確認またはキー送出が利用できない場合はキーを送らず、他のコントロールは動作を継続する。送出失敗時は操作状態をリセットして待機表示へ戻し、診断ログは状態が変わったときだけ記録する。
+- キー送出にはBome MIDI Translator Proを使う。Live内Pythonには `_ctypes` がないため、macOS APIの直接呼び出しは使用しない。ScriptからCH16／CC119の値1（上）、2（下）を押下1回につき1件出力し、Bomeで矢印キーのdown／upを1組送る。
+- LiveのControl SurfaceのInput/Outputは両方Bome MIDI Translator 1。新規Bomeプロジェクトと双方向のDAWポート接続は `bome/LCXL3 Preset Navigation.bmtp`、手順は `bome/README.md` にまとめる。既存のBome設定は使用しない。
+- BomeのApplication FocusでLive前面状態を判定し、前面時だけキー変換する。同時にCH16／CC118の値0/1をScriptへ返す。Scriptは初期状態を送出無効とし、前面変化の通知を受けると継続状態と表示をリセットする。再接続時はCC119値0で状態を問い合わせる。RecordはCH1なのでCC118が競合しない。
+- CC119はBomeで常時Swallowする。ScriptのCC送出は `optimized=False` とし、表示SysExの集約から外す。同一CCの連続入力も回数と順序を保持する。
+- BomeにmacOSアクセシビリティ権限が必要。Bome未起動、前面通知未受信、他アプリ前面時にはキーを送らない。MIDI送出失敗はキー操作だけを停止し、Liveログへ原因を記録する。
 - Encoder 24のLEDは青、明るさ `0.25`。表示は `Keyboard / Preset Up-Down / Up` または `Down`、待機・Shift確認時は3行目を空にする。無入力時間が `GESTURE_GAP` に達すると待機表示へ戻る。事前登録は `trigger=False`、通常操作とShiftプレビューは `trigger=True` とする。
 - Shift切替、モード終了、control交換、切断では継続状態をリセットする。Shift中の回転・タッチは表示だけ行う。Mixingへ戻るとEncoder 24の通常のTrack Panning割り当てとLEDへ復帰する。
 
-初回の実機確認では、Live内Pythonでの `_ctypes` 利用とアクセシビリティ権限を確認し、プリセット一覧へフォーカスを置いて、左の最小回転で上1回、右で下1回、他アプリが前面では無反応になることを先に確認する。ここが通ってから連続回転の量・速度を試し、上記3定数を調整する。実機で送出できない場合は診断結果を確認し、Bome経由へ変更する必要性を別途判断する。
+初回の実機確認では、Bomeプロジェクトを開き、LiveのInput/OutputをPort 1に設定する。Bomeにアクセシビリティを許可し、Live前面通知・CC119受信・音源一覧での矢印キー受信を確認する。左右の最小入力、他アプリ前面時の抑止、Shift、Mixingへの復帰が通ってから、小さな／ゆっくりした／速い連続回転を試し、上記3定数を調整する。
 
 ## カスタムパラメータ順序
 

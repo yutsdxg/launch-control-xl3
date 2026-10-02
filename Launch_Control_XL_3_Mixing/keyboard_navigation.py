@@ -2,7 +2,7 @@
 
 from time import monotonic
 
-from .mac_keyboard import MacKeyboardSender
+from .midi_keyboard import MidiKeyboardSender
 
 # Tune these after checking small, slow and fast turns on the hardware.
 # Every gesture's first input and every direction change always press once.
@@ -20,12 +20,24 @@ class EncoderKeyboardNavigation:
         min_press_interval=MIN_PRESS_INTERVAL,
         gesture_gap=GESTURE_GAP,
     ):
-        self._sender = sender if sender is not None else MacKeyboardSender()
+        self._sender = sender if sender is not None else MidiKeyboardSender()
         self._clock = clock if clock is not None else monotonic
         self._inputs_per_press = max(1, int(inputs_per_press))
         self._min_press_interval = max(0.0, float(min_press_interval))
         self._gesture_gap = max(0.001, float(gesture_gap))
         self.reset()
+
+    def set_midi_sender(self, midi_sender):
+        self.reset()
+        self._sender.set_midi_sender(midi_sender)
+
+    def set_focus(self, value):
+        if self._sender.set_focus(value):
+            self.reset()
+
+    def request_focus(self):
+        self.reset()
+        return self._sender.request_focus()
 
     def reset(self):
         self._direction = None

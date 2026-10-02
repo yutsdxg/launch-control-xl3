@@ -421,7 +421,10 @@ class MixingMappingsTest(unittest.TestCase):
         self.assertEqual(mappings["Locator_Navigation"]["prev_locator_button"], "track_left_button")
         self.assertEqual(mappings["Locator_Navigation"]["next_locator_button"], "track_right_button")
         self.assertEqual(mappings["Fixed_Assignments"], {})
-        self.assertEqual(mappings["Instrument_Assignments"], {})
+        self.assertEqual(
+            mappings["Instrument_Assignments"],
+            {"keyboard_focus_button": "keyboard_focus_button"},
+        )
         self.assertEqual(mappings["Control_Router"]["encoder_1"], "upper_encoders_raw[0]")
         self.assertEqual(mappings["Control_Router"]["encoder_9"], "upper_encoders_raw[8]")
         self.assertEqual(mappings["Control_Router"]["encoder_11"], "upper_encoders_raw[10]")

@@ -203,6 +203,7 @@ class TouchRoutingTest(unittest.TestCase):
         namespace = {
             "ElementsBase": RecordingElements, "MapMode": types.SimpleNamespace(LinearBinaryOffset=1),
             "DisplayTargetElement": object, "ColoredEncoderElement": object, "midi": midi,
+            "KEYBOARD_CHANNEL": 15, "FOCUS_CC": 118,
         }
         exec(compile(tree, "elements.py", "exec"), namespace)
         elements = namespace["Elements"]()

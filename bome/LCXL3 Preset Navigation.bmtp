@@ -1,0 +1,51 @@
+; Launch Control XL 3 - Instrument Encoder 24 preset navigation
+; Open with Bome MIDI Translator Pro 1.9 or newer. See README.md.
+; ga = Live frontmost (0/1). MIDI IN is restricted to Virtual Port 1.
+
+[MIDI.routes]
+In0=LCXL3 1 DAW Out
+Out0=Bome Virtual Port 1
+In1=Bome Virtual Port 1
+Out1=LCXL3 1 DAW In
+
+[Preset.0]
+Active=1
+Name=LCXL3 Preset Navigation
+PresetSwitchIgnore=1
+Comments=Instrument Encoder 24 only. Left=Up, Right=Down. Live must have focus.\nCH16 CC119 is swallowed; CH16 CC118 reports focus to Live.\n
+DefaultInPorts=MIDA00010013Bome Virtual Port 1
+DefaultOutPorts=MIDA00010013Bome Virtual Port 1
+Name0=Project Opened - Reset Focus
+Incoming0=EnDi02
+Outgoing0=MID3<Outgoing Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x76"/><Value2 num="0x00"/></Simple></Outgoing>
+Options0=Actv01Stop00OutO00StMa00000001ga=0
+Name1=Live Activated - Enable
+Incoming1=AcApA0019Ableton Live 12 Suite.app
+Outgoing1=MID3<Outgoing Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x76"/><Value2 num="0x01"/></Simple></Outgoing>
+Options1=Actv01Stop00OutO00StMa00000001ga=1
+Name2=Live Deactivated - Disable
+Incoming2=AcApD0019Ableton Live 12 Suite.app
+Outgoing2=MID3<Outgoing Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x76"/><Value2 num="0x00"/></Simple></Outgoing>
+Options2=Actv01Stop00OutO00StMa00000001ga=0
+Name3=Focus Query - Reply
+Incoming3=MID3<Incoming Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x77"/><Value2 num="0x00"/></Simple></Incoming>
+Outgoing3=MID3<Outgoing Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x76"/><Value2 var="ga"/></Simple></Outgoing>
+Options3=Actv01Stop00OutO01
+Name4=Preset Up
+Incoming4=MID3<Incoming Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x77"/><Value2 num="0x01"/></Simple></Incoming>
+Outgoing4=KAM3<Outgoing Action="KeyStrokes"><Type>Physical</Type><Keys><Key Ext="Y" VK="38"/><Key Release="Y" Ext="Y" VK="38"/></Keys></Outgoing>
+Options4=Actv01Stop00OutO01StMa00000001if(ga!=1)noexecute
+Name5=Preset Down
+Incoming5=MID3<Incoming Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x77"/><Value2 num="0x02"/></Simple></Incoming>
+Outgoing5=KAM3<Outgoing Action="KeyStrokes"><Type>Physical</Type><Keys><Key Ext="Y" VK="40"/><Key Release="Y" Ext="Y" VK="40"/></Keys></Outgoing>
+Options5=Actv01Stop00OutO01StMa00000001if(ga!=1)noexecute
+Name6=Swallow Navigation CC
+Incoming6=MID3<Incoming Action="MIDI"><Simple Type="ControlChange"><Channel num="15"/><Value1 num="0x77"/><Value2 var="pp" Type="SetVar"/></Simple></Incoming>
+Outgoing6=None
+Options6=Actv01Stop00OutO01
+
+[Project]
+Version=2
+DefaultInPorts=MIDA00020013Bome Virtual Port 1000FLCXL3 1 DAW Out
+DefaultOutPorts=MIDA00020013Bome Virtual Port 1000ELCXL3 1 DAW In
+Comments=Live control surface Input and Output: Bome MIDI Translator 1.\nEnable Bome in macOS Accessibility. Focus the plug-in preset list before turning Encoder 24.\n

@@ -33,7 +33,9 @@ def create_mappings(_control_surface):
             "mixing_button": "page_up_button",
             "instrument_button": "page_down_button",
         },
-        "Instrument_Assignments": {},
+        "Instrument_Assignments": {
+            "keyboard_focus_button": "keyboard_focus_button",
+        },
         "Locator_Navigation": {
             "prev_locator_button": "track_left_button",
             "next_locator_button": "track_right_button",

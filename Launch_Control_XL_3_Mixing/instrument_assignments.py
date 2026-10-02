@@ -56,6 +56,7 @@ class InstrumentAssignmentsComponent(Component):
         self._button_slots = [None] * BUTTON_COUNT
         self._display_commands = {}
         self._keyboard_control = None
+        self._keyboard_focus_slot = None
         self._keyboard_navigation = EncoderKeyboardNavigation()
         self._clear_target_parameter_cache()
         self._led_sender = LedSender()
@@ -89,6 +90,26 @@ class InstrumentAssignmentsComponent(Component):
     def set_midi_sender(self, midi_sender):
         self._led_sender.set_midi_sender(midi_sender)
         self.refresh_led_feedback()
+
+    def set_keyboard_midi_sender(self, midi_sender):
+        self._keyboard_navigation.set_midi_sender(midi_sender)
+
+    def set_keyboard_focus_button(self, button):
+        if self._keyboard_focus_slot is not None:
+            self._keyboard_focus_slot.disconnect()
+            self._keyboard_focus_slot = None
+        self._keyboard_navigation.set_focus(0)
+        if button is not None:
+            self._keyboard_focus_slot = self.register_slot(
+                button, self._on_keyboard_focus_value, "value"
+            )
+
+    def _on_keyboard_focus_value(self, value):
+        self._keyboard_navigation.set_focus(value)
+        self._prepare_encoder_display(KEYBOARD_ENCODER)
+
+    def request_keyboard_focus(self):
+        return self._keyboard_navigation.request_focus()
 
     def set_shift_pressed(self, pressed):
         pressed = bool(pressed)
@@ -779,6 +800,10 @@ class InstrumentAssignmentsComponent(Component):
             return ""
 
     def disconnect(self):
+        if self._keyboard_focus_slot is not None:
+            self._keyboard_focus_slot.disconnect()
+            self._keyboard_focus_slot = None
+        self._keyboard_navigation.reset()
         for slot in tuple(self._control_slots.values()):
             slot.disconnect()
         self._control_slots = {}
