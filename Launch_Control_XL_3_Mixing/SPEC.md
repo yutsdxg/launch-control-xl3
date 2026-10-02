@@ -72,14 +72,14 @@ CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェー�
 
 `mixing` モードでは `Fixed_Assignments` と `Track_Buttons` を active、`Instrument_Assignments` を inactive にする。`instrument` モードでは逆に `Instrument_Assignments` のみ active にする。
 
-モード LED は白系 RGB で、選択中は明るさ `0.25`、非選択は `0.03`。
+Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は青。選択中は明るさ `0.25`、非選択は `0.03` とし、他のボタンと同じ輝度係数を使う。
 
 ## Shiftによるアサイン確認
 
 - Mixing／Instrumentの両モードで、Shiftを押しながらエンコーダ／フェーダを動かすと、通常と同じ「デバイス名またはトラック名・パラメータ名・現在値」の3行を表示する。割り当て先がない、または無効な場合は「操作子名・Unassigned・空行」を表示する。
 - 全24エンコーダの表示内容は、操作を待たずに割り当て時点で本体へ登録する。0.1秒周期の割り当て更新とモード切替でも名前・現在値を更新するため、通常回転を一度もしていないエンコーダも本体のShift＋回転表示を利用できる。値CC・タッチCCの受信を初回登録の条件にしない。
 - 本体を再識別したときは、アクティブなモードの表示コマンドの送信キャッシュを消して再登録する。接続前の登録が受理されなかった場合や、本体側の表示内容だけが消えた場合にも備える。
-- Shift中の操作では値を書き換えない。Device On、Loopcloud Solo、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
+- Shift中の操作では値を書き換えない。Device On、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
 - フェーダをShift中に上端／下端から中央へ戻しても、パラメータ値は維持される。Shift解除そのものは値を変更せず、次の操作から既存の絶対値マッピングへ戻る。独自の相対制御やオフセット補正は行わず、Liveの既存takeover設定を維持する。
 - Value Scalingでは物理位置とパラメータ値の差を徐々に縮める。一定の移動量をそのまま現在値へ加減する方式とは異なる。Shift解除後の再接続直後の追従は実機で確認する。
 - トラックボタン、Instrumentのパラメータボタン、モード切替、ロケータ、再生・録音ボタンはShift中も従来どおり動作する。エンコーダLEDは割り当て先の色・現在値・Pan方向を維持する。
@@ -101,7 +101,7 @@ CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェー�
 
 | 物理操作子 | 割り当て |
 | --- | --- |
-| Encoder 1 | Loopcloud / MetricAB サブモード切り替えと `Loopcloud` トラック solo 操作。パラメータ接続なし |
+| Encoder 1 | 左でMetricAB A側＋Loopcloud割り当て、右でMetricAB B側＋MetricAB割り当て。パラメータ接続なし |
 | Encoder 2 | 選択トラック Device 1 の `Device On` |
 | Encoder 3 | 選択トラック Device 4 の `Device On` |
 | Encoder 4 | 選択トラック Device 5 の `Device On` |
@@ -131,7 +131,7 @@ CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェー�
 | Fader 7 | 選択トラック Device 9 Parameter 1 |
 | Fader 8 | 選択トラック Volume |
 
-Encoder 1 は `Loopcloud` サブモード中、`Loopcloud` トラックの `solo` をサブ状態として扱う。`Loopcloud` トラックは固定割り当てと同じく名前完全一致の最初のトラックを使い、状態は内部フラグではなく `track.solo` を直接読む。左方向へ回すと `Loopcloud` トラックを solo on、solo on 中に右方向へ回すと solo off にし、どちらも `loopcloud` サブモードのままにする。表示は solo on 中だけ `Loopcloud Solo` にする。
+Encoder 1はLoopcloudトラックのsoloを操作しない。既存のsolo状態にかかわらず、回転方向だけでサブモードとMetricABのA/Bを決める。表示は `Loopcloud` または `MetricAB` とし、soloによる別表示や切替の中間段階は設けない。
 
 ### MetricAB サブモード
 
@@ -140,8 +140,9 @@ Encoder 1 の入力値 `64` は無視する。現在の状態ごとの動作は�
 | 現在の状態 | 左方向 | 右方向 |
 | --- | --- | --- |
 | `metric_ab` | `loopcloud` へ戻し、MetricAB の AB Switch を最小値にする | `metric_ab` のまま、MetricAB の AB Switch を最大値にする |
-| `loopcloud`、`Loopcloud.solo == False` | `Loopcloud.solo = True` | `metric_ab` へ切り替え、MetricAB の AB Switch を最大値にする |
-| `loopcloud`、`Loopcloud.solo == True` | `Loopcloud.solo = True` のまま | `Loopcloud.solo = False`。`loopcloud` のまま |
+| `loopcloud` | `loopcloud` のまま、MetricAB の AB Switch を最小値にする | `metric_ab` へ切り替え、MetricAB の AB Switch を最大値にする |
+
+AB Switchの最小値がA側、最大値がB側。同方向の再入力でも指定側へ設定し、外部からA/Bが変更されていても回転方向と一致させる。Shift中・中立入力64・非アクティブ時はサブモードとA/Bを変更しない。
 
 MetricAB デバイスは Master トラック上から `device.name == "ADPTR MetricAB"` で検索する。`class_name` や `class_display_name` が一致しても、`name` が完全一致しなければ対象外。
 
@@ -225,6 +226,7 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 - `instrumentvector` と `wavetable`、`instrumentmeld` と `meld`、`hybrid` と `reverb` は相互 alias。
 - `None` または `SKIP` は空スロット。
 - `{"Parameter": {"occurrence": 2}}` のように同名パラメータの何番目かを指定できる。
+- instrument モードでは `{"Parameter": {"invert_direction": True}}` でエンコーダの値方向を反転し、`{"Parameter": {"invert_led": True}}` でボタンの点灯条件を反転できる。反転LEDのオフ状態も他のボタンと同じ暗い点灯とする。
 - `CUSTOM_PARAMETER_APPEND_REST = False` なので、カスタム順序にない残りパラメータは末尾へ追加しない。未指定スロットは未割り当て。
 
 現在定義されているカスタム順序:
@@ -236,13 +238,120 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, empty, `Main Vol` |
 | Serum 2 | Fader 1-8: `Env 2 Attack`, `Env 2 Decay`, `Env 2 Sustain`, `Env 2 Release`, `Env 1 Attack`, `Env 1 Decay`, `Env 1 Sustain`, `Env 1 Release` |
 | Serum 2 | Button 1-8: `Sub Enable`, `A Enable`, `B Enable`, `C Enable`, `Noise Enable`, `Clip Player Enable`, `Arp Enable`, empty |
-| Omnisphere | Enc 1-8: `1 A Transpose Semitones`, empty, `1 B Transpose Semitones`, empty, `1 C Transpose Semitones`, empty, `1 D Transpose Semitones`, empty |
-| Omnisphere | Enc 9-16: `1 A Shape`, `1 A Level`, `1 B Shape`, `1 B Level`, `1 C Shape`, `1 C Level`, `1 D Shape`, `1 D Level` |
-| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, empty, empty, empty, empty, `Master Gain` |
+| Omnisphere | Enc 1-8: `1 A Transpose Semitones`, `1 A Level`, `1 B Transpose Semitones`, `1 B Level`, `1 C Transpose Semitones`, `1 C Level`, `1 D Transpose Semitones`, `1 D Level` |
+| Omnisphere | Enc 9-16: `1 A Shape`, `1 A Symmetry`, `1 B Shape`, `1 B Symmetry`, `1 C Shape`, `1 C Symmetry`, `1 D Shape`, `1 D Symmetry` |
+| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
+| Diva | Enc 1-16: ベースはEnc 8のFeedback以外は空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
+| Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
+| Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
 | ADPTR MetricAB | `Selected Track`, `Selected Cue`, `AB Switch` |
+
+Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方向を反転し、右回しで音程が上がる。`1 Bypass All Effects` はバイパス中に暗く点灯、エフェクト有効時に明るく点灯する。ボタン押下による min/max のトグル動作と、画面に表示するパラメータ値は変更しない。
+
+方向反転または段階値を設定したエンコーダは Live の通常接続を解除して手動で値を更新する。Shift 中は表示のみ更新する。LED は実際のパラメータ値に追従する。通常方向では右回しが内部値の増加、`invert_direction` を指定した場合は減少になる。
+
+`1 A Tune Octave` は `discrete_count: 5` を設定し、`-2, -1, 0, +1, +2` の5段階として扱う。
+
+- Saturn 2 と同じ正規化インデックス変換を使い、raw範囲を5値（最小値、25%、50%、75%、最大値）に対応させる。現在値に最も近いインデックスから隣の1段階へ進む。
+- 同方向の入力2回で1段階進む。加速したCCでも一度に複数段階を飛ばさない。入力64は無効。方向を変えると入力の蓄積をリセットする。
+- 両端では止まる。割り当て時やShift操作だけでは音程を変更しない。Shift切り替え、割り当て変更・解除時は蓄積をリセットする。
+- 値更新は入力時のみ行い、表示値の探索や `str_for_value(raw)`、`value_items` の取得は行わない。
+
+`1 A/B/C/D Transpose Semitones` は `discrete_values` で次の実測内部値を指定し、同方向の入力2回で隣の12半音へ進める。加速入力・方向変更・Shift・割り当て変更時の扱いは Tune Octave と共通。現在の内部値に最も近い候補から隣へ進み、両端では止まる。割り当て時や周期更新では音程を書き換えない。
+
+| Omnisphere本体の音程 | 内部値 | 観測時のLive Configure表示 | 採取元 |
+| --- | --- | --- | --- |
+| -24 | 0.984252 | -25 semis | A |
+| -12 | 0.7407507 | -13 semis | B |
+| 0 | 0.5054741 | -1 semis | C |
+| +12 | 0.2519685 | 12 semis | D |
+| +24 | 0.0 | 24 semis | A |
+
+2026-09-27にOmnisphere本体の表示をユーザーが確認した値。内部値はLiveのアクセシビリティ表示から採取した小数であり、音程範囲の境界・中心ではない。特に -24 は内部値の最大値1.0と同一視しない。この値を使う検証版はユーザーによる実機確認でOKとなった。音程の確認にはLive ConfigureではなくOmnisphere本体を用いる。
+
+候補は内部値の昇順で保持し、入力時に直接代入する。`str_for_value(raw)` や `value_items` による探索は行わない。設定値が昇順でない・範囲外・2個未満の場合は値を変更しない。
+
+`discrete_values` / `discrete_count` のない反転エンコーダは相対CCの差分 `64 - value` を使う。連続値は範囲の `1/127`、量子化された値は `value_items` の1項目（項目がない場合は1）を単位に動かし、上下限で止める。
+
+DivaはLiveのConfigureでフィルターエンベロープの組を先、アンプエンベロープの組を後に並べた状態を前提とする。`occurrence` は同名パラメータのLive内の出現順であり、DivaのENV番号や役割を自動判別する指定ではない。同名パラメータのConfigure順を入れ替える場合は、この指定も合わせて変更する。
+
+`Tune1`（Encoder 1）と `Tune2`（Encoder 5、DCO以外）は `discrete_values: (0.1, 0.3, 0.5, 0.7, 0.9)` で -24 / -12 / 0 / +12 / +24 半音に切り替える。Triple VCOのTune3（Encoder 9）も同じ5段階を使う。2026-09-27に別プロセスのDiva VST3 1.4.8（revision 16519）で、Tune1（ParamID 86）とTune2（87）の変換API・設定後の読み戻し・表示文字列を確認した。両パラメータの正規化値0〜1は -30〜+30 半音に対応する。Liveの画面・アクセシビリティ表示の半音値は、そのまま代入する内部値として扱わない。Live Python API自体の値域は、この独立ホスト検証では未測定。
+
+右回しで上昇、左回しで下降し、同方向のMIDI入力2回で現在値に最も近い候補から隣の1段階へ進む。加速入力でも1段階とし、±24で止める。Shift・方向変更・割り当て変更時の蓄積リセットはOmnisphereと共通。値は入力時に上記の固定値を直接代入し、表示値の探索、割り当て時や周期更新でのスナップは行わない。
+
+### モデルなどの選択値による割り当て変更
+
+`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaのEncoder 1〜16は共通のEncoder 8（Feedback）を除き、ベースを `None` にしてOSCモデルごとに割り当てる。
+
+| OSCモデル | Encoder 1〜7 | Encoder 9〜16 |
+| --- | --- | --- |
+| Triple VCO | Tune1, Shape1, Volume1, 空, Tune2, Shape2, Volume2 | Tune3, Shape3, Volume3, 空, 空, 空, 空, NoiseVol |
+| Dual VCO | Tune1, PulseWidth, FM, 空, Tune2, Sync2, OscMix | Triangle1On, Saw1On, Pwm1On, Noise1On, Triangle2On, Saw2On, Pulse2On, Sine2On |
+| DCO | Tune1, SawShape, PulseShape, SuboscShape, 空, 空, 空 | PulseWidth, 空, Volume3, NoiseVol, 空, 空, 空, 空 |
+| Dual VCO Eco | Tune1, EcoWave1, Volume1, 空, Tune2, EcoWave2, Volume2 | PulseWidth, 空, 空, 空, 空, 空, 空, 空 |
+| Digital | Tune1, DigitalType1, FM, 空, Tune2, DigitalType2, OscMix | PulseWidth, DigitalShape2, 空, 空, DigitalShape3, DigitalShape4, 空, 空 |
+| 未定義のモデル／Model未表出 | すべて空 | すべて空 |
+
+上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
+
+EcoWave1 / EcoWave2（Encoder 2 / 6）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2 / Shape3は通常の連続操作とする。
+
+設定例（全体の配置は `custom_parameter_order.py` を参照）:
+
+```python
+CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
+    "Diva": (
+        {
+            "when": {"parameter": "Model", "occurrence": 1, "normalized_value": DIVA_TRIPLE_VCO},
+            "assignments": {"encoder_2": "Shape1", "encoder_6": "Shape2"},
+        },
+        {
+            "when": {"parameter": "Model", "occurrence": 1, "normalized_value": DIVA_DUAL_VCO_ECO},
+            "assignments": {
+                "encoder_2": {"EcoWave1": {"discrete_count": 4}},
+                "encoder_6": {"EcoWave2": {"discrete_count": 4}},
+            },
+        },
+    ),
+}
+```
+
+- `when.parameter` は条件に使うConfigure上のパラメータ名。大文字小文字・空白を正規化して完全一致で検索する。`occurrence` は同名の何番目かを1から指定し、省略時は1。現在のDivaではフィルターのModelをConfigureから除き、OSCのModelだけを表出する。
+- `normalized_value` は `(parameter.value - parameter.min) / (parameter.max - parameter.min)` の期待値。画面の数値ではない。誤差 `1e-6` 以内を一致とする。Diva OSC Modelは独立VST3ホストでTriple VCO=0、Dual VCO=0.25、DCO=0.5、Dual VCO Eco=0.75、Digital=1と確認済み。
+- `assignments` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`、`button_1`〜`button_16`。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
+- 判定対象がない・無効・読取不可なら、そのルールは不成立。成立したルールの割り当て先が未表出なら、その操作子は未割り当てとする。DivaではModelに加えEcoWave1とEcoWave2をConfigureに表出させる。
+- パラメータ一覧と判定対象の参照をキャッシュし、既存の0.1秒更新で判定対象の現在値だけを読む。同一対象を使う複数ルールでも1更新に1回とする。成立するルールが変わったときだけ並びを再構成し、変わった操作子だけ接続し直す。表示やLEDも新しいパラメータへ追従し、Shift中は接続せず表示のみ更新する。モデル切替時にパラメータ値を書き換えたり、変更のないTuneの2入力蓄積をリセットしたりしない。
+- `str_for_value` / `value_items` や表示値の探索は使わない。選択トラック・音源の変更、インストゥルメントモードへの入り直しでキャッシュを作り直す。同じ音源のConfigure項目を追加・削除した場合も、モードへ入り直すと新しい一覧を取り込む。
+
+### 複数パラメータの相対操作と左回し時の固定値設定
+
+Divaの共通Encoder 23は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
+
+```python
+{"DepthMod Dpt1": {
+    "occurrence": 1,
+    "invert_direction": True,
+    "relative_targets": (
+        {"parameter": "DepthMod Dpt1", "occurrence": 2, "invert_direction": True},
+    ),
+    "on_left": (
+        {"parameter": "DepthMod Src1", "occurrence": 1, "normalized_value": 0.0},
+        {"parameter": "DepthMod Src1", "occurrence": 2, "normalized_value": 0.0},
+    ),
+}}
+```
+
+- `on_left` の方向は `invert_direction` 適用前の物理入力（CC < 64）で判定する。Depthが上限でもSource解除は行う。右回しはSourceを変更しない。
+- `on_left` は従来の辞書1つ、または辞書のtuple/listを指定できる。各Sourceを独立に処理し、1つが欠落・無効でも残りを設定する。
+- `relative_targets` は同じ入力で相対操作する追加対象の辞書、または辞書のtuple/list。対象ごとに `invert_direction` を指定する。各パラメータの値域に対する1/127刻みでそれぞれの現在値から動かし、上下限を個別に適用する。主対象の値をコピーせず、主対象の `discrete_values` / `discrete_count` や2入力蓄積も継承しない。量子化パラメータは通常の手動相対操作と同じ項目単位になる。同じ追加対象や主対象の重複指定で2回動かさない。
+- 追加対象の名前は大文字小文字・空白を正規化した完全一致で検索し、`occurrence` はConfigure順の同名パラメータを1から数える。省略時は1。`normalized_value` は0〜1で指定し、対象の実際のmin/maxへ変換する。
+- Diva VST3 1.4.8の変換APIで、LFO1/2の `DepthMod Src1`（ParamID 60/70）とも `none` が正規化値0であることを確認した。LFO番号とConfigureの出現順は別物なので、操作対象はConfigure順で指定する。
+- 設定先が既に目標値なら再書込みしない。割り当て・周期更新・Shiftプレビュー・CC64・非アクティブ時にも書き込まない。主パラメータが未割当・無効なら追加設定も実行しない。追加先が欠落・無効でも主パラメータや他の追加先は通常どおり動く。
+- `on_left` / `relative_targets` を持つエンコーダも通常接続を解除して手動操作する。追加先の参照は割り当て変更時にキャッシュする。入力時に最新のトラック／モデルへ割り当てを揃えてから、追加設定と主パラメータ操作を実行する。
 
 ## 特殊パラメータ処理
 
@@ -288,7 +397,8 @@ RGB LED 送信は SysEx `F0 00 20 29 02 15 01 53 <control_index> <r> <g> <b> F7`
 | Device On off 明るさ | `0.03` |
 | Encoder 1 Loopcloud | yellow、明るさ `0.25` |
 | Encoder 1 MetricAB | orange、明るさ `0.25` |
-| Mode button active/inactive | white、`0.25` / `0.03` |
+| Page up / Mixing active/inactive | yellow、`0.25` / `0.03` |
+| Page down / Instrument active/inactive | blue、`0.25` / `0.03` |
 | Instrument button on/off | white、`0.25` / `0.03` |
 | Track active/mute | track color、`0.25` / `0.03` |
 | Solo track | blue |

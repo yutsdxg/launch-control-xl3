@@ -59,6 +59,8 @@ class Palette:
 
 class Theme:
     OFF = Palette.OFF
+    MODE_MIXING = Palette.YELLOW
+    MODE_INSTRUMENT = Palette.BLUE
     DEVICE_ON = Palette.YELLOW
     DEVICE_OFF = Palette.DARK_YELLOW
     DEVICE_TOGGLE_ENCODER_COLORS = {
@@ -214,9 +216,9 @@ def loopcloud_metric_submode_rgb(is_metric_ab):
     return scale_rgb(base, SUBMODE_ENCODER_BRIGHTNESS)
 
 
-def mode_button_rgb(is_active):
+def mode_button_rgb(is_active, base_rgb):
     brightness = MODE_ACTIVE_BRIGHTNESS if is_active else MODE_INACTIVE_BRIGHTNESS
-    return scale_rgb(Palette.WHITE, brightness)
+    return scale_rgb(base_rgb, brightness)
 
 
 def instrument_button_rgb(is_on):

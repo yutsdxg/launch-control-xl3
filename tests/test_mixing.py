@@ -118,6 +118,8 @@ def _install_component_stubs():
 
     class Theme:
         OFF = "off"
+        MODE_MIXING = "yellow"
+        MODE_INSTRUMENT = "blue"
         DEVICE_ON = "device-on"
         DEVICE_OFF = "device-off"
         SOLO_ON = "solo-on"
@@ -140,7 +142,7 @@ def _install_component_stubs():
         is_on,
     )
     colors.loopcloud_metric_submode_rgb = lambda is_metric_ab: ("submode", is_metric_ab)
-    colors.mode_button_rgb = lambda is_active: ("mode", is_active)
+    colors.mode_button_rgb = lambda is_active, base_rgb: ("mode", is_active, base_rgb)
     colors.instrument_button_rgb = lambda is_on: ("instrument-button", is_on)
     sys.modules["Launch_Control_XL_3_Mixing.colors"] = colors
 
@@ -474,16 +476,16 @@ class ModeManagerTest(unittest.TestCase):
     def test_initial_mode_is_mixing_and_page_leds_show_current_mode(self):
         self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_MIXING)
         self.assertEqual(self.changes, [MODE_MANAGER.MODE_MIXING])
-        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", True))
-        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", False))
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", True, "yellow"))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", False, "blue"))
 
     def test_page_down_selects_instrument_and_page_up_returns_to_mixing(self):
         self.instrument_button.receive(127)
 
         self.assertEqual(self.component.selected_mode, MODE_MANAGER.MODE_INSTRUMENT)
         self.assertEqual(self.changes[-1], MODE_MANAGER.MODE_INSTRUMENT)
-        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", False))
-        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", True))
+        self.assertEqual(self.component._led_sender.last[self.mixing_button], ("mode", False, "yellow"))
+        self.assertEqual(self.component._led_sender.last[self.instrument_button], ("mode", True, "blue"))
 
         self.mixing_button.receive(127)
 
@@ -715,6 +717,12 @@ class FixedAssignmentsTest(unittest.TestCase):
             self.assertIs(controls["encoder_8"].connected[-1], self.song.master_track.mixer_device.cue_volume)
             self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
 
+            # An external A/B change must not require leaving this submode first.
+            metric_ab.parameters[2].value = metric_ab.parameters[2].min
+            encoder_1.receive(65)
+            self.assertEqual(metric_ab.parameters[2].value, metric_ab.parameters[2].max)
+            self.assertFalse(self.loopcloud.solo)
+
             encoder_1.receive(63)
 
             self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
@@ -725,6 +733,11 @@ class FixedAssignmentsTest(unittest.TestCase):
             self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
             self.assertIs(controls["encoder_17"].connected[-1], self.loopcloud.devices[1].parameters[1])
             self.assertIs(controls["fader_1"].connected[-1], self.loopcloud.mixer_device.volume)
+
+            metric_ab.parameters[2].value = metric_ab.parameters[2].max
+            encoder_1.receive(63)
+            self.assertEqual(metric_ab.parameters[2].value, metric_ab.parameters[2].min)
+            self.assertFalse(self.loopcloud.solo)
         finally:
             FIXED_ASSIGNMENTS.CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = old_index
             FIXED_ASSIGNMENTS.CUSTOM_PARAMETER_APPEND_REST = old_append_rest
@@ -750,6 +763,13 @@ class FixedAssignmentsTest(unittest.TestCase):
         self.assertIs(controls["encoder_16"].connected[-1], self.selected.mixer_device.sends[0])
         self.assertEqual(controls["encoder_17"].connected, [])
         self.assertEqual(controls["fader_1"].connected, [])
+
+        encoder_1.receive(63)
+
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+        self.assertIs(controls["encoder_9"].connected[-1], self.loopcloud.devices[1].parameters[2])
+        self.assertIs(controls["encoder_17"].connected[-1], self.loopcloud.devices[1].parameters[1])
+        self.assertIs(controls["fader_1"].connected[-1], self.loopcloud.mixer_device.volume)
 
     def test_metric_ab_submode_requires_exact_device_name(self):
         wrong_name = FakeInstrumentDevice("ADPTR MetricAB 2", parameter_count=4)
@@ -826,21 +846,24 @@ class FixedAssignmentsTest(unittest.TestCase):
         self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
         self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
 
-    def test_encoder_1_left_in_loopcloud_solos_loopcloud_track(self):
+    def test_encoder_1_left_in_loopcloud_preserves_solo_and_displays_loopcloud(self):
         display = FakeDisplayCommand()
         encoder_1 = FakeManualLedControl(identifier=77)
 
         self.component.set_encoder_1_display(display)
         self.component.set_encoder_1(encoder_1)
 
-        encoder_1.receive(63)
+        for solo in (False, True):
+            with self.subTest(solo=solo):
+                self.loopcloud.solo = solo
+                encoder_1.receive(63)
 
-        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
-        self.assertTrue(self.loopcloud.solo)
-        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
-        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud Solo", ""))
+                self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
+                self.assertEqual(self.loopcloud.solo, solo)
+                self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
+                self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
 
-    def test_encoder_1_right_in_loopcloud_solo_clears_solo_without_switching_to_metric_ab(self):
+    def test_encoder_1_right_in_loopcloud_solo_switches_to_metric_ab_without_clearing_solo(self):
         display = FakeDisplayCommand()
         encoder_1 = FakeManualLedControl(identifier=77)
         self.loopcloud.solo = True
@@ -850,10 +873,33 @@ class FixedAssignmentsTest(unittest.TestCase):
 
         encoder_1.receive(65)
 
-        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE)
-        self.assertFalse(self.loopcloud.solo)
-        self.assertEqual(encoder_1.manual_led_rgb, ("submode", False))
-        self.assertEqual(self._display_lines(display), ("Mode", "Loopcloud", ""))
+        self.assertEqual(self.component._loopcloud_metric_submode, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE)
+        self.assertTrue(self.loopcloud.solo)
+        self.assertEqual(encoder_1.manual_led_rgb, ("submode", True))
+        self.assertEqual(self._display_lines(display), ("Mode", "MetricAB", ""))
+
+    def test_encoder_1_neutral_and_inactive_input_leave_submode_solo_and_ab_unchanged(self):
+        metric_ab = FakeInstrumentDevice("ADPTR MetricAB", parameter_count=3)
+        for parameter, name in zip(metric_ab.parameters[1:], ("Selected Track", "Selected Cue", "AB Switch")):
+            parameter.name = name
+            parameter.value = 0.5
+        self.song.master_track.devices = (metric_ab,)
+        encoder_1 = FakeControl()
+        self.component.set_encoder_1(encoder_1)
+        initial_values = tuple(parameter.value for parameter in metric_ab.parameters)
+
+        for active, values in ((True, (64,)), (False, (63, 64, 65))):
+            self.component.set_active(active)
+            for submode in (FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE, FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE):
+                for solo in (False, True):
+                    with self.subTest(active=active, submode=submode, solo=solo):
+                        self.component._loopcloud_metric_submode = submode
+                        self.loopcloud.solo = solo
+                        for value in values:
+                            encoder_1.receive(value)
+                            self.assertEqual(self.component._loopcloud_metric_submode, submode)
+                            self.assertEqual(self.loopcloud.solo, solo)
+                            self.assertEqual(tuple(p.value for p in metric_ab.parameters), initial_values)
 
     def test_encoder_1_submode_led_is_cleared_when_inactive(self):
         encoder_1 = FakeManualLedControl(identifier=77)
