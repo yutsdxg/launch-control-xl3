@@ -249,14 +249,15 @@ class FixedShiftPreviewTest(ParameterPreviewChecks, unittest.TestCase):
     def test_submode_encoder_previews_without_mode_solo_or_ab_changes(self):
         control, display = self.bind("encoder_1")
         metric_ab = fixtures.FakeInstrumentDevice("ADPTR MetricAB", parameter_count=4)
+        for parameter, name in zip(metric_ab.parameters[1:], ("Selected Track", "Selected Cue", "AB Switch")):
+            parameter.name = name
+            parameter.value = 0.5
         self.song.master_track.devices = (metric_ab,)
-        # The default custom order can contain placeholders; state writes to any
-        # MetricAB parameter are forbidden regardless of that mapping.
         initial_values = tuple(parameter.value for parameter in metric_ab.parameters)
         self.component.set_shift_pressed(True)
         for submode, solo, expected in (
             (fixtures.FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE, False, "Loopcloud"),
-            (fixtures.FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE, True, "Loopcloud Solo"),
+            (fixtures.FIXED_ASSIGNMENTS.LOOPCLOUD_SUBMODE, True, "Loopcloud"),
             (fixtures.FIXED_ASSIGNMENTS.METRIC_AB_SUBMODE, False, "MetricAB"),
         ):
             with self.subTest(submode=submode, solo=solo):

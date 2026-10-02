@@ -79,7 +79,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 - Mixing／Instrumentの両モードで、Shiftを押しながらエンコーダ／フェーダを動かすと、通常と同じ「デバイス名またはトラック名・パラメータ名・現在値」の3行を表示する。割り当て先がない、または無効な場合は「操作子名・Unassigned・空行」を表示する。
 - 全24エンコーダの表示内容は、操作を待たずに割り当て時点で本体へ登録する。0.1秒周期の割り当て更新とモード切替でも名前・現在値を更新するため、通常回転を一度もしていないエンコーダも本体のShift＋回転表示を利用できる。値CC・タッチCCの受信を初回登録の条件にしない。
 - 本体を再識別したときは、アクティブなモードの表示コマンドの送信キャッシュを消して再登録する。接続前の登録が受理されなかった場合や、本体側の表示内容だけが消えた場合にも備える。
-- Shift中の操作では値を書き換えない。Device On、Loopcloud Solo、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
+- Shift中の操作では値を書き換えない。Device On、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
 - フェーダをShift中に上端／下端から中央へ戻しても、パラメータ値は維持される。Shift解除そのものは値を変更せず、次の操作から既存の絶対値マッピングへ戻る。独自の相対制御やオフセット補正は行わず、Liveの既存takeover設定を維持する。
 - Value Scalingでは物理位置とパラメータ値の差を徐々に縮める。一定の移動量をそのまま現在値へ加減する方式とは異なる。Shift解除後の再接続直後の追従は実機で確認する。
 - トラックボタン、Instrumentのパラメータボタン、モード切替、ロケータ、再生・録音ボタンはShift中も従来どおり動作する。エンコーダLEDは割り当て先の色・現在値・Pan方向を維持する。
@@ -101,7 +101,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 
 | 物理操作子 | 割り当て |
 | --- | --- |
-| Encoder 1 | Loopcloud / MetricAB サブモード切り替えと `Loopcloud` トラック solo 操作。パラメータ接続なし |
+| Encoder 1 | 左でMetricAB A側＋Loopcloud割り当て、右でMetricAB B側＋MetricAB割り当て。パラメータ接続なし |
 | Encoder 2 | 選択トラック Device 1 の `Device On` |
 | Encoder 3 | 選択トラック Device 4 の `Device On` |
 | Encoder 4 | 選択トラック Device 5 の `Device On` |
@@ -131,7 +131,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 | Fader 7 | 選択トラック Device 9 Parameter 1 |
 | Fader 8 | 選択トラック Volume |
 
-Encoder 1 は `Loopcloud` サブモード中、`Loopcloud` トラックの `solo` をサブ状態として扱う。`Loopcloud` トラックは固定割り当てと同じく名前完全一致の最初のトラックを使い、状態は内部フラグではなく `track.solo` を直接読む。左方向へ回すと `Loopcloud` トラックを solo on、solo on 中に右方向へ回すと solo off にし、どちらも `loopcloud` サブモードのままにする。表示は solo on 中だけ `Loopcloud Solo` にする。
+Encoder 1はLoopcloudトラックのsoloを操作しない。既存のsolo状態にかかわらず、回転方向だけでサブモードとMetricABのA/Bを決める。表示は `Loopcloud` または `MetricAB` とし、soloによる別表示や切替の中間段階は設けない。
 
 ### MetricAB サブモード
 
@@ -140,8 +140,9 @@ Encoder 1 の入力値 `64` は無視する。現在の状態ごとの動作は�
 | 現在の状態 | 左方向 | 右方向 |
 | --- | --- | --- |
 | `metric_ab` | `loopcloud` へ戻し、MetricAB の AB Switch を最小値にする | `metric_ab` のまま、MetricAB の AB Switch を最大値にする |
-| `loopcloud`、`Loopcloud.solo == False` | `Loopcloud.solo = True` | `metric_ab` へ切り替え、MetricAB の AB Switch を最大値にする |
-| `loopcloud`、`Loopcloud.solo == True` | `Loopcloud.solo = True` のまま | `Loopcloud.solo = False`。`loopcloud` のまま |
+| `loopcloud` | `loopcloud` のまま、MetricAB の AB Switch を最小値にする | `metric_ab` へ切り替え、MetricAB の AB Switch を最大値にする |
+
+AB Switchの最小値がA側、最大値がB側。同方向の再入力でも指定側へ設定し、外部からA/Bが変更されていても回転方向と一致させる。Shift中・中立入力64・非アクティブ時はサブモードとA/Bを変更しない。
 
 MetricAB デバイスは Master トラック上から `device.name == "ADPTR MetricAB"` で検索する。`class_name` や `class_display_name` が一致しても、`name` が完全一致しなければ対象外。
 
