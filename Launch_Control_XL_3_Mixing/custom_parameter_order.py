@@ -75,8 +75,8 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Filter 1 Drive",
         None,
         None,
-        None,
         "Main Vol",
+        None,
         # Fader
         "Env 2 Attack",
         "Env 2 Decay",
@@ -129,9 +129,9 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "1 Global Filt Env",
         "1 Global Flt Env Vel",
         "1 Global Ambi Amount",
-        "1 Polyphony",
         {"1 A Tune Octave": {"invert_direction": True, "discrete_count": 5}},
         "Master Gain",
+        None,
         # Fader
         "1 Global Flt Env Atk",
         "1 Global Flt Env Dcy",
@@ -175,7 +175,6 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Resonance",
         "Freq Mod Depth",
         "KeyFollow",
-        "Filter FM",
         {"Mode": {"discrete_count": 5}},
         {"DepthMod Dpt1": {
             "occurrence": 1,
@@ -190,6 +189,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
             ),
         }},
         "Output",
+        None,
         # Configure order: filter envelope first, amp envelope second.
         # occurrence follows Live's order, not Diva's internal ENV number.
         # Fader 1-4: Filter envelope
