@@ -17,6 +17,13 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES adds conditional changes to this base order.
 Each rule has a when selector and assignments keyed by physical control name.
 normalized_value compares (value - min) / (max - min), not display units.
 Later matching rules win. Assignment entries use the same format as above.
+Encoder options can add on_left to set a companion parameter on a physical
+left turn, before applying invert_direction to the primary parameter:
+{"on_left": {"parameter": "Source", "occurrence": 1, "normalized_value": 0.0}}.
+The companion uses an exact name match and is unchanged by right turns or Shift.
+on_left also accepts a tuple/list of these actions. relative_targets accepts
+additional continuous controls with parameter, occurrence and invert_direction;
+each moves from its own current value. Display/LED follow the primary parameter.
 """
 
 # False: only assign entries listed below. Unspecified slots stay empty.
@@ -36,7 +43,10 @@ DIVA_TUNE_VALUES = (0.1, 0.3, 0.5, 0.7, 0.9)
 
 # OSC Model: Triple VCO=0, Dual VCO=0.25, DCO=0.5, Dual VCO Eco=0.75, Digital=1.
 DIVA_TRIPLE_VCO = 0.0
+DIVA_DCO = 0.5
+DIVA_DUAL_DCO = 0.25
 DIVA_DUAL_VCO_ECO = 0.75
+DIVA_DIGITAL = 1.0
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
     "Serum 2": (
@@ -150,7 +160,7 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         None,
         None,
         None,
-        None,
+        "Feedback",
         # Encoder middle: assigned per oscillator model below.
         None,
         None,
@@ -166,8 +176,19 @@ CUSTOM_DEVICE_PARAMETER_ORDER = {
         "Freq Mod Depth",
         "KeyFollow",
         "Filter FM",
-        "Mode",
-        None,
+        {"Mode": {"discrete_count": 5}},
+        {"DepthMod Dpt1": {
+            "occurrence": 1,
+            "invert_direction": True,
+            "relative_targets": (
+                {"parameter": "DepthMod Dpt1", "occurrence": 2, "invert_direction": True},
+            ),
+            # Diva 1.4.8 controller API: normalized 0.0 displays "none".
+            "on_left": (
+                {"parameter": "DepthMod Src1", "occurrence": 1, "normalized_value": 0.0},
+                {"parameter": "DepthMod Src1", "occurrence": 2, "normalized_value": 0.0},
+            ),
+        }},
         "Output",
         # Configure order: filter envelope first, amp envelope second.
         # occurrence follows Live's order, not Diva's internal ENV number.
@@ -214,21 +235,71 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
             },
             "assignments": {
                 "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_2": "Volume1",
-                "encoder_3": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_4": "Volume2",
-                "encoder_5": {"Tune3": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_6": "Volume3",
-                "encoder_7": "Feedback1",
-                "encoder_8": "NoiseVol",
-                "encoder_9": "Shape1",
-                "encoder_10": None,
-                "encoder_11": "Shape2",
+                "encoder_2": "Shape1",
+                "encoder_3": "Volume1",
+                "encoder_4": None,
+                "encoder_5": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_6": "Shape2",
+                "encoder_7": "Volume2",
+                # "encoder_8": None,
+                "encoder_9": {"Tune3": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_10": "Shape3",
+                "encoder_11": "Volume3",
                 "encoder_12": None,
-                "encoder_13": "Shape3",
+                "encoder_13": None,
                 "encoder_14": None,
                 "encoder_15": None,
-                "encoder_16": None,
+                "encoder_16": "NoiseVol",
+            },
+        },
+        {
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_DUAL_DCO,
+            },
+            "assignments": {
+                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_2": "PulseWidth",
+                "encoder_3": "FM",
+                "encoder_4": None,
+                "encoder_5": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_6": {"Sync2": {"discrete_count": 2}},
+                "encoder_7": "OscMix",
+                # "encoder_8": None,
+                "encoder_9": {"Triangle1On": {"discrete_count": 2}},
+                "encoder_10": {"Saw1On": {"discrete_count": 2}},
+                "encoder_11": {"Pwm1On": {"discrete_count": 2}},
+                "encoder_12": {"Noise1On": {"discrete_count": 2}},
+                "encoder_13": {"Triangle2On": {"discrete_count": 2}},
+                "encoder_14": {"Saw2On": {"discrete_count": 2}},
+                "encoder_15": {"Pulse2On": {"discrete_count": 2}},
+                "encoder_16": {"Sine2On": {"discrete_count": 2}},
+            },
+        },
+        {
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_DCO,
+            },
+            "assignments": {
+                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_2": {"SawShape": {"discrete_count": 6}},
+                "encoder_3": {"PulseShape": {"discrete_count": 4}},
+                "encoder_4": {"SuboscShape": {"discrete_count": 6}},
+                "encoder_5": None,
+                "encoder_6": None,
+                "encoder_7": None,
+                # "encoder_8": None,
+                "encoder_9": "PulseWidth",
+                "encoder_10": None,
+                "encoder_11": "Volume3",
+                "encoder_12": "NoiseVol",
+                "encoder_13": None,
+                "encoder_14": None,
+                "encoder_15": None,
+                # "encoder_16": None,
             },
         },
         {
@@ -239,8 +310,48 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
                 "normalized_value": DIVA_DUAL_VCO_ECO,
             },
             "assignments": {
-                "encoder_9": {"EcoWave1": {"discrete_count": 4}},
-                "encoder_11": {"EcoWave2": {"discrete_count": 4}},
+                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_2": {"EcoWave1": {"discrete_count": 4}},
+                "encoder_3": "Volume1",
+                "encoder_4": None,
+                "encoder_5": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_6": {"EcoWave2": {"discrete_count": 4}},
+                "encoder_7": "Volume2",
+                # "encoder_8": None,
+                "encoder_9": "PulseWidth",
+                "encoder_10": None,
+                "encoder_11": None,
+                "encoder_12": None,
+                "encoder_13": None,
+                "encoder_14": None,
+                "encoder_15": None,
+                # "encoder_16": None,
+            },
+        },
+        {
+            # Configure must expose OSC Model as the first Model, plus both EcoWaves.
+            "when": {
+                "parameter": "Model",
+                "occurrence": 1,
+                "normalized_value": DIVA_DIGITAL,
+            },
+            "assignments": {
+                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_2": {"DigitalType1": {"discrete_count": 7}},
+                "encoder_3": "FM",
+                "encoder_4": None,
+                "encoder_5": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
+                "encoder_6": {"DigitalType2": {"discrete_count": 7}},
+                "encoder_7": "OscMix",
+                # "encoder_8": None,
+                "encoder_9": "PulseWidth",
+                "encoder_10": "DigitalShape2",
+                "encoder_11": None,
+                "encoder_12": None,
+                "encoder_13": "DigitalShape3",
+                "encoder_14": "DigitalShape4",
+                "encoder_15": None,
+                # "encoder_16": None,
             },
         },
     ),
