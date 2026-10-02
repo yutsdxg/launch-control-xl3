@@ -421,7 +421,10 @@ class MixingMappingsTest(unittest.TestCase):
         self.assertEqual(mappings["Locator_Navigation"]["prev_locator_button"], "track_left_button")
         self.assertEqual(mappings["Locator_Navigation"]["next_locator_button"], "track_right_button")
         self.assertEqual(mappings["Fixed_Assignments"], {})
-        self.assertEqual(mappings["Instrument_Assignments"], {})
+        self.assertEqual(
+            mappings["Instrument_Assignments"],
+            {"keyboard_focus_button": "keyboard_focus_button"},
+        )
         self.assertEqual(mappings["Control_Router"]["encoder_1"], "upper_encoders_raw[0]")
         self.assertEqual(mappings["Control_Router"]["encoder_9"], "upper_encoders_raw[8]")
         self.assertEqual(mappings["Control_Router"]["encoder_11"], "upper_encoders_raw[10]")
@@ -1368,7 +1371,8 @@ class InstrumentAssignmentsTest(unittest.TestCase):
         self._activate_with_controls(controls)
 
         self.assertIs(controls["encoder_1"].connected[-1], self.target_device.parameters[1])
-        self.assertIs(controls["encoder_24"].connected[-1], self.target_device.parameters[24])
+        self.assertEqual(controls["encoder_24"].connected, [])
+        self.assertNotIn("encoder_24", self.component._connected_parameters)
         self.assertIs(controls["fader_1"].connected[-1], self.target_device.parameters[25])
         self.assertIs(controls["fader_8"].connected[-1], self.target_device.parameters[32])
 

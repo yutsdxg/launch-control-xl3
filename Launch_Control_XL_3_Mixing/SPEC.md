@@ -7,7 +7,7 @@
 - Ableton Live 12 系の `ableton.v3.control_surface.ControlSurface` ベースの Remote MIDI Script。
 - 起動時の既定モードは `mixing`。
 - `mixing` モードでは、固定パラメータ割り当てとトラック選択/solo/mute ボタンを有効化する。
-- `instrument` モードでは、選択トラック上の 3 番目のデバイスを 24 エンコーダ、8 フェーダ、16 ボタンへ直列割り当てする。
+- `instrument` モードでは、選択トラック上の 3 番目のデバイスを Encoder 1-23、8 フェーダ、16 ボタンへ割り当てる。Encoder 24 は全音源共通の上下カーソルキー操作として予約する。
 - 物理コントロールは `Control_Router` に一度集約され、`Fixed_Assignments`、`Instrument_Assignments`、`Track_Buttons` へ転送される。
 - `AUTO_LOAD` は使っていない。
 
@@ -86,6 +86,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 - `Control_Router` がShiftを一度受け、両割り当てコンポーネントの `set_shift_pressed(bool)` に配布する。非アクティブなモードにも状態を保持する。
 - Shift＋回転は本体のタッチ操作に相当する。通常の相対値CCを受ける前提にせず、チャンネル15のエンコーダタッチ入力を `preview_encoder(name)` へ送って現在のアサインを表示する。Shiftなしのタッチとtouch offは無視し、タッチ値127をパラメータ操作値として扱わない。
 - Shift中は表示用の論理アサインを保持したままLiveへのMIDIパラメータ接続を解除する。定期更新、トラック変更、モード変更でも再接続せず、解除時に最新のアサインへ復帰する。特殊パラメータの入力蓄積はShiftの押下／解除でリセットし、押下中の操作は蓄積しない。
+- InstrumentのEncoder 24もShift中はアサイン表示のみとし、値CC・タッチCCからキーを送らない。表示は `Keyboard / Preset Up-Down / 空行` とする。
 
 参考: [Ableton LiveのTakeover Mode](https://www.ableton.com/en/manual/midi-and-key-remote-control/#takeover-mode)
 
@@ -203,19 +204,38 @@ Solo/Mute modifier はラッチ式。同じ modifier をもう一度押すと Se
 
 ## Instrument モード
 
-Instrument モードは選択トラックの 3 番目のデバイス、つまり `track.devices[2]` を対象にする。対象デバイスが存在しない場合は未割り当て。
+Instrument モードのパラメータ操作は選択トラックの 3 番目のデバイス、つまり `track.devices[2]` を対象にする。対象デバイスが存在しない場合、パラメータ操作は未割り当てになる。Encoder 24のキーボード操作は対象デバイスの有無に依存しない。
 
 対象デバイスのパラメータは、`Device On` と空名パラメータを除外した後、カスタムパラメータ順序を適用する。番号は 1 始まり。
 
 | 物理操作子 | 割り当て |
 | --- | --- |
-| Encoder 1-24 | Parameter 1-24 |
+| Encoder 1-23 | Parameter 1-23 |
+| Encoder 24 | macOSの上／下カーソルキー |
 | Fader 1-8 | Parameter 25-32 |
 | Track Button 1-16 | Parameter 33-48 |
+
+Parameter 24は予約スロットとし、以後のパラメータ番号を詰めない。フェーダーの開始25番、ボタンの開始33番は従来どおり。
 
 Instrument ボタンは押下時のみ反応する。対象パラメータの現在値が範囲の中点より大きければ最小値へ、それ以外なら最大値へトグルする。LED は白系で、on 相当なら明るさ `0.25`、off 相当なら `0.03`、未割り当てなら off。
 
 Instrument モードのパラメータ操作時の表示は `対象デバイス名 / パラメータ名 / 値`。
+
+### Encoder 24のプリセット上下操作
+
+- 全音源共通で、左回し（CC値 `< 64`）は上キー、右回し（`> 64`）は下キーを送る。中立入力 `64` は無視する。物理入力はチャンネル16のCC100。
+- 通常のパラメータには接続しない。最初の有効なMIDI入力1件で、対応キーのdown／upを1組送る。加速CCの差分量は使わず、入力1件を1回として数える。
+- 既定では連続入力の各1件で1回押す。回転を止めた後のタイマー連打や未送出イベントのキューは持たない。方向反転と、停止後の新しい操作は最初の入力で即座に押す。
+- 調整は `keyboard_navigation.py` の次の定数で行う。`REPEAT_INPUTS_PER_PRESS = 1` は継続中に1回押すための同方向入力数、`MIN_PRESS_INTERVAL = 0.0` は継続中の最小押下間隔（秒）、`GESTURE_GAP = 0.25` は操作を区切る無入力時間（秒）。継続中は入力数と間隔を両方満たした次の入力で押し、入力が止まった後には押さない。初回と反転時は入力数・間隔にかかわらず即時押下する。
+- キー送出にはBome MIDI Translator Proを使う。Live内Pythonには `_ctypes` がないため、macOS APIの直接呼び出しは使用しない。ScriptからCH16／CC119の値1（上）、2（下）を押下1回につき1件出力し、Bomeで矢印キーのdown／upを1組送る。
+- LiveのControl SurfaceのInput/Outputは両方Bome MIDI Translator 1。新規Bomeプロジェクトと双方向のDAWポート接続は `bome/LCXL3 Preset Navigation.bmtp`、手順は `bome/README.md` にまとめる。既存のBome設定は使用しない。
+- BomeのApplication FocusでLive前面状態を判定し、前面時だけキー変換する。同時にCH16／CC118の値0/1をScriptへ返す。Scriptは初期状態を送出無効とし、前面変化の通知を受けると継続状態と表示をリセットする。再接続時はCC119値0で状態を問い合わせる。RecordはCH1なのでCC118が競合しない。
+- CC119はBomeで常時Swallowする。ScriptのCC送出は `optimized=False` とし、表示SysExの集約から外す。同一CCの連続入力も回数と順序を保持する。
+- BomeにmacOSアクセシビリティ権限が必要。Bome未起動、前面通知未受信、他アプリ前面時にはキーを送らない。MIDI送出失敗はキー操作だけを停止し、Liveログへ原因を記録する。
+- Encoder 24のLEDは青、明るさ `0.25`。表示は `Keyboard / Preset Up-Down / Up` または `Down`、待機・Shift確認時は3行目を空にする。無入力時間が `GESTURE_GAP` に達すると待機表示へ戻る。事前登録は `trigger=False`、通常操作とShiftプレビューは `trigger=True` とする。
+- Shift切替、モード終了、control交換、切断では継続状態をリセットする。Shift中の回転・タッチは表示だけ行う。Mixingへ戻るとEncoder 24の通常のTrack Panning割り当てとLEDへ復帰する。
+
+初回の実機確認では、Bomeプロジェクトを開き、LiveのInput/OutputをPort 1に設定する。Bomeにアクセシビリティを許可し、Live前面通知・CC119受信・音源一覧での矢印キー受信を確認する。左右の最小入力、他アプリ前面時の抑止、Shift、Mixingへの復帰が通ってから、小さな／ゆっくりした／速い連続回転を試し、上記3定数を調整する。
 
 ## カスタムパラメータ順序
 
@@ -235,20 +255,22 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | --- | --- |
 | Serum 2 | Enc 1-8: `A Octave`, `A Unison`, `A Uni Detune`, `B Octave`, `B Unison`, `B Uni Detune`, empty, empty |
 | Serum 2 | Enc 9-16: `A WT Pos`, `A Warp`, `A Level`, `B WT Pos`, `B Warp`, `B Level`, empty, empty |
-| Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, empty, `Main Vol` |
+| Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, `Main Vol`, Keyboard |
 | Serum 2 | Fader 1-8: `Env 2 Attack`, `Env 2 Decay`, `Env 2 Sustain`, `Env 2 Release`, `Env 1 Attack`, `Env 1 Decay`, `Env 1 Sustain`, `Env 1 Release` |
 | Serum 2 | Button 1-8: `Sub Enable`, `A Enable`, `B Enable`, `C Enable`, `Noise Enable`, `Clip Player Enable`, `Arp Enable`, empty |
 | Omnisphere | Enc 1-8: `1 A Transpose Semitones`, `1 A Level`, `1 B Transpose Semitones`, `1 B Level`, `1 C Transpose Semitones`, `1 C Level`, `1 D Transpose Semitones`, `1 D Level` |
 | Omnisphere | Enc 9-16: `1 A Shape`, `1 A Symmetry`, `1 B Shape`, `1 B Symmetry`, `1 C Shape`, `1 C Symmetry`, `1 D Shape`, `1 D Symmetry` |
-| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
+| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 A Tune Octave`, `Master Gain`, Keyboard |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
 | Diva | Enc 1-16: ベースはEnc 8のFeedback以外は空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
-| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output`, Keyboard |
 | Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
 | Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
 | ADPTR MetricAB | `Selected Track`, `Selected Cue`, `AB Switch` |
+
+表のKeyboardはInstrumentの予約操作であり、`custom_parameter_order.py` 内の24番スロットは `None` のまま維持する。Serum 2のMain Vol、OmnisphereのMaster Gain、DivaのOutputはEncoder 23。OmnisphereのTune OctaveとDivaのDepthModはEncoder 22。
 
 Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方向を反転し、右回しで音程が上がる。`1 Bypass All Effects` はバイパス中に暗く点灯、エフェクト有効時に明るく点灯する。ボタン押下による min/max のトグル動作と、画面に表示するパラメータ値は変更しない。
 
@@ -296,7 +318,7 @@ DivaはLiveのConfigureでフィルターエンベロープの組を先、アン
 | Digital | Tune1, DigitalType1, FM, 空, Tune2, DigitalType2, OscMix | PulseWidth, DigitalShape2, 空, 空, DigitalShape3, DigitalShape4, 空, 空 |
 | 未定義のモデル／Model未表出 | すべて空 | すべて空 |
 
-上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
+上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜23・フェーダー・ボタンは共通のベース設定を使い、Encoder 24はキーボード操作。モデル別設定で `encoder_22` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
 
 EcoWave1 / EcoWave2（Encoder 2 / 6）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2 / Shape3は通常の連続操作とする。
 
@@ -322,14 +344,14 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
 
 - `when.parameter` は条件に使うConfigure上のパラメータ名。大文字小文字・空白を正規化して完全一致で検索する。`occurrence` は同名の何番目かを1から指定し、省略時は1。現在のDivaではフィルターのModelをConfigureから除き、OSCのModelだけを表出する。
 - `normalized_value` は `(parameter.value - parameter.min) / (parameter.max - parameter.min)` の期待値。画面の数値ではない。誤差 `1e-6` 以内を一致とする。Diva OSC Modelは独立VST3ホストでTriple VCO=0、Dual VCO=0.25、DCO=0.5、Dual VCO Eco=0.75、Digital=1と確認済み。
-- `assignments` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`、`button_1`〜`button_16`。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
+- `assignments` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`、`button_1`〜`button_16`。ただしInstrumentの `encoder_24` はキーボード予約のためパラメータには接続しない。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
 - 判定対象がない・無効・読取不可なら、そのルールは不成立。成立したルールの割り当て先が未表出なら、その操作子は未割り当てとする。DivaではModelに加えEcoWave1とEcoWave2をConfigureに表出させる。
 - パラメータ一覧と判定対象の参照をキャッシュし、既存の0.1秒更新で判定対象の現在値だけを読む。同一対象を使う複数ルールでも1更新に1回とする。成立するルールが変わったときだけ並びを再構成し、変わった操作子だけ接続し直す。表示やLEDも新しいパラメータへ追従し、Shift中は接続せず表示のみ更新する。モデル切替時にパラメータ値を書き換えたり、変更のないTuneの2入力蓄積をリセットしたりしない。
 - `str_for_value` / `value_items` や表示値の探索は使わない。選択トラック・音源の変更、インストゥルメントモードへの入り直しでキャッシュを作り直す。同じ音源のConfigure項目を追加・削除した場合も、モードへ入り直すと新しい一覧を取り込む。
 
 ### 複数パラメータの相対操作と左回し時の固定値設定
 
-Divaの共通Encoder 23は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
+Divaの共通Encoder 22は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
 
 ```python
 {"DepthMod Dpt1": {
@@ -399,6 +421,7 @@ RGB LED 送信は SysEx `F0 00 20 29 02 15 01 53 <control_index> <r> <g> <b> F7`
 | Encoder 1 MetricAB | orange、明るさ `0.25` |
 | Page up / Mixing active/inactive | yellow、`0.25` / `0.03` |
 | Page down / Instrument active/inactive | blue、`0.25` / `0.03` |
+| Instrument Encoder 24 | blue、`0.25` |
 | Instrument button on/off | white、`0.25` / `0.03` |
 | Track active/mute | track color、`0.25` / `0.03` |
 | Solo track | blue |
@@ -428,7 +451,7 @@ Transport / Recording skin:
 - 同じデバイスのパラメータ列はキャッシュし、Live が同等の wrapper を返すだけなら不要な release/connect を避ける。
 - モード非 active 化時:
   - `Fixed_Assignments` は全パラメータを release し、Encoder 1 と Device On エンコーダの手動 LED 状態を消す。
-  - `Instrument_Assignments` は全パラメータを release し、instrument ボタン LED を off にする。
+  - `Instrument_Assignments` は全パラメータを release し、instrument ボタン LED とEncoder 24の手動LED状態を消す。キーボード操作の継続状態もリセットする。
   - `Track_Buttons` は modifier LED を off にし、入力を無視する。
 
 ## ロケータ、再生、録音

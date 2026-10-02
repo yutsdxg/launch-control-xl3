@@ -3,6 +3,7 @@ from Launchkey_MK4.display_target import DisplayTargetElement
 
 from . import midi
 from .colored_encoder import ColoredEncoderElement
+from .midi_keyboard import CHANNEL as KEYBOARD_CHANNEL, FOCUS_CC
 
 CHANNEL_DAW_MODE = 6
 CHANNEL_ENCODER_LED = 15
@@ -47,6 +48,7 @@ class Elements(ElementsBase):
         self.add_button(CC_PAGE_DOWN, "Page_Down_Button")
         self.add_button(CC_PLAY, "Play_Button")
         self.add_button(CC_RECORD, "Record_Button")
+        self.add_button(FOCUS_CC, "Keyboard_Focus_Button", channel=KEYBOARD_CHANNEL)
 
         for index, identifier in enumerate(
             tuple(RANGE_TRACK_BUTTONS_1_8) + tuple(RANGE_TRACK_BUTTONS_9_16),

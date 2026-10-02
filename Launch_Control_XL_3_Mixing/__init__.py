@@ -77,6 +77,10 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
     def send_midi(self, midi_bytes):
         self._send_midi(midi_bytes)
 
+    def send_keyboard_midi(self, midi_bytes):
+        # Repeated identical CCs represent separate key presses.
+        return self._send_midi(midi_bytes, optimized=False)
+
     def on_identified(self, response_bytes):
         self._should_delay_flushing_display_messages = False
         self._tasks.add(
@@ -88,6 +92,15 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
         super().on_identified(response_bytes)
         for message in midi.SET_RELATIVE_ENCODER_MODES:
             self.send_midi(message)
+        instrument_assignments = self._component("Instrument_Assignments")
+        if instrument_assignments is not None:
+            # Allow Live's input forwarding map to settle before Bome replies.
+            self._tasks.add(
+                task.sequence(
+                    task.delay(0.1),
+                    task.run(instrument_assignments.request_keyboard_focus),
+                )
+            )
         self._apply_selected_mode()
         self._refresh_led_feedback()
         for name in ("Fixed_Assignments", "Instrument_Assignments"):
@@ -105,6 +118,7 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
             fixed_assignments.set_midi_sender(self.send_midi)
         if instrument_assignments is not None:
             instrument_assignments.set_midi_sender(self.send_midi)
+            instrument_assignments.set_keyboard_midi_sender(self.send_keyboard_midi)
         if mode_manager is not None:
             mode_manager.set_midi_sender(self.send_midi)
         if track_buttons is not None:
@@ -174,7 +188,18 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
             self._should_delay_flushing_display_messages
             and len(self._midi_message_list) > SYSEX_FLUSH_THRESHOLD
         ):
-            filtered_messages = {message[:SYSEX_DISPLAY_ID_LENGTH]: message for _, message in self._midi_message_list}
+            filtered_messages = {}
+            immediate_messages = []
+            for entry in self._midi_message_list:
+                _, message = entry
+                if (
+                    len(message) > SYSEX_DISPLAY_ID_LENGTH
+                    and message[:len(midi.SYSEX_HEADER)] == midi.SYSEX_HEADER
+                    and message[len(midi.SYSEX_HEADER)] in (4, 6)
+                ):
+                    filtered_messages[message[:SYSEX_DISPLAY_ID_LENGTH]] = message
+                else:
+                    immediate_messages.append(entry)
             for index, message in enumerate(filtered_messages.values()):
                 self._tasks.add(
                     task.sequence(
@@ -182,5 +207,5 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
                         task.run(self._do_send_midi, message),
                     )
                 )
-            self._midi_message_list[:] = []
+            self._midi_message_list[:] = immediate_messages
         super()._flush_midi_messages()

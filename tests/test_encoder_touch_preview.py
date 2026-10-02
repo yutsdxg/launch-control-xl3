@@ -114,7 +114,7 @@ class FixedEncoderTouchTest(TouchPreviewChecks, unittest.TestCase):
 class InstrumentEncoderTouchTest(TouchPreviewChecks, unittest.TestCase):
     setUp = fixtures.InstrumentAssignmentsTest.setUp
     target_key = "instrument_assignments"
-    encoder_name = "encoder_24"
+    encoder_name = "encoder_23"
 
     def expected_lines(self, parameter):
         return ("Instrument", parameter.name, str(parameter))
@@ -124,7 +124,7 @@ class InstrumentEncoderTouchTest(TouchPreviewChecks, unittest.TestCase):
         self.song.view.selected_track = fixtures.FakeTrack(
             "Replacement", devices=(fixtures.FakeDevice(1), fixtures.FakeDevice(2), device)
         )
-        return device.parameters[24]
+        return device.parameters[23]
 
 
 class TouchRoutingTest(unittest.TestCase):
@@ -203,6 +203,7 @@ class TouchRoutingTest(unittest.TestCase):
         namespace = {
             "ElementsBase": RecordingElements, "MapMode": types.SimpleNamespace(LinearBinaryOffset=1),
             "DisplayTargetElement": object, "ColoredEncoderElement": object, "midi": midi,
+            "KEYBOARD_CHANNEL": 15, "FOCUS_CC": 118,
         }
         exec(compile(tree, "elements.py", "exec"), namespace)
         elements = namespace["Elements"]()
