@@ -243,8 +243,8 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
-| Diva | Enc 1-16: ベースはすべて空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
-| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
+| Diva | Enc 1-16: ベースはEnc 8のFeedback以外は空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
 | Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
 | Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
@@ -279,73 +279,41 @@ Omnisphere の `1 A/B/C/D Transpose Semitones` と `1 A Tune Octave` は値方�
 
 DivaはLiveのConfigureでフィルターエンベロープの組を先、アンプエンベロープの組を後に並べた状態を前提とする。`occurrence` は同名パラメータのLive内の出現順であり、DivaのENV番号や役割を自動判別する指定ではない。同名パラメータのConfigure順を入れ替える場合は、この指定も合わせて変更する。
 
-`Tune1`（Encoder 1）と `Tune2`（Encoder 4、DCO以外）は `discrete_values: (0.1, 0.3, 0.5, 0.7, 0.9)` で -24 / -12 / 0 / +12 / +24 半音に切り替える。2026-09-27に別プロセスのDiva VST3 1.4.8（revision 16519）で、Tune1（ParamID 86）とTune2（87）の変換API・設定後の読み戻し・表示文字列を確認した。両パラメータの正規化値0〜1は -30〜+30 半音に対応する。Liveの画面・アクセシビリティ表示の半音値は、そのまま代入する内部値として扱わない。Live Python API自体の値域は、この独立ホスト検証では未測定。
+`Tune1`（Encoder 1）と `Tune2`（Encoder 5、DCO以外）は `discrete_values: (0.1, 0.3, 0.5, 0.7, 0.9)` で -24 / -12 / 0 / +12 / +24 半音に切り替える。Triple VCOのTune3（Encoder 9）も同じ5段階を使う。2026-09-27に別プロセスのDiva VST3 1.4.8（revision 16519）で、Tune1（ParamID 86）とTune2（87）の変換API・設定後の読み戻し・表示文字列を確認した。両パラメータの正規化値0〜1は -30〜+30 半音に対応する。Liveの画面・アクセシビリティ表示の半音値は、そのまま代入する内部値として扱わない。Live Python API自体の値域は、この独立ホスト検証では未測定。
 
 右回しで上昇、左回しで下降し、同方向のMIDI入力2回で現在値に最も近い候補から隣の1段階へ進む。加速入力でも1段階とし、±24で止める。Shift・方向変更・割り当て変更時の蓄積リセットはOmnisphereと共通。値は入力時に上記の固定値を直接代入し、表示値の探索、割り当て時や周期更新でのスナップは行わない。
 
 ### モデルなどの選択値による割り当て変更
 
-`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaのEncoder 1〜16はベースを `None` にしてOSCモデルごとに割り当てる。Encoder 8は未割り当て。
+`CUSTOM_DEVICE_PARAMETER_ORDER` を基本の並びとし、`CUSTOM_DEVICE_PARAMETER_OVERRIDES` に条件と操作子ごとの上書きを記述する。DivaのEncoder 1〜16は共通のEncoder 8（Feedback）を除き、ベースを `None` にしてOSCモデルごとに割り当てる。
 
 | OSCモデル | Encoder 1〜7 | Encoder 9〜16 |
 | --- | --- | --- |
-| Triple VCO | Tune1, Shape1, Volume1, Tune2, Shape2, Volume2, Feedback | 空, 空, 空, 空, 空, 空, NoiseVol, 空 |
-| Dual VCO | Tune1, PulseWidth, FM, Tune2, Sine2On, OscMix, Feedback | Triangle1On, Saw1On, Pwm1On, Noise1On, Triangle2On, Saw2On, Pulse2On, 空 |
-| DCO | Tune1, SawShape, PulseShape, SuboscShape, 空, 空, Feedback | PulseWidth, 空, Volume3, NoiseVol, 空, 空, 空, 空 |
-| Dual VCO Eco | Tune1, EcoWave1, Volume1, Tune2, EcoWave2, Volume2, Feedback | PulseWidth, 空, 空, 空, 空, 空, 空, 空 |
-| Digital | Tune1, DigitalType1, FM, Tune2, DigitalType2, OscMix, Feedback | PulseWidth, DigitalShape2, 空, DigitalShape3, DigitalShape4, 空, 空, 空 |
+| Triple VCO | Tune1, Shape1, Volume1, 空, Tune2, Shape2, Volume2 | Tune3, Shape3, Volume3, 空, 空, 空, 空, NoiseVol |
+| Dual VCO | Tune1, PulseWidth, FM, 空, Tune2, Sync2, OscMix | Triangle1On, Saw1On, Pwm1On, Noise1On, Triangle2On, Saw2On, Pulse2On, Sine2On |
+| DCO | Tune1, SawShape, PulseShape, SuboscShape, 空, 空, 空 | PulseWidth, 空, Volume3, NoiseVol, 空, 空, 空, 空 |
+| Dual VCO Eco | Tune1, EcoWave1, Volume1, 空, Tune2, EcoWave2, Volume2 | PulseWidth, 空, 空, 空, 空, 空, 空, 空 |
+| Digital | Tune1, DigitalType1, FM, 空, Tune2, DigitalType2, OscMix | PulseWidth, DigitalShape2, 空, 空, DigitalShape3, DigitalShape4, 空, 空 |
 | 未定義のモデル／Model未表出 | すべて空 | すべて空 |
 
-上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
+上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
 
-EcoWave1 / EcoWave2（Encoder 2 / 5）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2は通常の連続操作とする。
+EcoWave1 / EcoWave2（Encoder 2 / 6）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2 / Shape3は通常の連続操作とする。
+
+設定例（全体の配置は `custom_parameter_order.py` を参照）:
 
 ```python
-DIVA_TRIPLE_VCO = 0.0
-DIVA_DUAL_VCO_ECO = 0.75
-
 CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
     "Diva": (
         {
-            "when": {
-                "parameter": "Model",
-                "occurrence": 1,
-                "normalized_value": DIVA_TRIPLE_VCO,
-            },
-            "assignments": {
-                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_2": "Shape1",
-                "encoder_3": "Volume1",
-                "encoder_4": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_5": "Shape2",
-                "encoder_6": "Volume2",
-                "encoder_7": "Feedback",
-                # Encoder 8 is unassigned in the base configuration.
-                "encoder_9": None,
-                "encoder_10": None,
-                "encoder_11": None,
-                "encoder_12": None,
-                "encoder_13": None,
-                "encoder_14": None,
-                "encoder_15": "NoiseVol",
-                "encoder_16": None,
-            },
+            "when": {"parameter": "Model", "occurrence": 1, "normalized_value": DIVA_TRIPLE_VCO},
+            "assignments": {"encoder_2": "Shape1", "encoder_6": "Shape2"},
         },
         {
-            "when": {
-                "parameter": "Model",
-                "occurrence": 1,
-                "normalized_value": DIVA_DUAL_VCO_ECO,
-            },
+            "when": {"parameter": "Model", "occurrence": 1, "normalized_value": DIVA_DUAL_VCO_ECO},
             "assignments": {
-                "encoder_1": {"Tune1": {"discrete_values": DIVA_TUNE_VALUES}},
                 "encoder_2": {"EcoWave1": {"discrete_count": 4}},
-                "encoder_3": "Volume1",
-                "encoder_4": {"Tune2": {"discrete_values": DIVA_TUNE_VALUES}},
-                "encoder_5": {"EcoWave2": {"discrete_count": 4}},
-                "encoder_6": "Volume2",
-                "encoder_7": "Feedback",
-                "encoder_9": "PulseWidth",
+                "encoder_6": {"EcoWave2": {"discrete_count": 4}},
             },
         },
     ),

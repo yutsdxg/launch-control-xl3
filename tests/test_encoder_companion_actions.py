@@ -36,7 +36,9 @@ def depth_device():
     depths = tuple(TrackedParameter("DepthMod Dpt1", value=0.5, parent=device) for _ in range(2))
     sources = tuple(TrackedParameter("DepthMod Src1", value=0.8, parent=device) for _ in range(2))
     device.parameter_read_count = 0
-    device.parameters = fixtures.CountingParameterSequence(device, (model,) + depths + sources)
+    device.parameters = fixtures.CountingParameterSequence(
+        device, (model, fixtures.FakeParameter("Feedback", parent=device)) + depths + sources
+    )
     return device, model, depths, sources
 
 
@@ -387,7 +389,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
                 for parameter in depths + sources:
                     self.assertEqual(parameter.writes, [])
 
-    def test_encoder_23_is_shared_by_all_models_and_encoder_8_is_unassigned(self):
+    def test_encoder_23_is_shared_and_encoder_8_controls_only_feedback(self):
         previous_control = NativeMappedControl()
         self.component.set_encoder_8(previous_control)
         for normalized in (0.0, 0.25, 0.5, 0.75, 1.0, 0.125):
@@ -402,7 +404,7 @@ class DivaDualDepthActionsTest(DepthControlFixture, unittest.TestCase):
                 previous_control.receive(65)
                 for parameter in self.depths + self.sources:
                     self.assertEqual(parameter.writes, [])
-                self.assertIsNone(previous_control.mapped_parameter)
+                self.assertEqual(previous_control.mapped_parameter.name, "Feedback")
                 self.assertIsNone(previous_control.manual_led_parameter)
                 self.control.receive(63)
                 self.assertIs(self.control.manual_led_parameter, self.depths[0])

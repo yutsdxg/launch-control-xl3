@@ -9,7 +9,8 @@ from test_shift_preview import NativeMappedControl, display_lines
 
 
 INSTRUMENT_ASSIGNMENTS = fixtures.INSTRUMENT_ASSIGNMENTS
-TUNE_CONTROLS = ((1, "Tune1"), (4, "Tune2"))
+TUNE_CONTROLS = ((1, "Tune1"), (5, "Tune2"))
+TRIPLE_TUNE_CONTROLS = TUNE_CONTROLS + ((9, "Tune3"),)
 # Independently observed through Diva 1.4.8's VST3 controller, parameter IDs
 # 86/87: these normalized values display -24, -12, 0, +12, +24 semitones.
 # Keep these expectations separate from the configuration under test.
@@ -38,7 +39,7 @@ def diva_device(parameter_type=DivaTuneParameter):
     names = (
         "Model", "Tune1", "Tune2", "Tune3", "Volume1", "Volume2", "Volume3",
         "Feedback1", "NoiseVol", "Shape1", "Shape2", "Shape3", "EcoWave1", "EcoWave2",
-        "PulseWidth", "FM", "Sine2On", "OscMix", "Triangle1On", "Saw1On", "Pwm1On",
+        "PulseWidth", "FM", "Sync2", "Sine2On", "OscMix", "Triangle1On", "Saw1On", "Pwm1On",
         "Noise1On", "Triangle2On", "Saw2On", "Pulse2On", "SawShape", "PulseShape",
         "SuboscShape", "DigitalType1", "DigitalType2", "DigitalShape2", "DigitalShape3",
         "DigitalShape4", "DepthMod Dpt1", "DepthMod Src1", "DepthMod Dpt1", "DepthMod Src1",
@@ -87,8 +88,8 @@ class DivaControlsTest(unittest.TestCase):
         self.selected.devices = (fixtures.FakeDevice(1), fixtures.FakeDevice(2), device)
         self.component._update_assignments()
 
-    def test_both_tunes_step_through_all_octaves_in_normal_direction_without_native_writes(self):
-        for number, name in TUNE_CONTROLS:
+    def test_all_three_tunes_step_through_all_octaves_in_normal_direction_without_native_writes(self):
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 parameter.value = OCTAVE_VALUES[0]
@@ -101,8 +102,8 @@ class DivaControlsTest(unittest.TestCase):
                     self.assert_step(control, parameter, 63, expected)
                 self.assertEqual(control.native_updates, [])
 
-    def test_both_tunes_leave_zero_pitch_after_two_inputs_in_either_direction(self):
-        for number, name in TUNE_CONTROLS:
+    def test_all_three_tunes_leave_zero_pitch_after_two_inputs_in_either_direction(self):
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
@@ -116,7 +117,7 @@ class DivaControlsTest(unittest.TestCase):
                 self.assertEqual(control.native_updates, [])
 
     def test_acceleration_counts_once_and_reversing_restarts_the_threshold(self):
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
@@ -130,7 +131,7 @@ class DivaControlsTest(unittest.TestCase):
                 self.assertEqual(control.native_updates, [])
 
     def test_endpoints_clamp_to_octaves_inside_the_parameter_range(self):
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
@@ -141,7 +142,7 @@ class DivaControlsTest(unittest.TestCase):
                     self.assert_step(control, parameter, midi, expected)
 
     def test_latest_external_value_selects_the_nearest_octave_before_stepping(self):
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, _ = self.bind_encoder(number)
@@ -157,7 +158,7 @@ class DivaControlsTest(unittest.TestCase):
                     self.assertAlmostEqual(parameter.value, expected, places=6)
 
     def test_shift_is_display_only_and_resets_pending_steps(self):
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = self.parameters[name]
                 control, display = self.bind_encoder(number)
@@ -176,7 +177,7 @@ class DivaControlsTest(unittest.TestCase):
                 self.assertEqual(control.native_updates, [])
 
     def test_retargeting_resets_pending_steps_and_keeps_new_tune_manually_mapped(self):
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 self.retarget(self.device)
                 original = self.parameters[name]
@@ -228,7 +229,7 @@ class DivaControlsTest(unittest.TestCase):
 
         device = diva_device(ProbeCountingParameter)
         self.retarget(device)
-        for number, name in TUNE_CONTROLS:
+        for number, name in TRIPLE_TUNE_CONTROLS:
             with self.subTest(parameter=name):
                 parameter = next(item for item in device.parameters if item.name == name)
                 control, _ = self.bind_encoder(number)
