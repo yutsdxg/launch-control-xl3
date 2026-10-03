@@ -1,10 +1,15 @@
 from . import midi
+from .safety import locked_led_rgb
 
 
 class LedSender:
     def __init__(self, midi_sender=None):
         self._midi_sender = midi_sender
         self._last_messages = {}
+        self._locked = False
+
+    def set_locked(self, locked):
+        self._locked = bool(locked)
 
     def set_midi_sender(self, midi_sender):
         self._midi_sender = midi_sender
@@ -13,7 +18,7 @@ class LedSender:
         index = control_index if control_index is not None else self._control_index(control)
         if index is None:
             return False
-        message = midi.make_rgb_led_message(index, rgb)
+        message = midi.make_rgb_led_message(index, locked_led_rgb(rgb) if self._locked else rgb)
         if not force and self._last_messages.get(index) == message:
             return True
         sender = self._midi_sender or getattr(control, "send_midi", None)

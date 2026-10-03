@@ -152,12 +152,16 @@ def _install_component_stubs():
         def __init__(self, midi_sender=None):
             self.midi_sender = midi_sender
             self.last = {}
+            self.locked = False
+
+        def set_locked(self, locked):
+            self.locked = locked
 
         def set_midi_sender(self, midi_sender):
             self.midi_sender = midi_sender
 
         def send_rgb(self, control, rgb, control_index=None, force=False):
-            self.last[control] = rgb
+            self.last[control] = ("locked", rgb) if self.locked else rgb
             return True
 
         def forget(self, control, control_index=None):
@@ -438,6 +442,8 @@ class MixingMappingsTest(unittest.TestCase):
             {
                 "mixing_button": "page_up_button",
                 "instrument_button": "page_down_button",
+                "static_display": "static_display_command",
+                "temp_display": "temp_display_command",
             },
         )
         self.assertNotIn("Encoder_Modes", mappings)

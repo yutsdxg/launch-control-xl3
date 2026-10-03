@@ -32,6 +32,8 @@ def surface_class():
         "MODE_INSTRUMENT": "instrument",
         "task": fixtures.sys.modules["ableton.v3.base"].task,
         "midi": types.SimpleNamespace(
+            SYSEX_HEADER=(240, 0, 32, 41, 2, 21),
+            RGB_LED_COMMAND=(1, 83),
             make_connection_message=lambda connect=True: (240, int(connect), 247),
             SET_RELATIVE_ENCODER_MODES=((182, 69, 127), (182, 72, 127), (182, 73, 127)),
         ),

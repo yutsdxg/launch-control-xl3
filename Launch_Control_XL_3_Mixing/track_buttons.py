@@ -29,6 +29,7 @@ class TrackButtonsComponent(Component):
         self._solo_modifier_slot = None
         self._mute_modifier_slot = None
         self._shift_pressed = False
+        self._locked = False
         self._button_mode = BUTTON_MODE_SELECT
         self._led_sender = LedSender()
         self._led_update_task = self._tasks.add(
@@ -55,6 +56,13 @@ class TrackButtonsComponent(Component):
             self.refresh_led_feedback()
         else:
             self._turn_modifier_leds_off(force=True)
+
+    def set_locked(self, locked):
+        locked = bool(locked)
+        if self._locked != locked:
+            self._locked = locked
+            self._led_sender.set_locked(locked)
+            self.refresh_led_feedback()
 
     def set_shift_button(self, button):
         self._shift_button, self._shift_slot = self._replace_modifier(
@@ -171,13 +179,13 @@ class TrackButtonsComponent(Component):
         self.refresh_led_feedback()
 
     def _on_solo_modifier_value(self, value):
-        if not self._active:
+        if not self._active or self._locked:
             return
         if value > 0:
             self._toggle_button_mode(BUTTON_MODE_SOLO)
 
     def _on_mute_modifier_value(self, value):
-        if not self._active:
+        if not self._active or self._locked:
             return
         if value > 0:
             self._toggle_button_mode(BUTTON_MODE_MUTE)
@@ -187,7 +195,7 @@ class TrackButtonsComponent(Component):
         self._update_modifier_leds(force=True)
 
     def _on_track_button_value(self, index, value):
-        if not self._active:
+        if not self._active or self._locked:
             return
         if value <= 0:
             return
@@ -289,7 +297,7 @@ class TrackButtonsComponent(Component):
             state_rgb = dim_track_rgb(rgb) if bool(track.mute) else active_track_rgb(rgb)
         except (AttributeError, RuntimeError):
             state_rgb = active_track_rgb(rgb)
-        if self._is_selected(track):
+        if self._is_selected(track) and not self._locked:
             return state_rgb if self._selected_blink_is_on() else Theme.OFF
         return state_rgb
 

@@ -44,3 +44,12 @@ def send_unassigned_display(command, control_name, trigger=True):
         (control_name.replace("_", " ").title(), "Unassigned", ""),
         trigger=trigger,
     )
+
+
+def send_locked_display(command, trigger=False):
+    return send_display(command, ("LOCKED", "", ""), trigger=trigger)
+
+
+def cancel_display(command):
+    if command is not None:
+        command.send_data(0, ((), (), ()), False, False)
