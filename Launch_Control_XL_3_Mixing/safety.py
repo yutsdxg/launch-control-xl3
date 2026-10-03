@@ -1,8 +1,8 @@
 """Settings for the inactivity lock. Tune LED levels on the hardware."""
 
 INACTIVITY_LOCK_SECONDS = 180.0
-LOCKED_LED_FACTOR = 0.2
-LOCKED_MODE_RGB = (8, 8, 8)
+LOCKED_LED_FACTOR = 0.05
+LOCKED_MODE_RGB = (2, 2, 2)
 
 
 def locked_led_rgb(rgb):
