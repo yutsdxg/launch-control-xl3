@@ -281,7 +281,9 @@ class JxaKeyboardSender(object):
                 raise ValueError("worker_handshake_mismatch")
             self._ready = True
             self._apply_state(message)
-            self._last_status_at = self._clock()
+            # Live may defer its first poll while opening a set. An old ready
+            # message must trigger a fresh status request immediately.
+            self._last_status_at = self._last_state_at
             self._logger.info("LCXL3 keyboard navigation: worker_ready")
         elif kind == "state":
             if not self._ready:
@@ -332,8 +334,8 @@ class JxaKeyboardSender(object):
                 or type(worker_now) not in (int, float) or not math.isfinite(worker_now)):
             raise ValueError("invalid_state")
         now = self._clock()
-        if abs(now - worker_now) > 1.0:
-            raise ValueError("clock_mismatch_or_stale_state")
+        if worker_now - now > 1.0:
+            raise ValueError("clock_mismatch_future_state")
         if "pid" in message and message["pid"] != self._pid:
             raise ValueError("target_pid_mismatch")
         if "protocol" in message and message["protocol"] != 1:
@@ -348,7 +350,9 @@ class JxaKeyboardSender(object):
         self._frontmost = frontmost
         self._allowed = allowed
         self._worker_focus_epoch = epoch
-        # The worker timestamp prevents buffered old state from looking fresh.
+        # Delayed reads are normal while Live is busy. Keep the original age
+        # and suppress keys until a fresh response arrives instead of treating
+        # an old (but valid) reply as a permanent transport failure.
         self._last_state_at = min(now, worker_now)
         self._update_effective_frontmost(now)
         if not allowed:

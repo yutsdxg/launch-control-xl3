@@ -1368,7 +1368,8 @@ class InstrumentAssignmentsTest(unittest.TestCase):
         self._activate_with_controls(controls)
 
         self.assertIs(controls["encoder_1"].connected[-1], self.target_device.parameters[1])
-        self.assertIs(controls["encoder_24"].connected[-1], self.target_device.parameters[24])
+        self.assertEqual(controls["encoder_24"].connected, [])
+        self.assertNotIn("encoder_24", self.component._connected_parameters)
         self.assertIs(controls["fader_1"].connected[-1], self.target_device.parameters[25])
         self.assertIs(controls["fader_8"].connected[-1], self.target_device.parameters[32])
 

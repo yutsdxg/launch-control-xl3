@@ -71,6 +71,9 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
         self._setup_components()
 
     def port_settings_changed(self):
+        instrument_assignments = self._component("Instrument_Assignments")
+        if instrument_assignments is not None:
+            instrument_assignments.reset_keyboard_navigation()
         self._send_midi(midi.make_connection_message(connect=False))
         super().port_settings_changed()
 
@@ -105,6 +108,7 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
             fixed_assignments.set_midi_sender(self.send_midi)
         if instrument_assignments is not None:
             instrument_assignments.set_midi_sender(self.send_midi)
+            instrument_assignments.start_keyboard_navigation()
         if mode_manager is not None:
             mode_manager.set_midi_sender(self.send_midi)
         if track_buttons is not None:

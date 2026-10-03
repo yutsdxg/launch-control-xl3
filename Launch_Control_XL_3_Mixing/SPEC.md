@@ -7,7 +7,7 @@
 - Ableton Live 12 系の `ableton.v3.control_surface.ControlSurface` ベースの Remote MIDI Script。
 - 起動時の既定モードは `mixing`。
 - `mixing` モードでは、固定パラメータ割り当てとトラック選択/solo/mute ボタンを有効化する。
-- `instrument` モードでは、選択トラック上の 3 番目のデバイスを 24 エンコーダ、8 フェーダ、16 ボタンへ直列割り当てする。
+- `instrument` モードでは、選択トラック上の 3 番目のデバイスをエンコーダ1〜23、8フェーダ、16ボタンへ割り当てる。Encoder 24は全音源共通の上下キー操作とする。
 - 物理コントロールは `Control_Router` に一度集約され、`Fixed_Assignments`、`Instrument_Assignments`、`Track_Buttons` へ転送される。
 - `AUTO_LOAD` は使っていない。
 
@@ -203,19 +203,44 @@ Solo/Mute modifier はラッチ式。同じ modifier をもう一度押すと Se
 
 ## Instrument モード
 
-Instrument モードは選択トラックの 3 番目のデバイス、つまり `track.devices[2]` を対象にする。対象デバイスが存在しない場合は未割り当て。
+Instrument モードのパラメータ操作は選択トラックの3番目のデバイス、つまり`track.devices[2]`を対象にする。対象デバイスが存在しない場合は未割り当て。Encoder 24のキー操作はデバイスの有無にかかわらず有効。
 
 対象デバイスのパラメータは、`Device On` と空名パラメータを除外した後、カスタムパラメータ順序を適用する。番号は 1 始まり。
 
 | 物理操作子 | 割り当て |
 | --- | --- |
-| Encoder 1-24 | Parameter 1-24 |
+| Encoder 1-23 | Parameter 1-23 |
+| Encoder 24 | プリセット一覧の上下キー（Parameter 24は使用しない） |
 | Fader 1-8 | Parameter 25-32 |
 | Track Button 1-16 | Parameter 33-48 |
 
 Instrument ボタンは押下時のみ反応する。対象パラメータの現在値が範囲の中点より大きければ最小値へ、それ以外なら最大値へトグルする。LED は白系で、on 相当なら明るさ `0.25`、off 相当なら `0.03`、未割り当てなら off。
 
 Instrument モードのパラメータ操作時の表示は `対象デバイス名 / パラメータ名 / 値`。
+
+### Encoder 24の上下キー
+
+CH16 / CC100の相対入力を、64未満なら上キー、64超なら下キー、64なら無操作へ変換する。最小回転も加速値も1入力として扱う。Instrument全体で専用に予約し、`custom_parameter_order.py`での定義や選択中デバイスの制限は設けない。Mixingでは従来のPanへ戻る。フェーダー25番、ボタン33番からのパラメータ配置を維持する。
+
+表示は`Keyboard / Preset Up-Down / UpまたはDown`、待機時は3行目を空にする。LEDは青25%。Shift中とタッチ入力は表示だけでキーを送らない。
+
+`keyboard_navigation.py`冒頭の定数で連続回転を調整する。
+
+| 設定 | 初期値 | 意味 |
+| --- | --- | --- |
+| `REPEAT_INPUTS_PER_PRESS` | `1` | 連続時の1押下に必要な入力数 |
+| `MIN_PRESS_INTERVAL` | `0.0`秒 | 連続時の最小押下間隔 |
+| `GESTURE_GAP` | `0.25`秒 | 無入力で一連の回転を区切る時間 |
+
+回し始めと方向反転時は即時に1回の送信を試みる。無入力からの自動連打は行わない。Shift、モード切替、前面アプリ変更、ポート変更、切断で蓄積をリセットする。
+
+macOS標準の`/usr/bin/osascript -l JavaScript`をサーフェス起動時に1本だけ起動し、JXAのObjective-C bridgeからCoreGraphicsを呼ぶ。キーコードは上126／下125、修飾キーなしの押下・解放を1組、LiveのPIDへ送信する。送信直前にLiveが前面か確認し、前面を奪わない。Live終了時は子プロセスも終了する。
+
+入力の有効期限は受信から50ms、未完了要求は最大1件。処理が追いつかない入力は破棄し、回転停止後に遅れて再生しない。したがって高速回転時にすべての入力が押下になる保証はない。Liveの入力コールバックで応答や子プロセスの終了を待たない。
+
+利用時はプラグインのプリセット一覧をクリックしてフォーカスを置く。前面Live内でどのUIがキーを受けるかは現在のフォーカスに従い、一覧以外へフォーカスを移した場合はそのUIが上下キーを受ける。音源のウインドウ識別やパラメータ変更の検出は行わない。
+
+Liveの入力・出力はLCXL3のDAWポートへ直接接続する。Bomeや専用出力CCは不要。macOS「プライバシーとセキュリティ → アクセシビリティ」でLiveのキー送信権限を確認する。初期化・通信に失敗した場合はキー機能だけを停止し、`Log.txt`の`LCXL3 keyboard navigation:`へ原因を記録する。権限不足時は送信を抑止し、許可を再確認する。詳しい確認手順は`diagnostics/README.md`を参照。
 
 ## カスタムパラメータ順序
 
@@ -235,16 +260,16 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 | --- | --- |
 | Serum 2 | Enc 1-8: `A Octave`, `A Unison`, `A Uni Detune`, `B Octave`, `B Unison`, `B Uni Detune`, empty, empty |
 | Serum 2 | Enc 9-16: `A WT Pos`, `A Warp`, `A Level`, `B WT Pos`, `B Warp`, `B Level`, empty, empty |
-| Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, empty, `Main Vol` |
+| Serum 2 | Enc 17-24: `Filter 1 Freq`, `Filter 1 Res`, `Mod 1 Amount`, `Filter 1 Drive`, empty, empty, `Main Vol`, 上下キー |
 | Serum 2 | Fader 1-8: `Env 2 Attack`, `Env 2 Decay`, `Env 2 Sustain`, `Env 2 Release`, `Env 1 Attack`, `Env 1 Decay`, `Env 1 Sustain`, `Env 1 Release` |
 | Serum 2 | Button 1-8: `Sub Enable`, `A Enable`, `B Enable`, `C Enable`, `Noise Enable`, `Clip Player Enable`, `Arp Enable`, empty |
 | Omnisphere | Enc 1-8: `1 A Transpose Semitones`, `1 A Level`, `1 B Transpose Semitones`, `1 B Level`, `1 C Transpose Semitones`, `1 C Level`, `1 D Transpose Semitones`, `1 D Level` |
 | Omnisphere | Enc 9-16: `1 A Shape`, `1 A Symmetry`, `1 B Shape`, `1 B Symmetry`, `1 C Shape`, `1 C Symmetry`, `1 D Shape`, `1 D Symmetry` |
-| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 Polyphony`, `1 A Tune Octave`, `Master Gain` |
+| Omnisphere | Enc 17-24: `1 Global Filt Cut`, `1 Global Filt Res`, `1 Global Filt Env`, `1 Global Flt Env Vel`, `1 Global Ambi Amount`, `1 A Tune Octave`, `Master Gain`, 上下キー |
 | Omnisphere | Fader 1-8: `1 Global Flt Env Atk`, `1 Global Flt Env Dcy`, `1 Global Flt Env Sus`, `1 Global Flt Env Rls`, `1 Global Amp Env Atk`, `1 Global Amp Env Dcy`, `1 Global Amp Env Sus`, `1 Global Amp Env Rls` |
 | Omnisphere | Button 1-8: `1 A Layer On`, `1 B Layer On`, `1 C Layer On`, `1 D Layer On`, `1 Bypass All Effects`, `1 Arp On`, empty, empty |
 | Diva | Enc 1-16: ベースはEnc 8のFeedback以外は空。OSCモデル別のオーバーライドで割り当てる（下記参照） |
-| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Filter FM`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output` |
+| Diva | Enc 17-24: `Frequency`, `Resonance`, `Freq Mod Depth`, `KeyFollow`, `Mode`（5段階）, `DepthMod Dpt1`（同名2つを反転操作）, `Output`, 上下キー |
 | Diva | Fader 1-4: Filter envelope `Attack`, `Decay`, `Sustain`, `Release`（各 `occurrence: 1`）; Fader 5-8: Amp envelopeの同4項目（各 `occurrence: 2`） |
 | Diva | Button 1-8: `OnOff`, `Active #FX1`, `Active #FX2`, empty, empty, empty, empty, empty |
 | Delay | `Dry/Wet`, `L 16th`, `Feedback` |
@@ -296,7 +321,7 @@ DivaはLiveのConfigureでフィルターエンベロープの組を先、アン
 | Digital | Tune1, DigitalType1, FM, 空, Tune2, DigitalType2, OscMix | PulseWidth, DigitalShape2, 空, 空, DigitalShape3, DigitalShape4, 空, 空 |
 | 未定義のモデル／Model未表出 | すべて空 | すべて空 |
 
-上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜24・フェーダー・ボタンは共通のベース設定を使う。モデル別設定で `encoder_23` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
+上表はユーザーが編集した5モデルの設定を保持したもの。Encoder 8・17〜23・フェーダー・ボタンは共通のベース設定を使い、Encoder 24は上下キーに予約する。モデル別設定で `encoder_22` を省略すると共通のDepthMod操作を継承し、明示的に `None` を指定するとそのモデルでは未割り当てになる。
 
 EcoWave1 / EcoWave2（Encoder 2 / 6）には `discrete_count: 4` を指定し、同方向のMIDI入力2回で1〜4の隣の段階へ進む。内部値の最小値・1/3・2/3・最大値の4点を使い、加速した入力も1回として数える。方向変更・Shift・モデル切替による再割り当て時は入力蓄積をリセットし、両端で止める。Triple VCOのShape1 / Shape2 / Shape3は通常の連続操作とする。
 
@@ -322,14 +347,14 @@ CUSTOM_DEVICE_PARAMETER_OVERRIDES = {
 
 - `when.parameter` は条件に使うConfigure上のパラメータ名。大文字小文字・空白を正規化して完全一致で検索する。`occurrence` は同名の何番目かを1から指定し、省略時は1。現在のDivaではフィルターのModelをConfigureから除き、OSCのModelだけを表出する。
 - `normalized_value` は `(parameter.value - parameter.min) / (parameter.max - parameter.min)` の期待値。画面の数値ではない。誤差 `1e-6` 以内を一致とする。Diva OSC Modelは独立VST3ホストでTriple VCO=0、Dual VCO=0.25、DCO=0.5、Dual VCO Eco=0.75、Digital=1と確認済み。
-- `assignments` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`、`button_1`〜`button_16`。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
+- `assignments`のキーは`encoder_1`〜`encoder_23`（`encoder_24`は上下キー予約のため設定を使用しない）、`fader_1`〜`fader_8`、`button_1`〜`button_16`。値には基本順と同じパラメータ名、`occurrence` や段階値などのオプション付き辞書、未割り当ての `None` / `"SKIP"` が使える。複数の条件が成立すると、後のルールが同じ操作子の指定を上書きする。
 - 判定対象がない・無効・読取不可なら、そのルールは不成立。成立したルールの割り当て先が未表出なら、その操作子は未割り当てとする。DivaではModelに加えEcoWave1とEcoWave2をConfigureに表出させる。
 - パラメータ一覧と判定対象の参照をキャッシュし、既存の0.1秒更新で判定対象の現在値だけを読む。同一対象を使う複数ルールでも1更新に1回とする。成立するルールが変わったときだけ並びを再構成し、変わった操作子だけ接続し直す。表示やLEDも新しいパラメータへ追従し、Shift中は接続せず表示のみ更新する。モデル切替時にパラメータ値を書き換えたり、変更のないTuneの2入力蓄積をリセットしたりしない。
 - `str_for_value` / `value_items` や表示値の探索は使わない。選択トラック・音源の変更、インストゥルメントモードへの入り直しでキャッシュを作り直す。同じ音源のConfigure項目を追加・削除した場合も、モードへ入り直すと新しい一覧を取り込む。
 
 ### 複数パラメータの相対操作と左回し時の固定値設定
 
-Divaの共通Encoder 23は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
+Divaの共通Encoder 22は、Configureで1つ目と2つ目の `DepthMod Dpt1` を反転操作する。それぞれの現在値から、右回しでDepthを下げ、左回しでDepthを上げる。左回しでは同時に、Configureで1つ目と2つ目の `DepthMod Src1` を両方 `none` にする。表示とLEDは1つ目のDepthを代表として使う。
 
 ```python
 {"DepthMod Dpt1": {

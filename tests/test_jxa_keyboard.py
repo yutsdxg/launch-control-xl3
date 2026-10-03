@@ -362,9 +362,40 @@ class JxaKeyboardSenderTest(unittest.TestCase):
         self.assertTrue(self.sender._failed)
         self.assertFalse(self.sender.press(1))
 
-    def test_clock_mismatch_stops_worker(self):
-        self.ready(now=self.clock() - 2.0)
+    def test_future_clock_mismatch_stops_worker(self):
+        self.ready(now=self.clock() + 2.0)
         self.assertTrue(self.sender._failed)
+
+    def test_ready_delayed_by_live_startup_requests_fresh_state_and_recovers(self):
+        self.sender.start()
+        worker_at = self.clock()
+        self.clock.advance(2.0)
+        self.ready(now=worker_at)
+        self.assertTrue(self.sender._ready)
+        self.assertFalse(self.sender._failed)
+        self.assertEqual(self.sender._last_state_at, worker_at)
+        self.assertFalse(self.sender.press(1))
+        self.assertEqual(self.worker.commands(), [{"type": "status"}])
+        self.worker.emit(self.state())
+        self.assertTrue(self.sender.press(1))
+        self.assertEqual(self.worker.commands()[0]["type"], "press")
+        self.assertEqual(len(self.workers), 1)
+
+    def test_delayed_result_does_not_refresh_old_state_or_disable_sender(self):
+        self.ready()
+        self.assertTrue(self.sender.press(1))
+        self.worker.commands()
+        worker_at = self.clock()
+        self.clock.advance(2.0)
+        self.reply("posted", frontmost=True, allowed=True,
+                   focus_epoch=0, now=worker_at)
+        self.assertFalse(self.sender._failed)
+        self.assertIsNone(self.sender._pending_press)
+        self.assertEqual(self.sender._last_state_at, worker_at)
+        self.assertFalse(self.sender.press(-1))
+        self.assertEqual(self.worker.commands(), [{"type": "status"}])
+        self.worker.emit(self.state())
+        self.assertTrue(self.sender.press(-1))
 
     def test_fragmented_worker_line_waits_for_newline(self):
         self.sender.start()
