@@ -4,7 +4,7 @@ from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
-from .colors import instrument_button_rgb
+from .colors import instrument_button_rgb, mode_button_rgb, Theme
 from .custom_parameter_order import (
     CUSTOM_DEVICE_PARAMETER_ORDER,
     CUSTOM_DEVICE_PARAMETER_OVERRIDES,
@@ -18,6 +18,7 @@ from .custom_parameter_utils import (
     order_named_items,
 )
 from .display import send_display, send_unassigned_display
+from .keyboard_navigation import EncoderKeyboardNavigation
 from .led import LedSender
 from .parameter_actions import apply_left_turn_action, bind_left_turn_actions, bind_relative_targets
 from .parameter_overrides import apply_overrides, bind_overrides, matching_overrides
@@ -35,6 +36,7 @@ FADER_COUNT = 8
 BUTTON_COUNT = 16
 FADER_PARAMETER_OFFSET = ENCODER_COUNT
 BUTTON_PARAMETER_OFFSET = ENCODER_COUNT + FADER_COUNT
+KEYBOARD_ENCODER = "encoder_24"
 LOGGER = logging.getLogger(__name__)
 CUSTOM_DEVICE_PARAMETER_ORDER_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_ORDER)
 CUSTOM_DEVICE_PARAMETER_OVERRIDES_INDEX = build_device_order_index(CUSTOM_DEVICE_PARAMETER_OVERRIDES)
@@ -53,6 +55,8 @@ class InstrumentAssignmentsComponent(Component):
         self._buttons = [None] * BUTTON_COUNT
         self._button_slots = [None] * BUTTON_COUNT
         self._display_commands = {}
+        self._keyboard_control = None
+        self._keyboard_navigation = EncoderKeyboardNavigation()
         self._clear_target_parameter_cache()
         self._led_sender = LedSender()
         self._assignment_update_task = self._tasks.add(
@@ -72,6 +76,7 @@ class InstrumentAssignmentsComponent(Component):
                 self.refresh_led_feedback()
             return
         self._active = active
+        self._keyboard_navigation.reset()
         if self._active:
             self._clear_target_parameter_cache()
             self._update_assignments(force=True)
@@ -80,6 +85,15 @@ class InstrumentAssignmentsComponent(Component):
             self._clear_target_parameter_cache()
             self._release_all_parameter_controls()
             self._turn_button_leds_off(force=True)
+
+    def start_keyboard_navigation(self):
+        """Start once from the surface lifecycle, never while constructing controls."""
+        return self._keyboard_navigation.start()
+
+    def reset_keyboard_navigation(self):
+        self._keyboard_navigation.reset()
+        if self._active:
+            self._display_keyboard_navigation(trigger=False)
 
     def set_midi_sender(self, midi_sender):
         self._led_sender.set_midi_sender(midi_sender)
@@ -90,6 +104,7 @@ class InstrumentAssignmentsComponent(Component):
         if self._shift_pressed == pressed:
             return
         self._shift_pressed = pressed
+        self._keyboard_navigation.reset()
         self._discrete_encoder_inputs.clear()
         if self._active:
             self._update_assignments(force=True)
@@ -99,6 +114,7 @@ class InstrumentAssignmentsComponent(Component):
             return
         for offset in range(BUTTON_COUNT):
             self._update_button_led(offset, force=True)
+        self._update_keyboard_assignment(force=True)
 
     def _set_display_command(self, name, command):
         self._display_commands[name] = command
@@ -106,6 +122,9 @@ class InstrumentAssignmentsComponent(Component):
 
     def _prepare_encoder_display(self, name):
         if not self._active or not name.startswith("encoder_"):
+            return
+        if name == KEYBOARD_ENCODER:
+            self._display_keyboard_navigation(trigger=False)
             return
         parameter = self._connected_parameters.get(name)
         if self._parameter_is_enabled(parameter):
@@ -160,6 +179,8 @@ class InstrumentAssignmentsComponent(Component):
         self._update_button_led(offset, force=True)
 
     def _update_assignments(self, force=False):
+        # Drain worker replies every 100 ms even while Mixing owns the controls.
+        self._keyboard_navigation.poll()
         if not self._active:
             return
         self._refresh_target_parameter_cache(check_overrides=True)
@@ -173,8 +194,13 @@ class InstrumentAssignmentsComponent(Component):
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
         if not self._active:
-            if name in self._connected_parameters:
+            if name in self._connected_parameters or (
+                name == KEYBOARD_ENCODER and self._keyboard_control is not None
+            ):
                 self._release_parameter_control(name, control)
+            return
+        if name == KEYBOARD_ENCODER:
+            self._update_keyboard_assignment(force=force)
             return
         parameter = self._parameter_for_control(name)
         parameter_signature = self._parameter_signature(name, parameter)
@@ -220,11 +246,19 @@ class InstrumentAssignmentsComponent(Component):
             self._release_parameter_control(name, control)
 
     def _release_parameter_control(self, name, control):
-        if not self._active and name not in self._connected_parameters:
+        owns_keyboard_control = control is not None and control is self._keyboard_control
+        if not self._active and name not in self._connected_parameters and not owns_keyboard_control:
             return
         self._connected_parameters.pop(name, None)
         self._connected_parameter_signatures.pop(name, None)
         self._discrete_encoder_inputs.pop(name, None)
+        if owns_keyboard_control:
+            self._keyboard_control = None
+            self._keyboard_navigation.reset()
+            try:
+                control.clear_manual_led_rgb()
+            except (AttributeError, RuntimeError):
+                pass
         if control is None:
             return
         try:
@@ -248,6 +282,31 @@ class InstrumentAssignmentsComponent(Component):
         except (AttributeError, RuntimeError):
             pass
 
+    def _update_keyboard_assignment(self, force=False):
+        control = self._controls.get(KEYBOARD_ENCODER)
+        if not self._active or control is None:
+            return
+        try:
+            control.set_manual_led_rgb(mode_button_rgb(True, Theme.MODE_INSTRUMENT), force=force)
+        except (AttributeError, RuntimeError):
+            pass
+        if self._keyboard_control is not control:
+            # Reserving this encoder must also remove Live's native parameter map.
+            self._keyboard_control = control
+            self._connected_parameters.pop(KEYBOARD_ENCODER, None)
+            self._connected_parameter_signatures.pop(KEYBOARD_ENCODER, None)
+            try:
+                control.release_parameter()
+            except (AttributeError, RuntimeError):
+                pass
+
+    def _display_keyboard_navigation(self, trigger=True):
+        return send_display(
+            self._display_commands.get(KEYBOARD_ENCODER),
+            ("Keyboard", "Preset Up-Down", self._keyboard_navigation.last_action),
+            trigger=trigger,
+        )
+
     def _on_parameter_control_value(self, name, value):
         if not self._active:
             return
@@ -255,6 +314,10 @@ class InstrumentAssignmentsComponent(Component):
             return
         if self._shift_pressed and name.startswith("encoder_"):
             self.preview_encoder(name)
+            return
+        if name == KEYBOARD_ENCODER:
+            sent = self._keyboard_navigation.receive_value(value)
+            self._display_keyboard_navigation(trigger=sent)
             return
         if self._shift_pressed:
             self._update_parameter_assignment(name)
@@ -285,6 +348,9 @@ class InstrumentAssignmentsComponent(Component):
         if not self._active or not self._shift_pressed or name not in self._controls:
             return
         if not name.startswith("encoder_"):
+            return
+        if name == KEYBOARD_ENCODER:
+            self._display_keyboard_navigation()
             return
         self._refresh_target_parameter_cache(check_overrides=True)
         self._update_parameter_assignment(name)
@@ -317,6 +383,8 @@ class InstrumentAssignmentsComponent(Component):
         return self._parameter_by_number(BUTTON_PARAMETER_OFFSET + offset + 1)
 
     def _parameter_for_control(self, name):
+        if name == KEYBOARD_ENCODER:
+            return None
         number = self._parameter_number_for_control(name)
         return self._parameter_by_number(number)
 
@@ -720,6 +788,7 @@ class InstrumentAssignmentsComponent(Component):
             return ""
 
     def disconnect(self):
+        self._keyboard_navigation.close()
         for slot in tuple(self._control_slots.values()):
             slot.disconnect()
         self._control_slots = {}
