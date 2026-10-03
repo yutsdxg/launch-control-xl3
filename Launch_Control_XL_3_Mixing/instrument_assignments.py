@@ -17,7 +17,7 @@ from .custom_parameter_utils import (
     normalize_device_key,
     order_named_items,
 )
-from .display import send_display, send_unassigned_display
+from .display import send_display, send_locked_display, send_unassigned_display
 from .keyboard_navigation import EncoderKeyboardNavigation
 from .led import LedSender
 from .parameter_actions import apply_left_turn_action, bind_left_turn_actions, bind_relative_targets
@@ -47,6 +47,7 @@ class InstrumentAssignmentsComponent(Component):
         super().__init__(*a, **k)
         self._active = False
         self._shift_pressed = False
+        self._locked = False
         self._controls = {}
         self._connected_parameters = {}
         self._connected_parameter_signatures = {}
@@ -67,6 +68,18 @@ class InstrumentAssignmentsComponent(Component):
                 )
             )
         )
+
+    def set_locked(self, locked):
+        locked = bool(locked)
+        if self._locked == locked:
+            return
+        self._locked = locked
+        self._led_sender.set_locked(locked)
+        self._keyboard_navigation.reset()
+        self._discrete_encoder_inputs.clear()
+        if self._active:
+            self._update_assignments(force=True)
+            self.refresh_led_feedback()
 
     def set_active(self, active):
         active = bool(active)
@@ -118,10 +131,13 @@ class InstrumentAssignmentsComponent(Component):
 
     def _set_display_command(self, name, command):
         self._display_commands[name] = command
-        self._prepare_encoder_display(name)
+        self._prepare_control_display(name)
 
-    def _prepare_encoder_display(self, name):
-        if not self._active or not name.startswith("encoder_"):
+    def _prepare_control_display(self, name):
+        if not self._active:
+            return
+        if self._locked:
+            send_locked_display(self._display_commands.get(name))
             return
         if name == KEYBOARD_ENCODER:
             self._display_keyboard_navigation(trigger=False)
@@ -136,11 +152,10 @@ class InstrumentAssignmentsComponent(Component):
         if not self._active:
             return
         for name, command in self._display_commands.items():
-            if name.startswith("encoder_"):
-                try:
-                    command.clear_send_cache()
-                except (AttributeError, RuntimeError):
-                    pass
+            try:
+                command.clear_send_cache()
+            except (AttributeError, RuntimeError):
+                pass
         self._update_assignments()
 
     def _set_parameter_control(self, name, control):
@@ -159,7 +174,7 @@ class InstrumentAssignmentsComponent(Component):
                 "value",
             )
         self._update_parameter_assignment(name, force=True)
-        self._prepare_encoder_display(name)
+        self._prepare_control_display(name)
 
     def _set_button(self, offset, button):
         previous = self._buttons[offset]
@@ -189,7 +204,7 @@ class InstrumentAssignmentsComponent(Component):
         for offset in range(BUTTON_COUNT):
             self._update_button_led(offset)
         for name in self._controls:
-            self._prepare_encoder_display(name)
+            self._prepare_control_display(name)
 
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
@@ -210,12 +225,12 @@ class InstrumentAssignmentsComponent(Component):
             and parameter_signature == self._connected_parameter_signatures.get(name)
             and self._parameter_is_enabled(parameter)
         ):
-            if self._shift_pressed or self._encoder_uses_manual_mapping(name):
+            if self._locked or self._shift_pressed or self._encoder_uses_manual_mapping(name):
                 self._refresh_manual_led_feedback(control)
             return
         self._discrete_encoder_inputs.pop(name, None)
         if (
-            (self._shift_pressed or self._encoder_uses_manual_mapping(name))
+            (self._locked or self._shift_pressed or self._encoder_uses_manual_mapping(name))
             and control is not None
             and self._parameter_is_enabled(parameter)
         ):
@@ -301,6 +316,8 @@ class InstrumentAssignmentsComponent(Component):
                 pass
 
     def _display_keyboard_navigation(self, trigger=True):
+        if self._locked:
+            return send_locked_display(self._display_commands.get(KEYBOARD_ENCODER), trigger=trigger)
         return send_display(
             self._display_commands.get(KEYBOARD_ENCODER),
             ("Keyboard", "Preset Up-Down", self._keyboard_navigation.last_action),
@@ -309,6 +326,9 @@ class InstrumentAssignmentsComponent(Component):
 
     def _on_parameter_control_value(self, name, value):
         if not self._active:
+            return
+        if self._locked:
+            send_locked_display(self._display_commands.get(name), trigger=True)
             return
         if name.startswith("encoder_") and value == 64:
             return
@@ -345,6 +365,9 @@ class InstrumentAssignmentsComponent(Component):
 
     def preview_encoder(self, name):
         """Touch input is display-only and must never enter a parameter value path."""
+        if self._active and self._locked:
+            send_locked_display(self._display_commands.get(name), trigger=True)
+            return
         if not self._active or not self._shift_pressed or name not in self._controls:
             return
         if not name.startswith("encoder_"):
@@ -361,7 +384,7 @@ class InstrumentAssignmentsComponent(Component):
             send_unassigned_display(self._display_commands.get(name), name)
 
     def _on_button_value(self, offset, value):
-        if not self._active:
+        if not self._active or self._locked:
             return
         if value <= 0:
             return
@@ -761,6 +784,9 @@ class InstrumentAssignmentsComponent(Component):
                 self._led_sender.send_rgb(button, instrument_button_rgb(None), force=force)
 
     def _display_parameter(self, control_name, parameter, trigger=True):
+        if self._locked:
+            send_locked_display(self._display_commands.get(control_name), trigger=trigger)
+            return
         send_display(
             self._display_commands.get(control_name),
             (
