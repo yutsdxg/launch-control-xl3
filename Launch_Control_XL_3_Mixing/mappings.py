@@ -32,6 +32,8 @@ def create_mappings(_control_surface):
         "Mode_Manager": {
             "mixing_button": "page_up_button",
             "instrument_button": "page_down_button",
+            "static_display": "static_display_command",
+            "temp_display": "temp_display_command",
         },
         "Instrument_Assignments": {},
         "Locator_Navigation": {

@@ -6,6 +6,7 @@ from ableton.v3.control_surface.elements import EncoderElement
 from . import midi
 from .colors import Theme, encoder_pan_rgb, encoder_rgb_for_parameter
 from .special_parameters import _handle_saturn_band_1_style_input, _saturn_allowed_style_indexes
+from .safety import locked_led_rgb
 
 
 class ColoredEncoderElement(EncoderElement):
@@ -15,6 +16,17 @@ class ColoredEncoderElement(EncoderElement):
         self._manual_led_parameter = None
         self._manual_led_rgb = None
         self._shift_pressed = False
+        self._locked = False
+        self._on_activity = None
+
+    def set_on_activity(self, callback):
+        self._on_activity = callback
+
+    def set_locked(self, locked):
+        locked = bool(locked)
+        if self._locked != locked:
+            self._locked = locked
+            self._parameter_value_changed()
 
     def set_shift_pressed(self, pressed):
         self._shift_pressed = bool(pressed)
@@ -82,15 +94,20 @@ class ColoredEncoderElement(EncoderElement):
         self._send_led_rgb(encoder_rgb_for_parameter(parameter, is_device_parameter=is_device_parameter))
 
     def _send_led_rgb(self, rgb):
+        if self._locked:
+            rgb = locked_led_rgb(rgb)
         message = midi.make_rgb_led_message(self._led_control_index, rgb)
         if message != self._last_sent_message:
             self.send_midi(message)
             self._last_sent_message = message
 
     def _handle_special_parameter_input(self, value):
-        if self._shift_pressed or not self.is_mapped_to_parameter():
+        if self._locked or self._shift_pressed or not self.is_mapped_to_parameter():
             return False
         if _handle_saturn_band_1_style_input(self.mapped_object, value):
+            # This path consumes the input before value listeners can see it.
+            if self._on_activity is not None:
+                self._on_activity(value)
             self._parameter_value_changed()
             return True
         return False

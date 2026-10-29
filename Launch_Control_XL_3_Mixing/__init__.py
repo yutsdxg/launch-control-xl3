@@ -67,6 +67,7 @@ class Specification(ControlSurfaceSpecification):
 class Launch_Control_XL_3_Mixing(ControlSurface):
     def __init__(self, *a, **k):
         self._should_delay_flushing_display_messages = False
+        self._feedback_generation = 0
         super().__init__(*a, **k)
         self._setup_components()
 
@@ -81,6 +82,7 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
         self._send_midi(midi_bytes)
 
     def on_identified(self, response_bytes):
+        self._feedback_generation = getattr(self, "_feedback_generation", 0) + 1
         self._should_delay_flushing_display_messages = False
         self._tasks.add(
             task.sequence(
@@ -97,6 +99,9 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
             component = self._component(name)
             if component is not None:
                 component.refresh_display_feedback()
+        mode_manager = self._component("Mode_Manager")
+        if mode_manager is not None:
+            mode_manager.refresh_display_feedback(show_immediately=True)
 
     def _setup_components(self):
         control_router = self._component("Control_Router")
@@ -120,6 +125,9 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
                 track_buttons=track_buttons,
             )
         if mode_manager is not None:
+            if control_router is not None:
+                control_router.set_on_activity(mode_manager.record_activity)
+                mode_manager.set_on_lock_changed(self._on_lock_changed)
             mode_manager.set_on_mode_changed(self._on_mode_changed)
         else:
             self._apply_mode(MODE_MIXING)
@@ -140,8 +148,16 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
                     pass
 
     def _on_mode_changed(self, mode):
+        self._feedback_generation = getattr(self, "_feedback_generation", 0) + 1
         self._apply_mode(mode)
         self._refresh_led_feedback()
+
+    def _on_lock_changed(self, locked):
+        # Invalidate delayed LED/text from the previous mode or lock state.
+        self._feedback_generation = getattr(self, "_feedback_generation", 0) + 1
+        control_router = self._component("Control_Router")
+        if control_router is not None:
+            control_router.set_locked(locked)
 
     def _apply_selected_mode(self):
         mode_manager = self._component("Mode_Manager")
@@ -183,8 +199,22 @@ class Launch_Control_XL_3_Mixing(ControlSurface):
                 self._tasks.add(
                     task.sequence(
                         task.delay(index * 0.01),
-                        task.run(self._do_send_midi, message),
+                        task.run(self._send_deferred_feedback, message,
+                                 getattr(self, "_feedback_generation", 0)),
                     )
                 )
             self._midi_message_list[:] = []
         super()._flush_midi_messages()
+
+    def _send_deferred_feedback(self, message, generation):
+        if generation == getattr(self, "_feedback_generation", 0) or not self._is_mode_feedback(message):
+            self._do_send_midi(message)
+
+    def _is_mode_feedback(self, message):
+        if len(message) < 9 or message[:6] != midi.SYSEX_HEADER:
+            return False
+        if message[6:8] == midi.RGB_LED_COMMAND:
+            return 13 <= message[8] <= 52 or message[8] in (65, 66, 106, 107)
+        if message[6] in (4, 6):  # Display configuration and text.
+            return 5 <= message[7] <= 36 or message[7] in (53, 54)
+        return False

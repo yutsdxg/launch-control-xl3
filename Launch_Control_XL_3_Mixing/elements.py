@@ -26,6 +26,7 @@ RANGE_UPPER_ENCODERS_ROW_2 = range(85, 93)
 RANGE_LOWER_ENCODERS = range(93, 101)
 RANGE_ENCODER_TOUCH = range(77, 101)
 
+TARGET_STATIC = 53
 TARGET_TEMP = 54
 TARGET_FADER_BASE = 5
 TARGET_UPPER_ENCODER_BASE = 13
@@ -76,6 +77,7 @@ class Elements(ElementsBase):
                 channel=CHANNEL_TOUCH,
             )
         self.add_sysex_element(midi.make_connection_message()[:-2], "Connection_Element")
+        self.add_display_command_for_target("Static", TARGET_STATIC, 3)
         self.add_display_command_for_target("Temp", TARGET_TEMP, 3, disable_caching=True)
         for index in range(NUM_FADER_TARGETS):
             self.add_display_command_for_target("Fader_{}".format(index), TARGET_FADER_BASE + index, 3)
