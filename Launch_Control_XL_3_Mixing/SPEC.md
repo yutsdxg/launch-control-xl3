@@ -190,6 +190,23 @@ MIXING_ASSIGNMENTS = {
 - `Device On` 自体、ミキサー指定、`directional_on_off=True` との併用、不正な `off_at` は設定不備となる。主対象やDevice Onが不在／無効なら、存在しない対象や別デバイスを書き換えない。
 - 共通エンコーダーのSaturn処理が入力を消費した場合も、主値を二重に動かさず連動処理を適用する。
 
+### SaturatorのDriveに連動するOutput補正
+
+新Mixing（`configured`）では、`parameter: "Drive"`と完全一致する割り当てに自動で音量補正を適用する。全エンコーダー・フェーダーが対象で、操作子番号の固定や個別の有効化設定はない。デバイス名・クラスによる判定は後から追加する。
+
+- 補正先はDriveと同じデバイスの`Output`。Outputの操作子も固定せず、同じDriveを複数の操作子へ割り当てた場合は補正状態を共有する。
+- 有効条件はTypeがAnalog Clip、Color OFF、Post ClipがNo Clip、Dry/Wetが100%。必要なパラメータが不在、Drive／Outputが無効、またはその`automation_state`が1（オートメーション有効）・2（上書き済み）の場合は休止する。音色設定やオートメーション状態は自動変更しない。
+- Driveの操作はLive標準のパラメータ接続とtakeoverを維持する。有効な物理入力によって実際のDriveが変わった場合だけOutputを補正し、Pickup待ちなどで実値が変わらない入力では書き込まない。
+- マウスなどによるDrive変更は現在のDrive／Outputから基準を取り直すだけで、Outputを変更しない。Outputの手動変更は新しいトリムとして以後の補正に反映する。
+- 起動、トラック変更、対象の差し替え、休止からの復帰では現在値を基準に取り、Outputを書き込まない。定期更新でも有効な既存の基準は維持する。
+- 補正量は実測点のdB値を線形補間し、トリムを加えてOutputへ設定する。Driveが0 dB未満なら0 dBの補正量、24 dB超なら24 dBの補正量を使い、範囲外は音量維持の評価対象外とする。
+- Outputは−36〜0 dBへ制限する。制限中も計算上のトリムを保持し、Driveを戻したときに元の関係へ復帰できるようにする。自動補正によるOutput通知を手動調整として再解釈しない。
+- Shift・ロック・非active中は補正せず、解除時に操作を再生しない。既存のauto_bypassと共存し、OFFからの復帰入力を二重適用しない。Legacy MixingとInstrumentには追加しない。
+- Live 12.4.15の実機でDrive／Outputの内部範囲が0〜1であることを確認した。Driveは`72v − 36` dB、Outputは`36v − 36` dBへ変換し、表示文字列は解析しない。内部範囲が異なる対象は休止する。
+- 同じ実機で「native値更新→物理入力callback→Drive変更通知」の順序を確認し、この順序に基づいて物理操作と独立した変更を扱う。auto_bypassが入力処理中にDriveを同期変更した場合も物理操作として扱う。
+
+補正カーブはRMS −18 dBFSの固定ピンクノイズを、44.1 kHz・32-bit float、Hi-Quality ON・Pre-DC Filter OFFと上記音色条件で実測した。0〜24 dBの測定点と中間点の計17点を補正して再書き出しし、基準信号に対するRMS誤差の最大値は0.07626 dBだった。精度は入力レベル・波形・音色設定に依存する。測定条件と素材別の残差は[測定記録](../diagnostics/SATURATOR_CALIBRATION.md)を参照する。
+
 ### 共通機能と更新
 
 Shift確認、タッチプレビュー、初期表示登録、無操作ロック、再識別時の再登録、トラックボタン、Solo/Mute、再生・録音・ロケータ操作は維持する。共通エンコーダー要素にあるSaturn処理も新Mixingでそのまま有効とし、モード別に無効化する仕組みは追加しない。Legacyコンポーネント内のLoopcloud／MetricABサブモード切り替えは新Mixingには持ち込まない。

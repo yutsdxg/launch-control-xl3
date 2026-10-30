@@ -9,6 +9,7 @@ from .display import send_display, send_locked_display, send_unassigned_display
 from .mixing_config import MIXING_ASSIGNMENTS
 from .mixing_targets import CONTROL_NAMES, MixingTargetResolver, validate_assignments
 from .parameter_actions import apply_directional_on_off
+from .saturator_compensation import SaturatorCompensationManager
 
 ASSIGNMENT_UPDATE_INTERVAL = 0.1
 
@@ -22,6 +23,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         self._updating = False
         self._assignments = validate_assignments(MIXING_ASSIGNMENTS if assignments is None else assignments)
         self._resolver = MixingTargetResolver(self._update_assignments)
+        self._saturator_compensation = SaturatorCompensationManager()
         self._controls = {}
         self._control_slots = {}
         self._display_commands = {}
@@ -44,6 +46,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         if active:
             self._update_assignments()
         else:
+            self._saturator_compensation.disconnect()
             self._release_all_parameter_controls()
             self._resolver.disconnect()
 
@@ -85,6 +88,9 @@ class ConfiguredMixingAssignmentsComponent(Component):
             self._resolver.refresh(self.song, self._assignments)
             for name in self._controls:
                 self._update_parameter_assignment(name, force=force)
+            self._saturator_compensation.refresh(
+                self._resolver, self._assignments, self._controls,
+                enabled=not self._shift_pressed and not self._locked)
             if prepare_displays:
                 for name in self._display_commands:
                     self._prepare_control_display(name)
@@ -222,12 +228,16 @@ class ConfiguredMixingAssignmentsComponent(Component):
             return
         self._update_assignments(prepare_displays=False)
         if not self._locked and not self._shift_pressed:
-            entry = self._assignments[name]
-            if entry and entry.get("directional_on_off"):
-                apply_directional_on_off(self._connected_parameters.get(name), value)
-                self._refresh_encoder_led(self._controls.get(name))
-            elif entry and entry.get("auto_bypass"):
-                self._handle_auto_bypass_input(name, value)
+            self._saturator_compensation.begin_input(name)
+            try:
+                entry = self._assignments[name]
+                if entry and entry.get("directional_on_off"):
+                    apply_directional_on_off(self._connected_parameters.get(name), value)
+                    self._refresh_encoder_led(self._controls.get(name))
+                elif entry and entry.get("auto_bypass"):
+                    self._handle_auto_bypass_input(name, value)
+            finally:
+                self._saturator_compensation.end_input(name)
         self._prepare_control_display(name, trigger=True)
 
     def on_consumed_encoder_input(self, event):
@@ -278,6 +288,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
 
     def disconnect(self):
         self._active = False
+        self._saturator_compensation.disconnect()
         self._release_all_parameter_controls()
         self._resolver.disconnect()
         for slot in self._control_slots.values():
