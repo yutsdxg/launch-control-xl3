@@ -26,6 +26,28 @@ class AutoBypassRangeTest(unittest.TestCase):
         self.assertTrue(should_bypass(drive, "min", bounds=(0.5, 1.0)))
         self.assertFalse(should_bypass(drive, "max", bounds=(0.5, 1.0)))
 
+    def test_effective_maximum_is_bypass_endpoint_instead_of_native_maximum(self):
+        upper = 5.0 / 6.0
+        drive = parameter(value=upper)
+        self.assertFalse(should_bypass(drive, "max"))
+        self.assertEqual(normalized_value(drive, bounds=(0.5, upper)), 1.0)
+        self.assertTrue(should_bypass(drive, "max", bounds=(0.5, upper)))
+        self.assertFalse(should_bypass(drive, "min", bounds=(0.5, upper)))
+        width = upper - 0.5
+        self.assertTrue(should_bypass(drive, "max", value=upper - width * 0.5e-6,
+                                      bounds=(0.5, upper)))
+        self.assertFalse(should_bypass(drive, "max", value=upper - width * 2e-6,
+                                       bounds=(0.5, upper)))
+
+    def test_float32_upper_readback_remains_a_bypass_endpoint(self):
+        drive = parameter(value=0.8333333134651184)
+        for lower in (0.0, 0.5):
+            with self.subTest(lower=lower):
+                bounds = (lower, 5.0 / 6.0)
+                self.assertAlmostEqual(normalized_value(drive, bounds=bounds), 1.0, places=6)
+                self.assertTrue(should_bypass(drive, "max", bounds=bounds))
+                self.assertFalse(should_bypass(drive, "max"))
+
     def test_values_outside_effective_span_clamp_only_for_endpoint_decisions(self):
         drive = parameter(value=0.25)
         self.assertTrue(should_bypass(drive, "min", bounds=(0.5, 1)))
@@ -56,11 +78,35 @@ class AutoBypassRangeTest(unittest.TestCase):
         drive.value = 1
         self.assertEqual(input_target(drive, 127, True, bounds=(0.5, 1)), 1)
 
+    def test_upper_bounded_wake_previews_use_both_configured_endpoints(self):
+        upper = 5.0 / 6.0
+        for lower in (0.0, 0.5):
+            with self.subTest(lower=lower):
+                drive = parameter(value=upper)
+                bounds = (lower, upper)
+                self.assertEqual(input_target(drive, 0, False, bounds=bounds), lower)
+                self.assertEqual(input_target(drive, 127, False, bounds=bounds), upper)
+                self.assertAlmostEqual(input_target(drive, 64, False, bounds=bounds),
+                                       lower + (upper - lower) * 64 / 127)
+                self.assertEqual(input_target(drive, 65, True, bounds=bounds), upper)
+                lowered = input_target(drive, 63, True, bounds=bounds)
+                self.assertAlmostEqual(lowered, upper - (upper - lower) / 127)
+                self.assertFalse(should_bypass(drive, "max", value=lowered, bounds=bounds))
+                self.assertEqual(drive.value, upper)
+
     def test_quantized_relative_wake_keeps_native_enum_step(self):
         mode = parameter(value=4, minimum=0, maximum=7, items=tuple(str(i) for i in range(8)))
         self.assertEqual(input_target(mode, 65, True, bounds=(4, 7)), 5)
         self.assertEqual(input_target(mode, 63, True, bounds=(4, 7)), 4)
         self.assertEqual(input_target(mode, 127, True, bounds=(4, 7)), 7)
+
+    def test_quantized_upper_bounded_wake_preserves_enum_step_and_clamps(self):
+        mode = parameter(value=4, minimum=0, maximum=7, items=tuple(str(i) for i in range(8)))
+        self.assertEqual(input_target(mode, 65, True, bounds=(2, 5)), 5)
+        mode.value = 5
+        self.assertTrue(should_bypass(mode, "max", bounds=(2, 5)))
+        self.assertEqual(input_target(mode, 65, True, bounds=(2, 5)), 5)
+        self.assertEqual(input_target(mode, 63, True, bounds=(2, 5)), 4)
 
     def test_disabled_primary_can_be_previewed_without_writing_it(self):
         drive = parameter()

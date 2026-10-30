@@ -5,6 +5,7 @@ from math import isfinite
 
 from ableton.v3.live import liveobj_valid
 
+from .parameter_ranges import is_bounded
 from .track_resolver import selected_track
 
 LOGGER = logging.getLogger(__name__)
@@ -19,6 +20,10 @@ def _positive_integer(value):
 
 def _minimum_fraction(value):
     return type(value) in (int, float) and 0 <= value < 1 and isfinite(value)
+
+
+def _maximum_fraction(value):
+    return type(value) in (int, float) and 0 < value <= 1 and isfinite(value)
 
 
 def validate_assignments(raw):
@@ -37,7 +42,7 @@ def validate_assignments(raw):
         if valid and "device" in entry:
             valid = (
                 set(entry) <= {"device", "parameter", "occurrence", "directional_on_off", "auto_bypass",
-                               "min", "takeover"}
+                               "min", "max", "takeover"}
                 and _positive_integer(entry["device"])
                 and isinstance(entry.get("parameter"), str)
                 and bool(entry["parameter"].strip())
@@ -45,7 +50,7 @@ def validate_assignments(raw):
             )
         elif valid:
             valid = (
-                set(entry) <= {"mixer", "send", "directional_on_off", "min", "takeover"}
+                set(entry) <= {"mixer", "send", "directional_on_off", "min", "max", "takeover"}
                 and entry.get("mixer") in ("volume", "pan", "send", "cue_volume")
                 and (_positive_integer(entry.get("send")) if entry.get("mixer") == "send"
                      else "send" not in entry)
@@ -54,10 +59,14 @@ def validate_assignments(raw):
             valid = name.startswith("encoder_") and type(entry["directional_on_off"]) is bool
         if valid and "min" in entry:
             valid = _minimum_fraction(entry["min"])
-        if valid and entry.get("min", 0) > 0:
+        if valid and "max" in entry:
+            valid = _maximum_fraction(entry["max"])
+        if valid:
+            valid = entry.get("min", 0) < entry.get("max", 1)
+        if valid and is_bounded(entry):
             valid = not entry.get("directional_on_off")
         if valid and "takeover" in entry:
-            valid = (name.startswith("fader_") and entry.get("min", 0) > 0
+            valid = (name.startswith("fader_") and is_bounded(entry)
                      and isinstance(entry["takeover"], str)
                      and entry["takeover"] in ("value_scaling", "pickup", "none"))
         if valid and "auto_bypass" in entry:

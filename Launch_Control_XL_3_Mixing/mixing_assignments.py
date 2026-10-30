@@ -169,13 +169,14 @@ class ConfiguredMixingAssignmentsComponent(Component):
             self._range_inputs.pop(name, None)
             return
         signature = (control, self._resolver.owner(entry), parameter,
-                     parameter.min, parameter.max, entry["min"],
+                     parameter.min, parameter.max, entry.get("min", 0.0), entry.get("max", 1.0),
                      entry.get("takeover", "value_scaling"))
         previous = self._range_inputs.get(name)
         if previous is None or previous[0] != signature:
             self._range_inputs[name] = (signature, ParameterRangeControl(
                 parameter, relative=name.startswith("encoder_"),
-                minimum=entry["min"], takeover=entry.get("takeover", "value_scaling")))
+                minimum=entry.get("min", 0.0), maximum=entry.get("max", 1.0),
+                takeover=entry.get("takeover", "value_scaling")))
 
     def _release_parameter_control(self, name, control):
         self._range_inputs.pop(name, None)
@@ -294,7 +295,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         if self._bypassed_parameter(name, parameter):
             try:
                 actual = float(parameter.value)
-                outside_bounds = not bounds[0] <= actual <= bounds[1]
+                outside_bounds = not controller.within_bounds(actual)
                 if (not outside_bounds and should_bypass(
                         parameter, entry["auto_bypass"]["off_at"], target, bounds=bounds)):
                     controller.applied(actual)
@@ -302,8 +303,8 @@ class ConfiguredMixingAssignmentsComponent(Component):
             except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
                 controller.reset()
                 return False
-            # Repair a saved value below the new floor even when the device is
-            # OFF. Output is corrected before the final endpoint bypass action.
+            # Repair a saved value outside the configured range even when the
+            # device is OFF. Correct Output before the final bypass action.
             if not set_device_enabled(self._resolver.device_on(entry), True):
                 controller.reset()
                 return False

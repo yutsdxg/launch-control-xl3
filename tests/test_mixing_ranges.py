@@ -1,24 +1,34 @@
-"""Configured minimums must own input without leaking a native mapping.
+"""Configured ranges must own input without leaking a native mapping.
 
 The compensation curve imported below is synthetic test data. These checks use
 real control callbacks and observe parameter writes, including device-off order.
 """
 
+import struct
 import unittest
 
 import test_mixing as fixtures
 from test_configured_mixing import ObservableTrack, ObservableView
-from test_saturator_compensation import Device, TEST_CURVE, drive_value, output_db
+from test_saturator_compensation import Device, ObservableParameter, TEST_CURVE, drive_value, output_db
 from test_shift_preview import NativeMappedControl
 
 from Launch_Control_XL_3_Mixing.mixing_assignments import ConfiguredMixingAssignmentsComponent
 from Launch_Control_XL_3_Mixing.saturator_compensation import SaturatorCompensationManager
 
 
+class Float32Parameter(ObservableParameter):
+    @ObservableParameter.value.setter
+    def value(self, value):
+        ObservableParameter.value.fset(self, struct.unpack("f", struct.pack("f", value))[0])
+
+
 class ConfiguredMixingRangesTest(unittest.TestCase):
     def make_component(self, name="fader_7", *, minimum=0.5, initial=0.5,
-                       output=0.0, device_on=1.0, **options):
+                       maximum=None, output=0.0, device_on=1.0, float32=False, **options):
         self.device = Device(output=output)
+        if float32:
+            self.device.named["Drive"] = Float32Parameter("Drive")
+            self.device.drive.canonical_parent = self.device
         self.device.drive.native_change(initial)
         self.device.named["Device On"].native_change(device_on)
         self.device.drive.is_enabled = self.device.output.is_enabled = device_on > 0.5
@@ -28,6 +38,8 @@ class ConfiguredMixingRangesTest(unittest.TestCase):
         entry = {"device": 1, "parameter": "Drive"}
         if minimum is not None:
             entry["min"] = minimum
+        if maximum is not None:
+            entry["max"] = maximum
         entry.update(options)
         self.component = ConfiguredMixingAssignmentsComponent(assignments={name: entry})
         self.component.song = self.song
@@ -76,16 +88,47 @@ class ConfiguredMixingRangesTest(unittest.TestCase):
                 self.assertAlmostEqual(self.device.drive.value, 0.5 + 0.5 * value / 127.0)
         self.assertEqual(control.native_updates, [])
 
-    def test_unset_and_zero_minimum_preserve_native_mapping(self):
-        for minimum in (None, 0.0):
-            with self.subTest(minimum=minimum):
-                control = self.make_component(minimum=minimum)
+    def test_unset_and_full_range_bounds_preserve_native_mapping(self):
+        for minimum, maximum in ((None, None), (0.0, None), (None, 1.0), (0.0, 1.0)):
+            with self.subTest(minimum=minimum, maximum=maximum):
+                control = self.make_component(minimum=minimum, maximum=maximum)
                 self.assertIs(control.mapped_parameter, self.device.drive)
                 self.assert_no_parameter_writes()
                 control.receive(127)
                 self.assertEqual(self.device.drive.value, 1.0)
                 self.assertEqual(len(control.native_updates), 1)
                 self.assertIs(control.mapped_parameter, self.device.drive)
+
+    def test_max_only_and_two_sided_fader_ranges_use_full_travel(self):
+        upper = 5.0 / 6.0
+        for minimum, lower in ((None, 0.0), (0.5, 0.5)):
+            with self.subTest(minimum=minimum):
+                control = self.make_component(minimum=minimum, maximum=upper, takeover="none")
+                self.assertIsNone(control.mapped_parameter)
+                self.assert_no_parameter_writes()
+                for value in range(128):
+                    with self.subTest(cc=value):
+                        control.receive(value)
+                        self.assertAlmostEqual(self.device.drive.value,
+                                               lower + (upper - lower) * value / 127.0)
+                self.assertEqual(control.native_updates, [])
+
+    def test_encoder_max_only_and_two_sided_ranges_use_bounded_steps(self):
+        upper = 5.0 / 6.0
+        for minimum, lower in ((None, 0.0), (0.5, 0.5)):
+            with self.subTest(minimum=minimum):
+                control = self.make_component("encoder_23", minimum=minimum,
+                                              maximum=upper, initial=0.6)
+                self.assertIsNone(control.mapped_parameter)
+                control.receive(65)
+                self.assertAlmostEqual(self.device.drive.value, 0.6 + (upper - lower) / 127.0)
+                for unused in range(3):
+                    control.receive(127)
+                self.assertEqual(self.device.drive.value, upper)
+                for unused in range(3):
+                    control.receive(0)
+                self.assertEqual(self.device.drive.value, lower)
+                self.assertEqual(control.native_updates, [])
 
     def test_encoder_uses_bounded_span_for_steps_and_clamps_at_both_ends(self):
         control = self.make_component("encoder_23", initial=0.75)
@@ -112,6 +155,35 @@ class ConfiguredMixingRangesTest(unittest.TestCase):
         self.assertAlmostEqual(self.device.drive.value, 0.75 + 0.25 * 64.0 / 127.0)
         control.receive(127)
         self.assertEqual(self.device.drive.value, 1.0)
+        self.assertEqual(control.native_updates, [])
+
+    def test_two_sided_value_scaling_anchors_then_reaches_configured_maximum(self):
+        upper = 5.0 / 6.0
+        control = self.make_component(initial=0.6, maximum=upper)
+        control.receive(0)
+        self.assertEqual(self.device.drive.value, 0.6)
+        self.assert_no_parameter_writes()
+        control.receive(64)
+        self.assertAlmostEqual(self.device.drive.value, 0.6 + (upper - 0.6) * 64.0 / 127.0)
+        control.receive(127)
+        self.assertEqual(self.device.drive.value, upper)
+
+    def test_maximum_change_resets_value_scaling_without_replaying_previous_cc(self):
+        control = self.make_component(initial=0.6, maximum=0.75)
+        control.receive(0)
+        control.receive(64)
+        before = self.device.drive.value
+        self.clear_parameter_writes()
+        self.component._assignments["fader_7"]["max"] = 5.0 / 6.0
+        self.component._update_assignments()
+        self.assert_no_parameter_writes()
+        control.receive(127)
+        self.assertEqual(self.device.drive.value, before)
+        self.assert_no_parameter_writes()
+        control.receive(0)
+        self.assertEqual(self.device.drive.value, 0.5)
+        control.receive(127)
+        self.assertEqual(self.device.drive.value, 5.0 / 6.0)
         self.assertEqual(control.native_updates, [])
 
     def test_pickup_wait_does_not_wake_device_or_change_drive_or_output(self):
@@ -266,6 +338,112 @@ class ConfiguredMixingRangesTest(unittest.TestCase):
                 self.assertEqual(on.writes, [1.0])
                 self.assertEqual([event[0] for event in events], ["Device On", "Drive", "Output"])
                 self.assertEqual(control.native_updates, [])
+
+    def test_effective_maximum_compensates_before_off_and_lowering_wakes_once(self):
+        upper = 5.0 / 6.0
+        for name, wake_cc, wake_drive, wake_output in (
+                ("fader_7", 0, 0.5, 0.0),
+                ("encoder_23", 63, upper - (upper - 0.5) / 127.0, -10.0 + 6.0 / 127.0)):
+            with self.subTest(control=name):
+                options = {"takeover": "none"} if name.startswith("fader_") else {}
+                control = self.make_component(name, initial=drive_value(18.0), maximum=upper,
+                                              output=-8.5, auto_bypass={"off_at": "max"}, **options)
+                events = self.disable_parameters_with_device_off()
+                on = self.device.named["Device On"]
+                self.assert_no_parameter_writes()
+                control.receive(127)
+                self.assertEqual(self.device.drive.value, upper)
+                self.assertAlmostEqual(output_db(self.device.output), -10.0)
+                self.assertEqual(on.value, 0.0)
+                self.assertEqual([event[0] for event in events], ["Drive", "Output", "Device On"])
+                self.assertEqual(events[1][2], 1.0)
+                self.assertAlmostEqual(events[2][3], -10.0)
+                self.clear_parameter_writes()
+                events.clear()
+                control.receive(127)
+                self.assert_no_parameter_writes()
+                self.assertEqual(on.value, 0.0)
+                control.receive(wake_cc)
+                self.assertEqual(on.value, 1.0)
+                self.assertAlmostEqual(self.device.drive.value, wake_drive)
+                self.assertAlmostEqual(output_db(self.device.output), wake_output)
+                self.assertEqual(len(self.device.drive.writes), 1)
+                self.assertEqual(len(self.device.output.writes), 1)
+                self.assertEqual(on.writes, [1.0])
+                self.assertEqual([event[0] for event in events], ["Device On", "Drive", "Output"])
+                self.assertEqual(control.native_updates, [])
+
+    def test_saved_above_maximum_off_device_is_repaired_only_on_input(self):
+        upper = 5.0 / 6.0
+        for takeover in (None, "none"):
+            with self.subTest(takeover=takeover or "default_value_scaling"):
+                options = {} if takeover is None else {"takeover": takeover}
+                control = self.make_component(initial=1.0, maximum=upper, output=-12.0,
+                                              device_on=0.0, auto_bypass={"off_at": "max"}, **options)
+                events = self.disable_parameters_with_device_off()
+                on = self.device.named["Device On"]
+                self.component._update_assignments()
+                self.assert_no_parameter_writes()
+                control.receive(127)
+                self.assertEqual(self.device.drive.writes, [upper])
+                self.assertAlmostEqual(output_db(self.device.output), -10.0)
+                self.assertEqual(len(self.device.output.writes), 1)
+                self.assertEqual(on.writes, [1.0, 0.0])
+                self.assertEqual([event[0] for event in events],
+                                 ["Device On", "Drive", "Output", "Device On"])
+                self.assertEqual(events[2][2], 1.0)
+                self.assertAlmostEqual(events[3][3], -10.0)
+                self.clear_parameter_writes()
+                events.clear()
+                control.receive(0)
+                self.assertEqual(self.device.drive.writes, [0.5])
+                self.assertAlmostEqual(output_db(self.device.output), 0.0)
+                self.assertEqual(len(self.device.output.writes), 1)
+                self.assertEqual(on.writes, [1.0])
+                self.assertEqual([event[0] for event in events], ["Device On", "Drive", "Output"])
+                self.assertEqual(control.native_updates, [])
+
+    def test_float32_maximum_readback_still_turns_device_off_and_can_wake(self):
+        upper = 5.0 / 6.0
+        for minimum in (None, 0.5):
+            with self.subTest(minimum=minimum):
+                control = self.make_component(minimum=minimum, initial=0.75, maximum=upper,
+                                              takeover="none", float32=True,
+                                              auto_bypass={"off_at": "max"})
+                self.disable_parameters_with_device_off()
+                on = self.device.named["Device On"]
+                control.receive(127)
+                self.assertEqual(self.device.drive.value, 0.8333333134651184)
+                self.assertNotEqual(self.device.drive.value, upper)
+                self.assertAlmostEqual(output_db(self.device.output), -10.0, places=5)
+                self.assertEqual(on.writes, [0.0])
+                self.clear_parameter_writes()
+                control.receive(0)
+                self.assertEqual(on.writes, [1.0])
+                self.assertEqual(self.device.drive.value, minimum or 0.0)
+                self.assertEqual(len(self.device.drive.writes), 1)
+                self.assertEqual(len(self.device.output.writes), 1)
+
+    def test_float32_rounded_above_maximum_stays_off_on_repeated_endpoint_input(self):
+        upper = 0.999
+        control = self.make_component(initial=0.75, maximum=upper, takeover="none",
+                                      float32=True, auto_bypass={"off_at": "max"})
+        self.disable_parameters_with_device_off()
+        on = self.device.named["Device On"]
+        control.receive(127)
+        self.assertGreater(self.device.drive.value, upper)
+        self.assertEqual(on.writes, [0.0])
+        self.clear_parameter_writes()
+        for unused in range(3):
+            control.receive(127)
+            self.assertEqual(on.value, 0.0)
+            self.assert_no_parameter_writes()
+        control.receive(126)
+        expected = struct.unpack("f", struct.pack("f", 0.5 + (upper - 0.5) * 126.0 / 127.0))[0]
+        self.assertEqual(self.device.drive.writes, [expected])
+        self.assertEqual(on.writes, [1.0])
+        self.assertEqual(self.device.output.writes, [])
+        self.assertEqual(control.native_updates, [])
 
 
 if __name__ == "__main__":

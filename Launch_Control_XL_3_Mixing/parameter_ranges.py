@@ -18,12 +18,15 @@ def is_bounded(entry):
     if not isinstance(entry, dict):
         return False
     minimum = _minimum(entry.get("min", 0.0))
-    return minimum is not None and minimum > 0.0
+    maximum = _minimum(entry.get("max", 1.0))
+    return (minimum is not None and maximum is not None and minimum < maximum
+            and (minimum > 0.0 or maximum < 1.0))
 
 
-def _profile(parameter, minimum):
+def _profile(parameter, minimum, maximum=1.0):
     minimum = _minimum(minimum)
-    if parameter is None or minimum is None:
+    maximum = _minimum(maximum)
+    if parameter is None or minimum is None or maximum is None or minimum >= maximum:
         return None
     try:
         native_min, native_max = float(parameter.min), float(parameter.max)
@@ -31,7 +34,8 @@ def _profile(parameter, minimum):
         if (not all(isfinite(value) for value in (native_min, native_max, width))
                 or width <= 0.0):
             return None
-        lower = native_min + width * minimum
+        lower = native_min if minimum == 0.0 else native_min + width * minimum
+        upper = native_max if maximum == 1.0 else native_min + width * maximum
         step = None
         if getattr(parameter, "is_quantized", False):
             try:
@@ -41,36 +45,40 @@ def _profile(parameter, minimum):
             step = width / (len(items) - 1) if len(items) > 1 else 1.0
             if not isfinite(step) or step <= 0.0:
                 return None
-            # Subtract a small tolerance only when rounding a discrete index.
-            index = ceil((lower - native_min) / step - 1e-10)
-            lower = max(native_min, min(native_max, native_min + index * step))
-        if lower >= native_max:
+            # Tolerances only stabilize rounding onto an existing native item.
+            lower_index = ceil((lower - native_min) / step - 1e-10)
+            upper_index = floor((upper - native_min) / step + 1e-10)
+            lower = max(native_min, min(native_max, native_min + lower_index * step))
+            if maximum < 1.0:
+                upper = max(native_min, min(native_max, native_min + upper_index * step))
+        if lower >= upper:
             return None
-        return native_min, native_max, lower, step
+        return native_min, native_max, lower, upper, step
     except ERRORS:
         return None
 
 
 def effective_bounds(parameter, entry=None):
-    """Return real parameter units after a normalized lower bound is applied."""
+    """Return real units after normalized lower/upper bounds are applied."""
     if entry is not None and not isinstance(entry, dict):
         return None
-    profile = _profile(parameter, (entry or {}).get("min", 0.0))
-    return (profile[2], profile[1]) if profile is not None else None
+    profile = _profile(parameter, (entry or {}).get("min", 0.0), (entry or {}).get("max", 1.0))
+    return (profile[2], profile[3]) if profile is not None else None
 
 
 class ParameterRangeControl:
-    """Scale absolute/relative CCs into a parameter's configured upper range.
+    """Scale absolute/relative CCs into a parameter's configured range.
 
     A returned target must be acknowledged with applied(actual_value), including
     a quantized no-op. This preserves fractional scaling progress while still
     detecting external changes or an unexpected value accepted by Live.
     """
 
-    def __init__(self, parameter, relative, minimum=0.0, takeover="value_scaling"):
+    def __init__(self, parameter, relative, minimum=0.0, takeover="value_scaling", *, maximum=1.0):
         self.parameter = parameter
         self.relative = bool(relative)
         self.minimum = minimum
+        self.maximum = maximum
         self.takeover = takeover
         self.reset()
 
@@ -83,15 +91,27 @@ class ParameterRangeControl:
         self._picked_up = False
 
     def _normalize(self, value):
-        _, upper, lower, _ = self._profile
+        _, _, lower, upper, _ = self._profile
         return max(0.0, min(1.0, (value - lower) / (upper - lower)))
 
     def _tolerance(self):
-        native_min, native_max, _, _ = self._profile
+        native_min, native_max = self._profile[:2]
         # Live can round a successful write to float32. A restricted range must
         # not shrink the tolerance below that native parameter's precision.
         magnitude = max(abs(native_min), abs(native_max))
         return max(1e-12, (native_max - native_min) * 1e-7, magnitude * 2.0 ** -24)
+
+    def within_bounds(self, value):
+        """Check the current range, allowing native float32 readback rounding."""
+        if self._profile is None:
+            return False
+        try:
+            actual = float(value)
+            lower, upper = self._profile[2:4]
+            tolerance = self._tolerance()
+            return isfinite(actual) and lower - tolerance <= actual <= upper + tolerance
+        except ERRORS:
+            return False
 
     def _close(self, left, right):
         return left is not None and right is not None and abs(left - right) <= self._tolerance()
@@ -104,7 +124,7 @@ class ParameterRangeControl:
         self._picked_up = False
 
     def _target(self, actual):
-        native_min, upper, lower, step = self._profile
+        native_min, _, lower, upper, step = self._profile
         actual = max(lower, min(upper, actual))
         if step is not None:
             index = floor((actual - native_min) / step + 0.5)
@@ -118,7 +138,7 @@ class ParameterRangeControl:
             return None
         if self.takeover not in TAKEOVER_MODES:
             return None
-        profile = _profile(self.parameter, self.minimum)
+        profile = _profile(self.parameter, self.minimum, self.maximum)
         if profile is None:
             self.reset()
             return None
@@ -136,7 +156,7 @@ class ParameterRangeControl:
         elif self._pending_target is not None or not self._close(actual, self._known_actual):
             # An unacknowledged proposal is discarded rather than replayed.
             self._rearm(actual)
-        _, upper, lower, step = profile
+        _, _, lower, upper, step = profile
         if self.relative:
             base = max(lower, min(upper, actual))
             amount = step if step is not None else (upper - lower) / 127.0
@@ -146,8 +166,8 @@ class ParameterRangeControl:
             self._previous_input = position
             self._virtual = position
             return self._target(lower + (upper - lower) * position)
-        if actual < lower - self._tolerance() or actual > upper + self._tolerance():
-            # Enforce the floor on an input, never at bind/reset time. Further
+        if not self.within_bounds(actual):
+            # Enforce bounds on an input, never at bind/reset time. Further
             # motion starts scaling/pickup from this physical position.
             self._previous_input = position
             self._virtual = self._normalize(actual)
