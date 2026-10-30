@@ -54,6 +54,10 @@ class ControlRouterComponent(Component):
             self._activity_slots[name] = self.register_slot(
                 control, lambda value, *a: self._record_activity(name, value), "value")
 
+    def _on_consumed_encoder_input(self, name, value):
+        self._record_activity(name, value)
+        self._call_target(self._fixed_assignments, "on_consumed_encoder_input", (name, value), "fixed", name)
+
     def set_target_components(self, fixed_assignments=None, instrument_assignments=None, track_buttons=None):
         self._fixed_assignments = fixed_assignments
         self._instrument_assignments = instrument_assignments
@@ -119,7 +123,7 @@ class ControlRouterComponent(Component):
         self._call_target(previous, "set_on_activity", None, "control", "activity")
         self._set_control_shift_state(control, self._shift_pressed)
         self._call_target(control, "set_locked", self._locked, "control", "lock")
-        self._call_target(control, "set_on_activity", lambda value: self._record_activity(name, value),
+        self._call_target(control, "set_on_activity", lambda value: self._on_consumed_encoder_input(name, value),
                           "control", "activity")
         self._parameter_controls[name] = control
         self._set_activity_control(name, control)

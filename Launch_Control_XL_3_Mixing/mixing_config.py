@@ -57,3 +57,7 @@ MIXING_ASSIGNMENTS = {
 # "fader_8": {"mixer": "volume"},
 # directional_on_off=Trueは左回しで最小値、右回しで最大値。エンコーダー専用。
 # 省略またはFalseなら通常操作。Device Onもフェーダーへ通常割り当て可能。
+# auto_bypassは操作時だけ同じデバイスのDevice Onを連動させる。
+# off_at="min"なら最小値でOFF、off_at="max"なら最大値でOFF。それ以外はON。
+# "fader_6": {"device": 10, "parameter": "Dry/Wet", "auto_bypass": {"off_at": "min"}},
+# "fader_5": {"device": 8, "parameter": "Threshold", "auto_bypass": {"off_at": "max"}},
