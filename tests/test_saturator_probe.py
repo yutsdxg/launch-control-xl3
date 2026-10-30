@@ -124,6 +124,17 @@ class SaturatorProbeTest(unittest.TestCase):
         self.assertIs(self.second_control.mapped_parameter, self.drive)
         self.assertEqual(self.output.value, -4.0)
 
+    def test_other_v3_surfaces_can_raise_key_error_from_component_map_get(self):
+        class ComponentMap:
+            def get(self, name):
+                raise KeyError(name)
+
+        unrelated = types.SimpleNamespace(component_map=ComponentMap())
+        self.probe._probe_scripts = (unrelated,) + self.probe._probe_scripts
+        self.probe._refresh_bindings()
+        self.assertEqual(len(self.probe._bindings), 1)
+        self.assertEqual(len(self.drive.listeners), 1)
+
     def test_actual_event_order_is_retained_in_both_directions_without_value_writes(self):
         for native_first in (True, False):
             with self.subTest(native_first=native_first):

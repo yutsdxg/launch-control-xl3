@@ -188,6 +188,7 @@ class SaturatorInputProbe(ControlSurface):
         groups = []
         for script in self._probe_scripts:
             try:
+                # Live's v3 ComponentMap.get raises KeyError for absent names.
                 component = script.component_map.get("Fixed_Assignments")
                 if component is None or type(component).__name__ != "ConfiguredMixingAssignmentsComponent":
                     continue
@@ -209,7 +210,7 @@ class SaturatorInputProbe(ControlSurface):
                         group = [component, owner, drive, []]
                         groups.append(group)
                     group[3].append((name, control, dict(entry)))
-            except (AttributeError, RuntimeError):
+            except (AttributeError, KeyError, RuntimeError):
                 continue
         return groups
 
