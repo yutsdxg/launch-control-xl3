@@ -4,6 +4,7 @@ from ableton.v3.base import task
 from ableton.v3.control_surface import Component
 from ableton.v3.live import liveobj_valid
 
+from .auto_bypass import device_is_off, input_target, set_device_enabled, should_bypass
 from .display import send_display, send_locked_display, send_unassigned_display
 from .mixing_config import MIXING_ASSIGNMENTS
 from .mixing_targets import CONTROL_NAMES, MixingTargetResolver, validate_assignments
@@ -100,13 +101,26 @@ class ConfiguredMixingAssignmentsComponent(Component):
 
     def _manual_mapping(self, name):
         entry = self._assignments[name]
-        return self._shift_pressed or self._locked or bool(entry and entry.get("directional_on_off"))
+        return (self._shift_pressed or self._locked or bool(entry and entry.get("directional_on_off"))
+                or self._bypassed_parameter(name, self._resolver.resolve(entry)))
+
+    def _bypassed_parameter(self, name, parameter):
+        entry = self._assignments[name]
+        return bool(
+            entry and entry.get("auto_bypass") and liveobj_valid(parameter)
+            and not self._parameter_is_enabled(parameter)
+            and self._parameter_is_enabled(self._resolver.device_on(entry))
+            and device_is_off(self._resolver.device_on(entry))
+        )
+
+    def _parameter_is_available(self, name, parameter):
+        return self._parameter_is_enabled(parameter) or self._bypassed_parameter(name, parameter)
 
     def _update_parameter_assignment(self, name, force=False):
         control = self._controls.get(name)
         entry = self._assignments[name]
         parameter = self._resolver.resolve(entry)
-        if control is None or not self._parameter_is_enabled(parameter):
+        if control is None or not self._parameter_is_available(name, parameter):
             self._release_parameter_control(name, control)
             return
         manual = self._manual_mapping(name)
@@ -183,7 +197,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
             send_locked_display(command, trigger=trigger)
             return
         parameter = self._resolver.resolve(self._assignments[name])
-        if not self._parameter_is_enabled(parameter):
+        if not self._parameter_is_available(name, parameter):
             send_unassigned_display(command, name, trigger=trigger)
             return
         entry = self._assignments[name]
@@ -212,7 +226,55 @@ class ConfiguredMixingAssignmentsComponent(Component):
             if entry and entry.get("directional_on_off"):
                 apply_directional_on_off(self._connected_parameters.get(name), value)
                 self._refresh_encoder_led(self._controls.get(name))
+            elif entry and entry.get("auto_bypass"):
+                self._handle_auto_bypass_input(name, value)
         self._prepare_control_display(name, trigger=True)
+
+    def on_consumed_encoder_input(self, event):
+        # Shared element handlers (e.g. Saturn) can apply a value before consuming
+        # the MIDI event. Run the companion action without applying that value twice.
+        name, value = event
+        entry = self._assignments.get(name)
+        if entry and entry.get("auto_bypass"):
+            self._on_parameter_control_value(name, value)
+
+    def _handle_auto_bypass_input(self, name, value):
+        entry = self._assignments[name]
+        parameter = self._connected_parameters.get(name)
+        if not self._parameter_is_available(name, parameter):
+            return
+        if self._bypassed_parameter(name, parameter):
+            relative = name.startswith("encoder_")
+            target = input_target(parameter, value, relative)
+            if target is None or should_bypass(parameter, entry["auto_bypass"]["off_at"], target):
+                return
+            if not set_device_enabled(self._resolver.device_on(entry), True):
+                return
+            if relative and self._parameter_is_enabled(parameter):
+                try:
+                    parameter.value = target
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    pass
+            # A disabled fader wakes the device without bypassing Live's takeover.
+            # Its next input is handled by the native parameter map. No queued CC.
+            self._update_assignments(prepare_displays=False)
+            if not relative or not self._parameter_is_enabled(parameter):
+                return
+        self._apply_auto_bypass(entry)
+        self._update_assignments(prepare_displays=False)
+
+    def _apply_auto_bypass(self, entry):
+        conditions = []
+        for name, candidate in self._assignments.items():
+            if candidate and candidate.get("auto_bypass") and candidate["device"] == entry["device"]:
+                parameter = self._resolver.resolve(candidate)
+                if not self._parameter_is_available(name, parameter):
+                    continue
+                condition = should_bypass(parameter, candidate["auto_bypass"]["off_at"])
+                if condition is not None:
+                    conditions.append(condition)
+        if conditions:
+            set_device_enabled(self._resolver.device_on(entry), not any(conditions))
 
     def disconnect(self):
         self._active = False

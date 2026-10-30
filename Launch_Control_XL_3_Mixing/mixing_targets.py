@@ -31,7 +31,7 @@ def validate_assignments(raw):
         valid = isinstance(entry, dict)
         if valid and "device" in entry:
             valid = (
-                set(entry) <= {"device", "parameter", "occurrence", "directional_on_off"}
+                set(entry) <= {"device", "parameter", "occurrence", "directional_on_off", "auto_bypass"}
                 and _positive_integer(entry["device"])
                 and isinstance(entry.get("parameter"), str)
                 and bool(entry["parameter"].strip())
@@ -46,8 +46,20 @@ def validate_assignments(raw):
             )
         if valid and "directional_on_off" in entry:
             valid = name.startswith("encoder_") and type(entry["directional_on_off"]) is bool
+        if valid and "auto_bypass" in entry:
+            option = entry["auto_bypass"]
+            valid = (
+                "device" in entry
+                and entry["parameter"] != "Device On"
+                and not entry.get("directional_on_off")
+                and isinstance(option, dict)
+                and set(option) == {"off_at"}
+                and option["off_at"] in ("min", "max")
+            )
         if valid:
             assignments[name] = dict(entry)
+            if "auto_bypass" in entry:
+                assignments[name]["auto_bypass"] = dict(entry["auto_bypass"])
         else:
             LOGGER.warning("LCXL3 Mixing: invalid assignment for %s: %r", name, entry)
     return assignments
@@ -188,6 +200,11 @@ class MixingTargetResolver:
         if "device" in entry:
             return self.device(entry["device"])
         return self.master_track if entry["mixer"] == "cue_volume" else self.track
+
+    def device_on(self, entry):
+        cached = self._device_parameters.get(entry["device"])
+        matches = cached.named.get("Device On", ()) if cached is not None else ()
+        return matches[0] if matches else None
 
     def _clear_devices(self):
         for cached in self._device_parameters.values():
