@@ -1641,5 +1641,17 @@
     "bounded_fader_default_takeover": "script value_scaling",
     "bounded_fader_follows_global_live_takeover": false,
     "unbounded_controls_keep_native_live_mapping": true
+  },
+  "runtime_confirmation_issue_36": {
+    "date": "2026-10-31",
+    "set": "LCXL3_issue36_session",
+    "color_on": true,
+    "configured_drive_min_fraction": 0.5,
+    "controller_drive_range_0_to_36_db_user_confirmed": true,
+    "output_linkage_user_confirmed": true,
+    "minimum_bypass_and_wake_user_confirmed": true,
+    "user_feedback": "OKです",
+    "additional_acoustic_calibration_performed": false,
+    "final_pr_approval": false
   }
 }
