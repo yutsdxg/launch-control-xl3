@@ -950,5 +950,26 @@
     "Synthetic material validation uses generated signals, not a guarantee for arbitrary music.",
     "Native callback order was observed on Live 12.4.15.",
     "Fixed-parameter audio renders do not establish the absence of transients during controller movement."
-  ]
+  ],
+  "deployed_runtime_validation": {
+    "user_confirmed_drive_output_link": true,
+    "valid_physical_inputs": 1176,
+    "observed_drive_range_db": [
+      -36.0,
+      36.0
+    ],
+    "observed_output_range_db": [
+      -28.232009947299957,
+      -11.714773178100586
+    ],
+    "initial_trim_db_approximately": -12.0,
+    "initial_trim_input_count": 17,
+    "manual_adjusted_trim_db_approximately": -11.7148,
+    "manual_adjusted_trim_input_count": 1159,
+    "takeover_restored_to": "Value Scaling",
+    "parameter_relationship_is_not_audio_rms_error": true,
+    "subjective_listening_feedback": "User reported no noticeable level steps during fast Drive movement on the synthetic bass test Set.",
+    "diagnostic_surface_disabled_after_test": true,
+    "main_surface_and_ports_preserved": true
+  }
 }
