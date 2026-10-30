@@ -40,7 +40,7 @@ def validate_assignments(raw):
         elif valid:
             valid = (
                 set(entry) <= {"mixer", "send", "directional_on_off"}
-                and entry.get("mixer") in ("volume", "pan", "send")
+                and entry.get("mixer") in ("volume", "pan", "send", "cue_volume")
                 and (_positive_integer(entry.get("send")) if entry.get("mixer") == "send"
                      else "send" not in entry)
             )
@@ -115,12 +115,17 @@ class MixingTargetResolver:
     def __init__(self, on_change):
         self._on_change = on_change
         self.track = None
+        self.master_track = None
         self._view_listener = None
         self._devices_listener = None
         self._device_parameters = {}
         self._devices = ()
 
     def refresh(self, song, assignments):
+        try:
+            self.master_track = song.master_track
+        except (AttributeError, RuntimeError):
+            self.master_track = None
         view = getattr(song, "view", None)
         if self._view_listener is None or self._view_listener.subject != view:
             if self._view_listener is not None:
@@ -155,7 +160,14 @@ class MixingTargetResolver:
         return self._devices[number - 1] if number <= len(self._devices) else None
 
     def resolve(self, entry):
-        if entry is None or not liveobj_valid(self.track):
+        if entry is None:
+            return None
+        if entry.get("mixer") == "cue_volume":
+            try:
+                return self.master_track.mixer_device.cue_volume
+            except (AttributeError, RuntimeError):
+                return None
+        if not liveobj_valid(self.track):
             return None
         if "device" in entry:
             cached = self._device_parameters.get(entry["device"])
@@ -172,6 +184,11 @@ class MixingTargetResolver:
         except (AttributeError, RuntimeError):
             return None
 
+    def owner(self, entry):
+        if "device" in entry:
+            return self.device(entry["device"])
+        return self.master_track if entry["mixer"] == "cue_volume" else self.track
+
     def _clear_devices(self):
         for cached in self._device_parameters.values():
             cached.disconnect()
@@ -184,4 +201,5 @@ class MixingTargetResolver:
                 listener.disconnect()
         self._view_listener = self._devices_listener = None
         self.track = None
+        self.master_track = None
         self._devices = ()

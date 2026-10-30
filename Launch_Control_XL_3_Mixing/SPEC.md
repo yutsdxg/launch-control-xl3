@@ -128,7 +128,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 
 ### 操作子ごとの指定
 
-`MIXING_ASSIGNMENTS` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`。初期設定は全32枠を明示的に `None` とする。次の例は記入方法であり、初期アサインには適用しない。
+`MIXING_ASSIGNMENTS` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`。Encoder 8には従来どおりMasterのCue Volume（ブラウザのプレビュー音量）を初期割り当てし、残り31枠は `None` とする。次の例のデバイス・Send・Pan・Volume指定は記入方法であり、初期アサインには適用しない。
 
 ```python
 MIXING_ASSIGNMENTS = {
@@ -137,6 +137,7 @@ MIXING_ASSIGNMENTS = {
         "parameter": "Device On",
         "directional_on_off": True,
     },
+    "encoder_8": {"mixer": "cue_volume"},
     "encoder_9": {"device": 4, "parameter": "Attack"},
     "encoder_10": {"device": 5, "parameter": "Gain", "occurrence": 2},
     "encoder_16": {"mixer": "send", "send": 1},
@@ -145,12 +146,12 @@ MIXING_ASSIGNMENTS = {
 }
 ```
 
-- 対象は常に `song.view.selected_track`。Loopcloudなどの別トラックやMasterを別途検索しない。Masterを選択している場合は選択対象として扱う。
+- デバイス・Volume・Pan・Sendの対象は `song.view.selected_track`。Loopcloudなどの別トラックを検索せず、Masterを選択している場合はMasterを選択対象として扱う。`cue_volume` のみ選択トラックに関係なくMasterのキューボリュームを対象にする。
 - `device` は選択トラック直下のデバイス順、1始まり。無効化中のデバイスも数え、Rack内部のチェーンには入らない。デバイスを並べ替えると指定位置のデバイスへ追従する。
 - `parameter` はLiveが公開するパラメータの `name` と完全一致。大文字・小文字・空白も一致させる。VSTのパラメータはLiveのConfigureに公開された名前を使う。
 - 同名のパラメータは `occurrence` で指定する。Liveが返す順（プラグインではConfigure順）で1始まり、省略時は1番目。
 - `Device On` もそのまま名前で指定できる。新Mixingの解決には `custom_parameter_order.py` による並べ替えや部分一致を適用しない。
-- ミキサー指定は `{"mixer": "volume"}`、`{"mixer": "pan"}`、`{"mixer": "send", "send": 1}`。Sendも1始まり。
+- ミキサー指定は `{"mixer": "volume"}`、`{"mixer": "pan"}`、`{"mixer": "send", "send": 1}`、`{"mixer": "cue_volume"}`。Sendも1始まり。`cue_volume` は `song.master_track.mixer_device.cue_volume` を操作し、表示の1行目はMasterトラック名になる。トラック選択だけではCueの接続を切り替えない。
 - 未指定・`None`・対象不在・無効化中のパラメータは未割り当て。未知の操作子や不正な設定はログへ記録し、その枠だけ未割り当てとする。
 - Encoder 1〜24に予約用途はなく、同じパラメータを複数枠へ割り当てることもできる。フェーダーは従来の絶対値マッピングとLiveのtakeover設定を使う。
 

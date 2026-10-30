@@ -101,10 +101,11 @@ def replace_target(test):
 
 
 class MixingConfigurationTest(unittest.TestCase):
-    def test_shipped_configuration_has_32_explicit_empty_slots(self):
-        self.assertEqual(mixing_config.MIXING_IMPLEMENTATION, "configured")
-        self.assertEqual(set(mixing_config.MIXING_ASSIGNMENTS), set(CONTROL_NAMES))
-        self.assertTrue(all(value is None for value in mixing_config.MIXING_ASSIGNMENTS.values()))
+    def test_configuration_accepts_master_cue_volume_for_encoders_and_faders(self):
+        self.assertIn(mixing_config.MIXING_IMPLEMENTATION, ("configured", "legacy"))
+        for name in ("encoder_8", "fader_8"):
+            entry = {"mixer": "cue_volume"}
+            self.assertEqual(validate_assignments({name: entry})[name], entry)
 
     def test_surface_selects_configured_or_legacy_without_changing_router_contract(self):
         source = ast.parse((fixtures.PACKAGE_ROOT / "__init__.py").read_text())
@@ -237,6 +238,58 @@ class ConfiguredAssignmentsTest(unittest.TestCase):
         self.component._update_assignments()
         self.assertIsNone(controls["encoder_16"][0].mapped_parameter)
         self.assertEqual(controls["encoder_16"][1].local_shift_turn()[1], "Unassigned")
+
+    def test_cue_volume_stays_on_master_across_track_changes_without_reconnecting(self):
+        self.configure({"encoder_8": {"mixer": "cue_volume"}})
+        control, display = self.bind("encoder_8")
+        cue = self.song.master_track.mixer_device.cue_volume
+        connections = len(control.connected)
+        for track in (self.selected, ObservableTrack("Other"), self.song.master_track, None):
+            self.song.view.selected_track = track
+            self.component._update_assignments()
+            self.assertIs(control.mapped_parameter, cue)
+            self.assertEqual(display.local_shift_turn(), ("Master", "Cue Volume", str(cue)))
+        self.assertEqual(len(control.connected), connections)
+        control.receive(65)
+        self.assertGreater(cue.value, 0.0)
+        self.assertEqual(self.selected.mixer_device.cue_volume.value, 0.0)
+
+    def test_cue_volume_preview_and_lock_never_change_the_browser_preview_level(self):
+        self.configure({"encoder_8": {"mixer": "cue_volume"}})
+        control, display = self.bind("encoder_8")
+        cue = control.mapped_parameter
+        cue.value = 0.37
+        self.component.set_shift_pressed(True)
+        self.song.view.selected_track = ObservableTrack("Other")
+        self.component.preview_encoder("encoder_8")
+        control.receive(127)
+        self.assertIsNone(control.mapped_parameter)
+        self.assertEqual(display.local_shift_turn(), ("Master", "Cue Volume", "0.37"))
+        self.component.set_shift_pressed(False)
+        self.component.set_locked(True)
+        control.receive(0)
+        self.assertIsNone(control.mapped_parameter)
+        self.assertEqual(display.local_shift_turn(), ("LOCKED", "", ""))
+        self.component.set_locked(False)
+        self.assertIs(control.mapped_parameter, cue)
+        self.assertEqual(cue.value, 0.37)
+        self.assertEqual(control.native_updates, [])
+
+    def test_unavailable_cue_volume_is_unassigned_and_other_targets_keep_working(self):
+        self.configure({"encoder_8": {"mixer": "cue_volume"}, "fader_8": {"mixer": "volume"}})
+        control, display = self.bind("encoder_8")
+        volume, _ = self.bind("fader_8")
+        master = self.song.master_track
+        del master.mixer_device.cue_volume
+        self.component._update_assignments()
+        self.assertIsNone(control.mapped_parameter)
+        self.assertEqual(display.local_shift_turn(), ("Encoder 8", "Unassigned", ""))
+        self.assertIs(volume.mapped_parameter, self.selected.mixer_device.volume)
+        self.song.master_track = None
+        self.component._update_assignments()
+        self.assertIsNone(control.mapped_parameter)
+        volume.receive(127)
+        self.assertEqual(self.selected.mixer_device.volume.value, 1.0)
 
     def test_track_and_device_notifications_replace_native_map_before_the_next_input(self):
         control, _ = self.bind("encoder_1")

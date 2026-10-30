@@ -111,7 +111,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
             return
         manual = self._manual_mapping(name)
         try:
-            signature = (self._resolver.track, parameter, parameter.name, parameter.min, parameter.max, manual)
+            signature = (self._resolver.owner(entry), parameter, parameter.name, parameter.min, parameter.max, manual)
         except (AttributeError, RuntimeError):
             self._release_parameter_control(name, control)
             return
@@ -187,7 +187,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
             send_unassigned_display(command, name, trigger=trigger)
             return
         entry = self._assignments[name]
-        owner = self._resolver.device(entry["device"]) if "device" in entry else self._resolver.track
+        owner = self._resolver.owner(entry)
         try:
             lines = (owner.name, parameter.name, str(parameter))
         except (AttributeError, RuntimeError):

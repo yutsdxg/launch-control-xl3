@@ -17,7 +17,7 @@ MIXING_ASSIGNMENTS = {
     "encoder_5": None,
     "encoder_6": None,
     "encoder_7": None,
-    "encoder_8": None,
+    "encoder_8": {"mixer": "cue_volume"},
     # エンコーダー中段
     "encoder_9": None,
     "encoder_10": None,
@@ -49,6 +49,7 @@ MIXING_ASSIGNMENTS = {
 
 # 記入例：使う枠のNoneを下記のような辞書に置き換える。
 # "encoder_1": {"device": 4, "parameter": "Device On", "directional_on_off": True},
+# "encoder_8": {"mixer": "cue_volume"},  # Masterのブラウザ・プレビュー音量
 # "encoder_9": {"device": 4, "parameter": "Attack"},
 # "encoder_10": {"device": 5, "parameter": "Gain", "occurrence": 2},
 # "encoder_16": {"mixer": "send", "send": 1},
