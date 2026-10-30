@@ -14,6 +14,7 @@ from .custom_parameter_utils import (
 )
 from .display import send_display, send_locked_display, send_unassigned_display
 from .led import LedSender
+from .parameter_actions import apply_directional_on_off
 from .special_parameters import (
     handle_special_parameter_input,
     is_handled_special_parameter,
@@ -899,9 +900,7 @@ class FixedAssignmentsComponent(Component):
             return
         if not self._parameter_is_enabled(parameter):
             return
-        try:
-            parameter.value = parameter.max if value > 64 else parameter.min
-        except (AttributeError, RuntimeError, ValueError):
+        if not apply_directional_on_off(parameter, value):
             return
         self._update_on_off_encoder_led(encoder_number, force=True)
         self._display_parameter("encoder_{}".format(encoder_number), parameter)
