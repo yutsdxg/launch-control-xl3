@@ -49,6 +49,150 @@ DIVA_DUAL_VCO_ECO = 0.75
 DIVA_DIGITAL = 1.0
 
 CUSTOM_DEVICE_PARAMETER_ORDER = {
+    "Wavetable": (
+        # Encoder upper
+        ## OSC1
+        {"Osc 1 Transpose": {"discrete_values": (-24, -12, 0, 12, 24)}},
+        "Osc 1 Effect 1",
+        "Osc 1 Gain",
+        # Common
+        "Unison Amount",
+        "Global Mod Amount",
+        ## OSC2
+        {"Osc 2 Transpose": {"discrete_values": (-24, -12, 0, 12, 24)}},
+        "Osc 2 Effect 1",
+        "Osc 2 Gain",
+        # Encoder middle
+        ## OSC1
+        "Osc 1 Pos",
+        "LFO 1 Freq",
+        "LFO 1 Amount",
+        # Common
+        None,
+        None,
+        ## OSC2
+        "Osc 2 Pos",
+        "LFO 2 Freq",
+        "LFO 2 Amount",
+        # Encoder lower
+        "Flt 1 Freq",
+        "Flt 1 Res",
+        "Env 2 Peak",
+        "Flt 1 Drive",
+        "Flt 1 LP/HP",
+        "Flt 2 Freq",
+        "Volume",
+        None,
+        # Fader
+        "Env 2 Attack",
+        "Env 2 Decay",
+        "Env 2 Sustain",
+        "Env 2 Release",
+        "Amp Attack",
+        "Amp Decay",
+        "Amp Sustain",
+        "Amp Release",
+        # Button 9-16
+        "Sub On",
+        "Osc 1 On",
+        "Osc 2 On",
+    ),
+    "Meld": (
+        # Encoder upper
+        ## OSC A
+        "A Octave",
+        "A Tone Filter",
+        "A Volume",
+        ## Common
+        "Voice Spread",
+        "Drive",
+        ## OSC B
+        "B Octave",
+        "B Tone Filter",
+        "B Volume",
+        # Encoder middle
+        ## OSC A
+        "A Osc Type",
+        "A Osc Shape",
+        "A Osc Tone",
+        ## Common
+        None,
+        None,
+        ## OSC B
+        "B Osc Type",
+        "B Osc Shape",
+        "B Osc Tone",
+        # Encoder lower
+        "A Filter Freq",
+        "A Filter Q",
+        "A Filter L-B-H-N",
+        "A Filter Type",
+        None,
+        None,
+        "Volume",
+        None,
+        # Fader
+        "A Mod Attack",
+        "A Mod Decay",
+        "A Mod Peak",
+        "A Mod Release",
+        "A Amp Attack",
+        "A Amp Decay",
+        "A Amp Sustain",
+        "A Amp Release",
+        # Button 9-16
+        "A On",
+        "B On",
+    ),
+    "Drift": (
+        # Encoder upper
+        ## OSC1
+        "Osc 1 Oct",
+        None,
+        "Osc 1 Gain",
+        ## Common
+        "Noise Gain",
+        None,
+        ## OSC2
+        "Osc 2 Oct",
+        None,
+        "Osc 2 Gain",
+        # Encoder middle
+        ## OSC1
+        "Osc 1 Wave",
+        "Osc 1 Shape",
+        "Osc 1 Shape Moduration Amount",
+        ## Common
+        "Spread",
+        "Drift",
+        ## OSC2
+        "Osc 2 Wave",
+        "Osc 2 Detune",
+        None,
+        # Encoder lower
+        "LP Freq",
+        "LP Reso",
+        "LP Mod Amt 1",
+        "HP Freq",
+        None,
+        None,
+        "Volume",
+        None,
+        # Fader
+        "Env 2 Attack",
+        "Env 2 Decay",
+        "Env 2 Sustain",
+        "Env 2 Release",
+        "Env 1 Attack",
+        "Env 1 Decay",
+        "Env 1 Sustain",
+        "Env 1 Release",
+        # Button 9-16
+        "Osc 1 On",
+        "Osc 2 On",
+        "Noise On",
+        "LP Type",
+    ),
     "Serum 2": (
         # Encoder upper
         "A Octave",
