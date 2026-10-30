@@ -1612,5 +1612,15 @@
     "Explicit manual Output trim intentionally changes the level relative to bypass.",
     "Saved Output is normalized on the first accepted physical Drive change; startup and selection do not write Output.",
     "Native callback order was observed on Live 12.4.15."
-  ]
+  ],
+  "bypass_runtime_confirmation": {
+    "date": "2026-10-30",
+    "set": "Runtime_Bypass_Reference_Check",
+    "initial_drive_db": 0.0,
+    "initial_output_db": 0.0,
+    "post_device_track_volume_db": -12.0,
+    "user_feedback": "急に大きくなる現象はなくなった",
+    "sudden_bypass_gain_jump_resolved_user_confirmed": true,
+    "subjective_confirmation_is_separate_from_measured_rms": true
+  }
 }
