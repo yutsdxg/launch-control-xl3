@@ -29,6 +29,15 @@ PARAMETER_NAMES = ("Output", "Type", "Color On", "Post Clip Mode", "Dry/Wet")
 ERRORS = (AttributeError, RuntimeError, TypeError, ValueError, OverflowError)
 
 
+def _is_saturator(device):
+    if not liveobj_valid(device):
+        return False
+    try:
+        return device.class_name == "Saturator"
+    except ERRORS:
+        return False
+
+
 def _validated_curve(curve):
     try:
         points = tuple((float(drive), float(correction)) for drive, correction in curve)
@@ -144,7 +153,7 @@ class _TargetState:
         return not self.closed and _same(self.identity, identity)
 
     def _eligible(self):
-        if self.closed or not self.enabled or not self.curve or not liveobj_valid(self.owner):
+        if self.closed or not self.enabled or not self.curve or not _is_saturator(self.owner):
             return False
         try:
             return bool(
@@ -334,7 +343,10 @@ class SaturatorCompensationManager:
                         or controls.get(name) is None):
                     continue
                 try:
-                    identity = (resolver.owner(entry), resolver.resolve(entry)) + tuple(
+                    owner = resolver.owner(entry)
+                    if not _is_saturator(owner):
+                        continue
+                    identity = (owner, resolver.resolve(entry)) + tuple(
                         resolver.resolve({"device": entry["device"], "parameter": parameter})
                         for parameter in PARAMETER_NAMES)
                     if not all(liveobj_valid(parameter) for parameter in identity):

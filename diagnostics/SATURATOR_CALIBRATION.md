@@ -1,8 +1,10 @@
 # Saturatorのバイパス基準によるDrive／Output補正
 
-2026-10-30、Live 12.4.15で測定した。Issue #34で、音量の基準をDrive 0の処理音から実際にSaturatorをOFFにした原音へ変更した。対象は新Mixingの`parameter: "Drive"`に一致する割り当てで、デバイス名・操作子番号・Outputの操作子番号では固定しない。[本体の仕様](../Launch_Control_XL_3_Mixing/SPEC.md#saturatorのdriveに連動するoutput補正)と[測定数値・音声SHA-256](saturator_measurements.json)を参照する。
+2026-10-30、Live 12.4.15で測定した。Issue #34で、音量の基準をDrive 0の処理音から実際にSaturatorをOFFにした原音へ変更した。現在の補正対象は、新Mixingの`parameter: "Drive"`に完全一致し、割り当て先デバイスの内部種別`class_name`が`"Saturator"`に完全一致する割り当てである。操作子番号・Outputの操作子番号では固定しない。[本体の仕様](../Launch_Control_XL_3_Mixing/SPEC.md#saturatorのdriveに連動するoutput補正)と[測定数値・音声SHA-256](saturator_measurements.json)を参照する。
 
 2026-10-31のIssue #36で実行時のColor OFF制限を外した。Color ONでも同じ補正表と手動トリムを使い、Colorの切替で休止・再基準化しない。ユーザー指定によりColor ON向けの追加較正はしていない。以下の測定条件・数値は引き続きColor OFFで測った結果である。
+
+Issue #40で内部種別による補正対象の判定を加えた。Saturatorを改名しても補正し、他の内部種別のデバイスは表示名が「Saturator」でも補正しない。内部種別を取得できない場合も対象外とする。この制限はOutputの自動補正だけに適用し、他のデバイスのDriveの通常操作、`min`／`max`、`auto_bypass`は維持する。設定への`device_name`追加や補正表の変更は行わない。
 
 ## 測定条件と基準音
 
@@ -62,7 +64,7 @@ Issue #38では同じ正規化単位の`max`も指定できるようにした。
 
 ## 実機の通知順と確認用Set
 
-[読み取り専用の診断Surface](LCXL3_Saturator_Probe/README.md)で、Live 12.4.15の「native実値更新→物理入力callback→Drive変更通知」を確認した。Pickup待ちの75入力ではDriveは変わらず、76入力目で追従した。内部値は0〜1で、Driveは`72v − 36` dB、Outputは`36v − 36` dBへ換算する。他のLiveバージョンで挙動が変われば再診断する。
+[読み取り専用の診断Surface](LCXL3_Saturator_Probe/README.md)で、Live 12.4.15の「native実値更新→物理入力callback→Drive変更通知」を確認した。Pickup待ちの75入力ではDriveは変わらず、76入力目で追従した。内部値は0〜1で、Driveは`72v − 36` dB、Outputは`36v − 36` dBへ換算する。診断記録2件ともデバイスの`class_name`は`"Saturator"`だった。Issue #40の種別判定はこの実機の識別値を用いる。他のLiveバージョンで挙動が変われば再診断する。
 
 Issue #32の旧確認用Setは、CodexがSaturator Outputへ−12 dBを設定していた。旧処理はそれを維持したため、OFFにすると12 dB大きくなった。旧実機記録はJSONの履歴項目に保存し、現在の標準基準として扱わない。
 

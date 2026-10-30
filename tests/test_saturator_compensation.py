@@ -85,8 +85,8 @@ class ObservableParameter:
 
 class Device:
     def __init__(self, output=0.0):
-        # Names/classes deliberately differ: initial routing is parameter-based.
-        self.name, self.class_name = "User renamed effect", "OtherDeviceClass"
+        # User-visible names can change; compensation uses Live's internal type.
+        self.name, self.class_name = "User renamed effect", "Saturator"
         self.named = {
             "Device On": ObservableParameter("Device On", 1.0, items=("Off", "On")),
             "Drive": ObservableParameter("Drive", drive_value(0.0)),
@@ -192,6 +192,8 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.assertIs(self.controls["fader_7"].mapped_parameter, self.device.drive)
 
     def test_native_actual_drive_value_controls_correction_and_refresh_keeps_anchor(self):
+        self.assertEqual((self.device.name, self.device.class_name),
+                         ("User renamed effect", "Saturator"))
         self.physical(6.0)
         self.assertOutput(-4.0)
         self.physical(9.0)
@@ -199,6 +201,58 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.physical(12.0)
         self.assertOutput(-7.0)
         self.assertEqual(self.device.drive.writes, [])
+
+    def test_other_internal_classes_are_inert_even_when_displayed_as_saturator(self):
+        for class_name in ("OtherDeviceClass", "AudioEffectGroupDevice", "saturator", "Saturator "):
+            with self.subTest(class_name=class_name):
+                self.device.name = "Saturator"
+                self.device.class_name = class_name
+                self.refresh()
+                self.assertTrue(all(not parameter.listeners for parameter in self.device.parameters))
+                self.physical(6.0, refresh=False)
+                self.assertEqual(self.device.drive.value, drive_value(6.0))
+                self.assertEqual(self.device.output.writes, [])
+                self.assertIs(self.controls["fader_7"].mapped_parameter, self.device.drive)
+
+    def test_missing_none_or_unreadable_internal_class_is_inert(self):
+        self.device.class_name = None
+        self.refresh()
+        self.physical(6.0, refresh=False)
+        self.assertEqual(self.device.output.writes, [])
+        del self.device.class_name
+        self.refresh()
+        self.physical(12.0, refresh=False)
+        self.assertEqual(self.device.output.writes, [])
+        for error in (AttributeError, RuntimeError):
+            with self.subTest(error=error):
+                def unavailable_class_name(_device):
+                    raise error("Live's internal class is unavailable")
+
+                with patch.object(Device, "class_name", property(unavailable_class_name), create=True):
+                    self.refresh()
+                    self.physical(18.0, refresh=False)
+                    self.assertTrue(all(not parameter.listeners for parameter in self.device.parameters))
+                    self.assertEqual(self.device.output.writes, [])
+
+    def test_internal_class_change_stops_existing_target_before_refresh(self):
+        self.physical(6.0)
+        self.device.output.writes.clear()
+        self.device.class_name = "OtherDeviceClass"
+        self.physical(12.0, refresh=False)
+        self.assertEqual(self.device.drive.value, drive_value(12.0))
+        self.assertOutput(-4.0)
+        self.assertEqual(self.device.output.writes, [])
+
+    def test_internal_class_change_during_input_prevents_output_write(self):
+        self.physical(6.0)
+        self.device.output.writes.clear()
+        self.device.drive.native_change(drive_value(12.0))
+        self.manager.begin_input("fader_7")
+        self.device.class_name = None
+        self.manager.end_input("fader_7")
+        self.device.drive.notify()
+        self.assertOutput(-4.0)
+        self.assertEqual(self.device.output.writes, [])
 
     def test_color_on_uses_the_same_drive_compensation_curve(self):
         self.device.named["Color On"].external_change(1.0)
@@ -544,6 +598,24 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.physical(6.0, device=other)
         self.assertOutput(-4.0, other)
 
+    def test_replacement_with_non_saturator_detaches_compensation_without_remapping_drive(self):
+        self.physical(6.0)
+        old = self.device
+        old.output.writes.clear()
+        other = Device(output=-12.0)
+        other.name, other.class_name = "Saturator", "OtherDeviceClass"
+        self.resolver.devices[1] = other
+        self.controls["fader_7"] = NativeControl(other.drive)
+        self.refresh()
+        self.assertTrue(all(not parameter.listeners for parameter in old.parameters))
+        self.assertTrue(all(not parameter.listeners for parameter in other.parameters))
+        old.drive.external_change(drive_value(18.0))
+        self.physical(12.0, device=other)
+        self.assertEqual(old.output.writes, [])
+        self.assertEqual(other.output.writes, [])
+        self.assertOutput(-12.0, other)
+        self.assertIs(self.controls["fader_7"].mapped_parameter, other.drive)
+
     def test_missing_companion_and_non_exact_drive_names_are_inert(self):
         output = self.device.output
         for missing in ("Output", "Type", "Color On", "Post Clip Mode", "Dry/Wet"):
@@ -678,6 +750,20 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
         self.physical("encoder_23", midi=64)
         self.physical("fader_7", midi=40)
         self.assertEqual(len(self.device.output.writes), before)
+
+    def test_non_saturator_native_drive_mapping_still_works_without_output_compensation(self):
+        self.device.name, self.device.class_name = "Saturator", "OtherDeviceClass"
+        self.component._update_assignments()
+        for control in self.controls.values():
+            self.assertIs(control.mapped_parameter, self.device.drive)
+        self.controls["fader_7"].receive(100)
+        self.assertAlmostEqual(self.device.drive.value, 100.0 / 127.0)
+        self.controls["encoder_23"].receive(65)
+        self.assertAlmostEqual(self.device.drive.value, 101.0 / 127.0)
+        self.assertEqual(len(self.device.drive.writes), 2)
+        self.assertEqual(self.device.output.writes, [])
+        self.assertAlmostEqual(output_db(self.device.output), 0.0)
+        self.assertTrue(all(not parameter.listeners for parameter in self.device.parameters))
 
     def test_shift_lock_and_inactive_mode_suppress_compensation_and_preserve_explicit_trim(self):
         for setter in (self.component.set_shift_pressed, self.component.set_locked):

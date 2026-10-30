@@ -217,8 +217,10 @@ MIXING_ASSIGNMENTS = {
 
 ### SaturatorのDriveに連動するOutput補正
 
-新Mixing（`configured`）では、`parameter: "Drive"`と完全一致する割り当てに自動で音量補正を適用する。全エンコーダー・フェーダーが対象で、操作子番号の固定や個別の有効化設定はない。デバイス名・クラスによる判定は後から追加する。
+新Mixing（`configured`）では、`parameter: "Drive"`と完全一致し、割り当て先デバイスの内部種別`class_name`が`"Saturator"`と完全一致する場合に自動で音量補正を適用する。全エンコーダー・フェーダーが対象で、操作子番号の固定や個別の有効化設定はない。
 
+- 内部種別は補正対象の登録時と補正の実行前に確認する。Saturatorの表示名を変更しても補正対象になるが、別の内部種別のデバイスを「Saturator」へ改名しても対象にならない。内部種別を取得できない場合も補正しない。`device_name`などの設定項目は追加しない。
+- この種別判定が制限するのはOutputの自動補正だけである。他のデバイスのDriveも通常どおり割り当てでき、値操作、`min`／`max`の範囲指定、`auto_bypass`は引き続き利用できる。
 - 補正先はDriveと同じデバイスの`Output`。Outputの操作子も固定せず、同じDriveを複数の操作子へ割り当てた場合は補正状態を共有する。
 - 有効条件はTypeがAnalog Clip、Post ClipがNo Clip、Dry/Wetが100%。Color ON／OFFを問わず同じ補正表を使い、Colorの切替で補正を休止したりトリムをリセットしたりしない。必要なパラメータが不在、Drive／Outputが無効、またはその`automation_state`が1（オートメーション有効）・2（上書き済み）の場合は休止する。音色設定やオートメーション状態は自動変更しない。
 - Driveの操作は全範囲ならLive標準の接続とtakeover、`min`／`max`で範囲を狭めた場合は範囲専用の制御を使う。有効な物理入力によって実際のDriveが変わった場合だけOutputを補正し、Pickup待ちなどで実値が変わらない入力では書き込まない。
@@ -229,7 +231,7 @@ MIXING_ASSIGNMENTS = {
 - `min: 0.5`のみではDriveを0〜36 dBで操作でき、`max: 5 / 6`も指定すると0〜24 dBへ収まる。補正表の評価範囲は0〜24 dBのまま。24〜36 dBへ操作できる設定でも24 dBの補正量を維持し、新しいカーブは追加しない。
 - Outputは−36〜0 dBへ制限する。制限中も計算上のトリムを保持し、Driveを戻したときに元の関係へ復帰できるようにする。自動補正によるOutput通知を手動調整として再解釈しない。
 - Shift・ロック・非active中は補正せず、解除時に操作を再生しない。既存のauto_bypassと共存し、OFFからの復帰入力を二重適用しない。Legacy MixingとInstrumentには追加しない。
-- Live 12.4.15の実機でDrive／Outputの内部範囲が0〜1であることを確認した。Driveは`72v − 36` dB、Outputは`36v − 36` dBへ変換し、表示文字列は解析しない。内部範囲が異なる対象は休止する。
+- Live 12.4.15の実機でSaturatorの`class_name`が`"Saturator"`、Drive／Outputの内部範囲が0〜1であることを確認した。Driveは`72v − 36` dB、Outputは`36v − 36` dBへ変換し、表示文字列は解析しない。内部範囲が異なる対象は休止する。
 - 同じ実機で「native値更新→物理入力callback→Drive変更通知」の順序を確認し、この順序に基づいて物理操作と独立した変更を扱う。auto_bypassが入力処理中にDriveを同期変更した場合も物理操作として扱う。
 
 補正カーブはColor OFF、Analog Clip、No Clip、Dry/Wet 100%、RMS −18 dBFSの固定ピンクノイズを、44.1 kHz・32-bit float、Hi-Quality ON・Pre-DC Filter OFFで実測した。Issue #34で基準をDrive 0の処理音から実際のデバイスOFF音へ変更した。Issue #36ではColor ONでもこの同じ表を使うようにし、追加の音響較正はしていない。Drive 0付近で必要な微小な正補正はOutput上限0 dBで制限する。精度は入力レベル・波形・音色設定に依存する。ON／OFF比較、測定条件と素材別の残差は[測定記録](../diagnostics/SATURATOR_CALIBRATION.md)を参照する。
