@@ -1,17 +1,21 @@
-"""Physical Drive compensation uses actual native values and preserves manual trim.
+"""Physical Drive compensation uses bypass reference and explicit manual trim.
 
 The injected curve below is synthetic test data, not a measured calibration.
 Live 12.4.15 updates the native value before the control callback and delivers
 the Drive notification afterwards; the fakes deliberately retain that order.
 """
 
+import gc
 import unittest
+import weakref
+from unittest.mock import patch
 
 import test_mixing  # Install the same minimal Live stubs as the other components.
 from test_configured_mixing import ObservableTrack, ObservableView
 from test_shift_preview import NativeMappedControl
 
 from Launch_Control_XL_3_Mixing.mixing_assignments import ConfiguredMixingAssignmentsComponent
+from Launch_Control_XL_3_Mixing import saturator_compensation as compensation_module
 from Launch_Control_XL_3_Mixing.saturator_compensation import SaturatorCompensationManager
 
 
@@ -80,7 +84,7 @@ class ObservableParameter:
 
 
 class Device:
-    def __init__(self, output=-6.0):
+    def __init__(self, output=0.0):
         # Names/classes deliberately differ: initial routing is parameter-based.
         self.name, self.class_name = "User renamed effect", "OtherDeviceClass"
         self.named = {
@@ -166,6 +170,16 @@ class SaturatorCompensationTest(unittest.TestCase):
         if notify:
             target.drive.notify()
 
+    def physical_output(self, db, control="encoder_11", device=None, number=1):
+        target = device or self.device
+        self.assignments[control] = {"device": number, "parameter": "Output"}
+        self.controls[control] = NativeControl(target.output)
+        self.refresh()
+        target.output.native_change(output_value(db))
+        self.manager.begin_input(control)
+        self.manager.end_input(control)
+        target.output.notify()
+
     def assertOutput(self, expected, device=None):
         self.assertAlmostEqual(output_db((device or self.device).output), expected, places=5)
 
@@ -179,11 +193,11 @@ class SaturatorCompensationTest(unittest.TestCase):
 
     def test_native_actual_drive_value_controls_correction_and_refresh_keeps_anchor(self):
         self.physical(6.0)
-        self.assertOutput(-10.0)
+        self.assertOutput(-4.0)
         self.physical(9.0)
-        self.assertOutput(-11.5)
+        self.assertOutput(-5.5)
         self.physical(12.0)
-        self.assertOutput(-13.0)
+        self.assertOutput(-7.0)
         self.assertEqual(self.device.drive.writes, [])
 
     def test_arbitrary_encoder_and_duplicate_assignment_share_one_target_state(self):
@@ -191,26 +205,177 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.controls["encoder_23"] = NativeControl(self.device.drive)
         self.refresh()
         self.physical(6.0, "encoder_23")
-        self.assertOutput(-10.0)
+        self.assertOutput(-4.0)
         self.manager.begin_input("fader_7")
         self.manager.end_input("fader_7")
         self.assertEqual(len(self.device.output.writes), 1)
         self.physical(12.0, "fader_7")
-        self.assertOutput(-13.0)
+        self.assertOutput(-7.0)
         self.assertIs(self.controls["encoder_23"].mapped_parameter, self.device.drive)
 
     def test_two_devices_use_separate_curves_and_manual_offsets(self):
-        other = Device(output=-20.0)
+        other = Device()
         self.resolver.devices[2] = other
         self.assignments["encoder_4"] = {"device": 2, "parameter": "Drive"}
         self.controls["encoder_4"] = NativeControl(other.drive)
         self.refresh()
+        self.physical_output(-6.0)
+        self.physical_output(-20.0, "encoder_12", other, number=2)
         self.physical(6.0)
         self.physical(12.0, "encoder_4", other)
         self.assertOutput(-10.0)
         self.assertOutput(-27.0, other)
 
-    def test_mouse_drive_change_reanchors_without_correction_or_next_pickup_jump(self):
+    def test_saved_minus_twelve_is_not_the_bypass_reference(self):
+        self.manager.disconnect()
+        self.device = Device(output=-12.0)
+        self.resolver.devices[1] = self.device
+        self.controls["fader_7"] = NativeControl(self.device.drive)
+        self.refresh()
+        self.assertOutput(-12.0)
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(0.0)
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(6.0)
+        self.assertOutput(-4.0)
+        self.physical(0.0)
+        self.assertOutput(0.0)
+
+    def test_load_restore_notifications_before_first_drive_do_not_create_manual_trim(self):
+        self.device.output.external_change(output_value(-12.0))
+        self.device.output.external_change(output_value(-20.0))
+        self.refresh()
+        self.physical(0.0)
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(6.0)
+        self.assertOutput(-4.0)
+        self.device.output.notify()
+        self.physical(0.0)
+        self.assertOutput(0.0)
+
+    def test_physical_output_edit_before_first_drive_is_explicit_manual_trim(self):
+        self.physical_output(-6.0)
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(6.0)
+        self.assertOutput(-10.0)
+        self.physical(0.0)
+        self.assertOutput(-6.0)
+
+    def test_output_fader_pickup_wait_cannot_adopt_loaded_minus_twelve(self):
+        self.device.output.external_change(output_value(-12.0))
+        self.physical_output(-12.0, control="fader_8")
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(6.0)
+        self.assertOutput(-4.0)
+
+    def test_positive_bypass_correction_at_zero_clamps_without_changing_zero_trim(self):
+        self.manager.disconnect()
+        curve = tuple((drive, correction + 0.01) for drive, correction in TEST_CURVE)
+        self.manager = SaturatorCompensationManager(curve=curve)
+        self.addCleanup(self.manager.disconnect)
+        self.refresh()
+        self.physical(6.0)
+        self.assertOutput(-3.99)
+        self.physical(0.0)
+        self.assertOutput(0.0)
+        self.device.output.notify()
+        self.device.output.notify()
+        self.physical(6.0)
+        self.assertOutput(-3.99)
+
+    def test_explicit_trim_survives_mouse_drive_edit_and_pickup_wait(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        self.assertOutput(-10.0)
+        self.device.output.writes.clear()
+        self.device.drive.external_change(drive_value(12.0))
+        self.physical(12.0)
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(18.0)
+        self.assertOutput(-14.5)
+
+    def test_explicit_trim_survives_condition_pause_without_reanchoring_from_output(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        self.device.named["Color On"].external_change(1.0)
+        self.device.drive.external_change(drive_value(12.0))
+        self.device.output.writes.clear()
+        self.refresh()
+        self.device.named["Color On"].external_change(0.0)
+        self.refresh()
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(18.0)
+        self.assertOutput(-14.5)
+
+    def test_return_to_same_device_keeps_explicit_trim_and_detaches_inactive_listeners(self):
+        first = self.device
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        other = Device(output=-20.0)
+        self.resolver.devices[1] = other
+        self.controls["fader_7"] = NativeControl(other.drive)
+        self.controls["encoder_11"] = NativeControl(other.output)
+        self.refresh()
+        self.assertEqual(first.drive.listeners, [])
+        self.assertEqual(first.output.listeners, [])
+        self.physical(6.0, device=other)
+        self.assertOutput(-4.0, other)
+        self.resolver.devices[1] = first
+        self.controls["fader_7"] = NativeControl(first.drive)
+        self.controls["encoder_11"] = NativeControl(first.output)
+        first.output.writes.clear()
+        self.refresh()
+        self.assertEqual(first.output.writes, [])
+        self.assertEqual(other.drive.listeners, [])
+        self.assertEqual(other.output.listeners, [])
+        self.physical(12.0)
+        self.assertOutput(-13.0)
+
+    def test_mode_suspend_preserves_explicit_trim_without_live_listeners(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        self.manager.suspend()
+        self.assertEqual(self.device.drive.listeners, [])
+        self.assertEqual(self.device.output.listeners, [])
+        self.device.output.writes.clear()
+        self.refresh()
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(12.0)
+        self.assertOutput(-13.0)
+
+    def test_suspended_unestablished_target_still_ignores_passive_output_restore(self):
+        self.manager.suspend()
+        self.device.output.external_change(output_value(-12.0))
+        self.refresh()
+        self.physical(6.0)
+        self.assertOutput(-4.0)
+
+    def test_final_disconnect_clears_session_trim_before_manager_is_reused(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        self.manager.disconnect()
+        self.device.output.writes.clear()
+        self.refresh()
+        self.assertEqual(self.device.output.writes, [])
+        self.physical(12.0)
+        self.assertOutput(-7.0)
+
+    def test_deleted_devices_are_not_retained_by_session_trim_cache(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        deleted = weakref.ref(self.device)
+        self.device.valid = False
+        self.resolver.devices.clear()
+        self.assignments.clear()
+        self.controls.clear()
+        self.device = None
+        with patch.object(compensation_module, "liveobj_valid",
+                          new=lambda obj: obj is not None and getattr(obj, "valid", True)):
+            self.refresh()
+        gc.collect()
+        self.assertIsNone(deleted())
+
+    def test_mouse_drive_change_keeps_bypass_reference_without_correcting_pickup_wait(self):
         self.device.drive.external_change(drive_value(12.0))
         self.refresh()
         self.assertEqual(self.device.output.writes, [])
@@ -218,7 +383,7 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.manager.end_input("fader_7")
         self.assertEqual(self.device.output.writes, [])
         self.physical(18.0)
-        self.assertOutput(-7.5)
+        self.assertOutput(-8.5)
 
     def test_manual_output_trim_survives_following_drive_changes(self):
         self.physical(6.0)
@@ -236,7 +401,7 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.device.output.notify()
         self.device.output.notify()
         self.physical(0.0)
-        self.assertOutput(-6.0)
+        self.assertOutput(0.0)
 
     def test_output_manual_change_wins_over_an_undelivered_own_notification(self):
         self.physical(6.0)
@@ -246,7 +411,7 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.assertOutput(-10.0)
 
     def test_lower_output_clamp_preserves_unclipped_trim_for_return(self):
-        self.device.output.external_change(output_value(-35.0))
+        self.physical_output(-35.0)
         self.physical(12.0)
         self.assertOutput(-36.0)
         self.device.output.notify()
@@ -258,7 +423,7 @@ class SaturatorCompensationTest(unittest.TestCase):
 
     def test_upper_output_clamp_preserves_unclipped_trim_for_return(self):
         self.device.drive.external_change(drive_value(12.0))
-        self.device.output.external_change(output_value(-1.0))
+        self.physical_output(-1.0)
         self.physical(0.0)
         self.assertOutput(0.0)
         self.device.output.notify()
@@ -269,36 +434,36 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.physical(-24.0)
         self.assertEqual(self.device.output.writes, [])
         self.physical(24.0)
-        self.assertOutput(-16.0)
+        self.assertOutput(-10.0)
         count = len(self.device.output.writes)
         self.physical(36.0)
-        self.assertOutput(-16.0)
+        self.assertOutput(-10.0)
         self.assertEqual(len(self.device.output.writes), count)
 
     def test_synchronous_drive_write_during_encoder_wakeup_is_still_physical(self):
         self.manager.begin_input("fader_7")
         self.device.drive.external_change(drive_value(6.0))
         self.manager.end_input("fader_7")
-        self.assertOutput(-10.0)
+        self.assertOutput(-4.0)
         self.device.drive.notify()
         self.physical(12.0)
-        self.assertOutput(-13.0)
+        self.assertOutput(-7.0)
 
-    def test_shift_lock_or_inactive_period_reanchors_without_replaying_old_inputs(self):
+    def test_shift_lock_or_inactive_period_keeps_bypass_reference_without_replay(self):
         self.refresh(enabled=False)
         self.physical(6.0)
         self.assertEqual(self.device.output.writes, [])
         self.refresh(enabled=True)
         self.assertEqual(self.device.output.writes, [])
         self.physical(12.0)
-        self.assertOutput(-9.0)
+        self.assertOutput(-7.0)
 
-    def test_unsupported_settings_pause_then_reanchor_on_resume(self):
+    def test_unsupported_settings_pause_then_keep_reference_on_resume(self):
         for parameter, invalid in (("Type", 1.0), ("Color On", 1.0),
                                    ("Dry/Wet", 0.5), ("Post Clip Mode", 1.0)):
             with self.subTest(parameter=parameter):
                 self.device.drive.external_change(drive_value(0.0))
-                self.device.output.external_change(output_value(-6.0))
+                self.physical_output(0.0)
                 selector = self.device.named[parameter]
                 original = selector.value
                 selector.external_change(invalid)
@@ -310,7 +475,7 @@ class SaturatorCompensationTest(unittest.TestCase):
                 self.refresh()
                 self.assertEqual(self.device.output.writes, [])
                 self.physical(12.0)
-                self.assertOutput(-9.0)
+                self.assertOutput(-7.0)
 
     def test_drive_and_output_automation_or_disabled_targets_do_not_write(self):
         for name in ("Drive", "Output"):
@@ -348,7 +513,7 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.assertEqual(old.output.writes, [])
         self.assertEqual(other.output.writes, [])
         self.physical(6.0, device=other)
-        self.assertOutput(-24.0, other)
+        self.assertOutput(-4.0, other)
 
     def test_missing_companion_and_non_exact_drive_names_are_inert(self):
         output = self.device.output
@@ -403,11 +568,11 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.refresh()
         self.assertEqual(self.device.output.writes, [])
         self.physical(12.0)
-        self.assertOutput(-9.0)
+        self.assertOutput(-7.0)
 
     def test_synchronous_own_output_notification_preserves_trim_across_clamping(self):
         self.device.output.notify_on_write = True
-        self.device.output.external_change(output_value(-35.0))
+        self.physical_output(-35.0)
         self.physical(12.0)
         self.assertOutput(-36.0)
         self.physical(0.0)
@@ -464,11 +629,19 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
         self.component._on_parameter_control_value(name, midi)
         self.device.drive.notify()
 
+    def physical_output(self, db):
+        self.component._assignments["encoder_11"] = {"device": 1, "parameter": "Output"}
+        control = NativeMappedControl(relative=True)
+        self.component.set_encoder_11(control)
+        self.device.output.native_change(output_value(db))
+        self.component._on_parameter_control_value("encoder_11", 65)
+        self.device.output.notify()
+
     def test_arbitrary_fader_and_encoder_share_compensation_without_native_remapping(self):
         self.physical("fader_7", 6.0, midi=40)
-        self.assertAlmostEqual(output_db(self.device.output), -10.0)
+        self.assertAlmostEqual(output_db(self.device.output), -4.0)
         self.physical("encoder_23", 12.0)
-        self.assertAlmostEqual(output_db(self.device.output), -13.0)
+        self.assertAlmostEqual(output_db(self.device.output), -7.0)
         self.assertEqual(self.device.drive.writes, [])
         for control in self.controls.values():
             self.assertIs(control.mapped_parameter, self.device.drive)
@@ -477,10 +650,10 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
         self.physical("fader_7", midi=40)
         self.assertEqual(len(self.device.output.writes), before)
 
-    def test_shift_lock_and_inactive_mode_suppress_compensation_and_reanchor_on_resume(self):
+    def test_shift_lock_and_inactive_mode_suppress_compensation_and_preserve_explicit_trim(self):
         for setter in (self.component.set_shift_pressed, self.component.set_locked):
             self.device.drive.external_change(drive_value(0.0))
-            self.device.output.external_change(output_value(-6.0))
+            self.physical_output(-6.0)
             self.device.output.writes.clear()
             setter(True)
             self.assertTrue(all(control.mapped_parameter is None for control in self.controls.values()))
@@ -493,7 +666,7 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
             self.physical("fader_7", midi=40)
             self.assertEqual(self.device.output.writes, [])
             self.physical("encoder_23", 12.0)
-            self.assertAlmostEqual(output_db(self.device.output), -9.0)
+            self.assertAlmostEqual(output_db(self.device.output), -13.0)
         self.device.output.writes.clear()
         self.component.set_active(False)
         self.assertEqual(self.device.drive.listeners, [])
@@ -503,7 +676,7 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
         self.component.set_active(True)
         self.assertEqual(self.device.output.writes, [])
         self.physical("fader_7", 24.0, midi=100)
-        self.assertAlmostEqual(output_db(self.device.output), -10.5)
+        self.assertAlmostEqual(output_db(self.device.output), -16.0)
         self.assertEqual(self.device.drive.writes, [])
 
     def test_auto_bypass_encoder_wakeup_keeps_single_drive_update_and_future_compensation(self):
@@ -523,10 +696,11 @@ class ConfiguredSaturatorCompensationTest(unittest.TestCase):
         self.assertEqual(on.value, 1.0)
         self.assertEqual(len(self.device.drive.writes), 1)
         self.assertAlmostEqual(self.device.drive.value, drive_value(6.0) + 1.0 / 127.0)
-        self.assertEqual(self.device.output.writes, [])
+        self.assertAlmostEqual(output_db(self.device.output), -4.0 - 36.0 / 127.0)
+        self.assertEqual(len(self.device.output.writes), 1)
         self.assertIs(self.controls["encoder_23"].mapped_parameter, self.device.drive)
         self.physical("encoder_23", 6.0 + 144.0 / 127.0)
-        self.assertAlmostEqual(output_db(self.device.output), -6.0 - 36.0 / 127.0)
+        self.assertAlmostEqual(output_db(self.device.output), -4.0 - 72.0 / 127.0)
         self.assertEqual(len(self.device.drive.writes), 1)
 
 

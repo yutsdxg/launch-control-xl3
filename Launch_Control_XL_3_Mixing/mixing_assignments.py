@@ -46,7 +46,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         if active:
             self._update_assignments()
         else:
-            self._saturator_compensation.disconnect()
+            self._saturator_compensation.suspend()
             self._release_all_parameter_controls()
             self._resolver.disconnect()
 
