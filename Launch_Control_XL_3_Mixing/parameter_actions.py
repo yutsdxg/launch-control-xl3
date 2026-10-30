@@ -1,8 +1,23 @@
-"""Bind companion controls without probing parameter display strings."""
+"""Shared parameter actions, including directional endpoints and companions."""
 
 from ableton.v3.live import liveobj_valid
 
 from .custom_parameter_utils import extract_custom_entry_name_and_options, normalize_name
+
+
+def apply_directional_on_off(parameter, value):
+    """Set either endpoint from a physical turn, independently of device/control."""
+    if type(value) is not int or not 0 <= value <= 127 or value == 64:
+        return False
+    if not liveobj_valid(parameter):
+        return False
+    try:
+        if not getattr(parameter, "is_enabled", True):
+            return False
+        parameter.value = parameter.max if value > 64 else parameter.min
+        return True
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return False
 
 
 def _encoder_options(order):

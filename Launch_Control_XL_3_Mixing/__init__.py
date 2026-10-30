@@ -17,6 +17,8 @@ from .fixed_assignments import FixedAssignmentsComponent
 from .instrument_assignments import InstrumentAssignmentsComponent
 from .locator_navigation import LocatorNavigationComponent
 from .mappings import create_mappings
+from .mixing_assignments import ConfiguredMixingAssignmentsComponent
+from .mixing_config import MIXING_IMPLEMENTATION
 from .mode_manager import MODE_INSTRUMENT, MODE_MIXING, ModeManagerComponent
 from .skin import Rgb, Skin
 from .track_buttons import TrackButtonsComponent
@@ -55,7 +57,8 @@ class Specification(ControlSurfaceSpecification):
     goodbye_messages = (midi.make_touch_output_message(enabled=False), midi.make_connection_message(connect=False))
     component_map = {
         "Control_Router": ControlRouterComponent,
-        "Fixed_Assignments": FixedAssignmentsComponent,
+        "Fixed_Assignments": (FixedAssignmentsComponent if MIXING_IMPLEMENTATION == "legacy"
+                              else ConfiguredMixingAssignmentsComponent),
         "Instrument_Assignments": InstrumentAssignmentsComponent,
         "Locator_Navigation": LocatorNavigationComponent,
         "Mode_Manager": ModeManagerComponent,

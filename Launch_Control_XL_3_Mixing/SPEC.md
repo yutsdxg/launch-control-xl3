@@ -6,9 +6,9 @@
 
 - Ableton Live 12 系の `ableton.v3.control_surface.ControlSurface` ベースの Remote MIDI Script。
 - 起動時の既定モードは `mixing`。
-- `mixing` モードでは、固定パラメータ割り当てとトラック選択/solo/mute ボタンを有効化する。
+- `mixing` モードでは、設定ファイルによるパラメータ割り当てとトラック選択/solo/mute ボタンを有効化する。起動設定で従来の固定割り当て（Legacy）も選択できる。
 - `instrument` モードでは、選択トラック上の 3 番目のデバイスをエンコーダ1〜23、8フェーダ、16ボタンへ割り当てる。Encoder 24は全音源共通の上下キー操作とする。
-- 物理コントロールは `Control_Router` に一度集約され、`Fixed_Assignments`、`Instrument_Assignments`、`Track_Buttons` へ転送される。
+- 物理コントロールは `Control_Router` に一度集約され、`Fixed_Assignments`、`Instrument_Assignments`、`Track_Buttons` へ転送される。`Fixed_Assignments` の実体は起動設定により新MixingまたはLegacyとなる。
 - `AUTO_LOAD` は使っていない。
 
 ## デバイス認識とポート
@@ -71,7 +71,7 @@ CC は 10 進数表記。`Shift_Button` は `CHANNEL_DAW_MODE = 6`、フェー�
 | Page up | `mixing` モードを選択 |
 | Page down | `instrument` モードを選択 |
 
-`mixing` モードでは `Fixed_Assignments` と `Track_Buttons` を active、`Instrument_Assignments` を inactive にする。`instrument` モードでは逆に `Instrument_Assignments` のみ active にする。
+`mixing` モードでは `Fixed_Assignments` と `Track_Buttons` を active、`Instrument_Assignments` を inactive にする。`instrument` モードでは逆に `Instrument_Assignments` のみ active にする。新MixingとLegacyは起動時にどちらか一方だけを生成し、実機から切り替える第3モードは追加しない。
 
 Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は青。選択中は明るさ `0.25`、非選択は `0.03` とし、他のボタンと同じ輝度係数を使う。
 
@@ -105,7 +105,7 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 - 操作可能な状態ではMixing／Instrumentの両モードで、Shiftを押しながらエンコーダ／フェーダを動かすと、通常と同じ「デバイス名またはトラック名・パラメータ名・現在値」の3行を表示する。割り当て先がない、または無効な場合は「操作子名・Unassigned・空行」を表示する。
 - 全24エンコーダと8フェーダの表示内容は、操作を待たずに割り当て時点で本体へ登録する。0.1秒周期の割り当て更新とモード切替でも名前・現在値を更新するため、通常回転を一度もしていないエンコーダも本体のShift＋回転表示を利用できる。値CC・タッチCCの受信を初回登録の条件にしない。
 - 本体を再識別したときは、アクティブなモードの表示コマンドの送信キャッシュを消して再登録する。接続前の登録が受理されなかった場合や、本体側の表示内容だけが消えた場合にも備える。
-- Shift中の操作では値を書き換えない。Device On、MetricABのサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。Encoder 1は現在のモード名を表示するだけで、エンコーダの中立入力 `64` は引き続き無視する。
+- Shift中の操作では値を書き換えない。Device On、LegacyのMetricABサブモード／AB Switch、Saturnなどの特殊パラメータ操作も抑止する。LegacyのEncoder 1は現在のサブモード名を表示するだけで、新MixingのEncoder 1は設定されたパラメータを表示する。エンコーダの中立入力 `64` は引き続き無視する。
 - フェーダをShift中に上端／下端から中央へ戻しても、パラメータ値は維持される。Shift解除そのものは値を変更せず、次の操作から既存の絶対値マッピングへ戻る。独自の相対制御やオフセット補正は行わず、Liveの既存takeover設定を維持する。
 - Value Scalingでは物理位置とパラメータ値の差を徐々に縮める。一定の移動量をそのまま現在値へ加減する方式とは異なる。Shift解除後の再接続直後の追従は実機で確認する。
 - トラックボタン、Instrumentのパラメータボタン、モード切替、ロケータ、再生・録音ボタンはShift中も従来どおり動作する。エンコーダLEDは割り当て先の色・現在値・Pan方向を維持する。
@@ -117,7 +117,59 @@ Page up（`mixing`）の LED は黄色、Page down（`instrument`）の LED は�
 
 タッチ出力と表示の仕様: [Novation DAW mode](https://userguides.novationmusic.com/hc/en-gb/articles/27840466544402-Launch-Control-XL-3-programmer-s-DAW-mode)
 
-## Mixing モードの固定割り当て
+## Mixing モードの設定
+
+`mixing_config.py` の `MIXING_IMPLEMENTATION` で実装を選ぶ。
+
+- `"configured"`（初期値）: `MIXING_ASSIGNMENTS` に従う新Mixing。
+- `"legacy"`: 下記の従来の固定Mixing。
+
+設定は起動時に読み込む。編集後はLiveのRemote MIDI Scriptを再読み込みするか、Liveを再起動する。Instrumentの配置は引き続き `custom_parameter_order.py` で設定する。
+
+### 操作子ごとの指定
+
+`MIXING_ASSIGNMENTS` のキーは `encoder_1`〜`encoder_24`、`fader_1`〜`fader_8`。Encoder 8には従来どおりMasterのCue Volume（ブラウザのプレビュー音量）を初期割り当てし、残り31枠は `None` とする。次の例のデバイス・Send・Pan・Volume指定は記入方法であり、初期アサインには適用しない。
+
+```python
+MIXING_ASSIGNMENTS = {
+    "encoder_1": {
+        "device": 4,
+        "parameter": "Device On",
+        "directional_on_off": True,
+    },
+    "encoder_8": {"mixer": "cue_volume"},
+    "encoder_9": {"device": 4, "parameter": "Attack"},
+    "encoder_10": {"device": 5, "parameter": "Gain", "occurrence": 2},
+    "encoder_16": {"mixer": "send", "send": 1},
+    "encoder_24": {"mixer": "pan"},
+    "fader_8": {"mixer": "volume"},
+}
+```
+
+- デバイス・Volume・Pan・Sendの対象は `song.view.selected_track`。Loopcloudなどの別トラックを検索せず、Masterを選択している場合はMasterを選択対象として扱う。`cue_volume` のみ選択トラックに関係なくMasterのキューボリュームを対象にする。
+- `device` は選択トラック直下のデバイス順、1始まり。無効化中のデバイスも数え、Rack内部のチェーンには入らない。デバイスを並べ替えると指定位置のデバイスへ追従する。
+- `parameter` はLiveが公開するパラメータの `name` と完全一致。大文字・小文字・空白も一致させる。VSTのパラメータはLiveのConfigureに公開された名前を使う。
+- 同名のパラメータは `occurrence` で指定する。Liveが返す順（プラグインではConfigure順）で1始まり、省略時は1番目。
+- `Device On` もそのまま名前で指定できる。新Mixingの解決には `custom_parameter_order.py` による並べ替えや部分一致を適用しない。
+- ミキサー指定は `{"mixer": "volume"}`、`{"mixer": "pan"}`、`{"mixer": "send", "send": 1}`、`{"mixer": "cue_volume"}`。Sendも1始まり。`cue_volume` は `song.master_track.mixer_device.cue_volume` を操作し、表示の1行目はMasterトラック名になる。トラック選択だけではCueの接続を切り替えない。
+- 未指定・`None`・対象不在・無効化中のパラメータは未割り当て。未知の操作子や不正な設定はログへ記録し、その枠だけ未割り当てとする。
+- Encoder 1〜24に予約用途はなく、同じパラメータを複数枠へ割り当てることもできる。フェーダーは従来の絶対値マッピングとLiveのtakeover設定を使う。
+
+### 設定で有効にする方向ON/OFF
+
+エンコーダーの設定に `directional_on_off=True` を加えると、左回しで対象の最小値、右回しで最大値へ設定する。64は無操作。パラメータ名やデバイス名に依存しない汎用処理で、LegacyのDevice On操作からも同じ処理を利用する。
+
+省略または `False` なら通常のパラメータ接続で操作する。`Device On`を指定しただけでは方向ON/OFFを自動適用しない。フェーダーにもDevice Onを通常割り当てできるが、`directional_on_off` オプションはエンコーダー専用であり、フェーダーに記載するとその枠は設定不備になる。
+
+新Mixingでは方向ON/OFFも共通の値ベースLEDを使い、旧Mixingのエンコーダー番号別固定色は使わない。Shift中・ロック中は通常割り当てと方向ON/OFFの両方を抑止する。
+
+### 共通機能と更新
+
+Shift確認、タッチプレビュー、初期表示登録、無操作ロック、再識別時の再登録、トラックボタン、Solo/Mute、再生・録音・ロケータ操作は維持する。共通エンコーダー要素にあるSaturn処理も新Mixingでそのまま有効とし、モード別に無効化する仕組みは追加しない。Legacyコンポーネント内のLoopcloud／MetricABサブモード切り替えは新Mixingには持ち込まない。
+
+選択トラックとデバイス構成の通知で割り当てを更新し、通常の0.1秒更新でも表示・有効状態を追従する。デバイスのパラメータ列は同一デバイス内で共有してキャッシュし、パラメータ構成変更の通知で更新する。通知に対応しない対象では1更新につきデバイスごとに1回の取得へフォールバックする。値自体はキャッシュしない。非active化・切断時はパラメータ接続と構成通知リスナーを解放する。
+
+## Legacy Mixing モードの固定割り当て
 
 選択トラックは `song.view.selected_track`。`Loopcloud` トラックは、Live Set 内で名前が完全一致する最初のトラックを使う。デバイス番号は 1 始まり、デバイスパラメータ番号も 1 始まり。ただしデバイスパラメータ番号は `Device On` と空名パラメータを除いた後の番号で、カスタムパラメータ順序があればそれを適用した後の番号になる。
 
@@ -182,7 +234,7 @@ MetricAB サブモード時だけ、以下の 3 コントロールを Master 上
 
 Encoder 8 の Cue Volume、Encoder 16 の Send 1、その他の選択トラック系割り当ては MetricAB サブモードでも変わらない。
 
-### Device On エンコーダ
+### LegacyのDevice On エンコーダ
 
 Encoder 2-7 は通常のパラメータ接続ではなく、相対入力方向で対象デバイスの `Device On` を直接書き換える。
 
@@ -246,7 +298,7 @@ Instrument モードのパラメータ操作時の表示は `対象デバイス�
 
 ### Encoder 24の上下キー
 
-CH16 / CC100の相対入力を、64未満なら上キー、64超なら下キー、64なら無操作へ変換する。最小回転も加速値も1入力として扱う。Instrument全体で専用に予約し、`custom_parameter_order.py`での定義や選択中デバイスの制限は設けない。Mixingでは従来のPanへ戻る。フェーダー25番、ボタン33番からのパラメータ配置を維持する。
+CH16 / CC100の相対入力を、64未満なら上キー、64超なら下キー、64なら無操作へ変換する。最小回転も加速値も1入力として扱う。Instrument全体で専用に予約し、`custom_parameter_order.py`での定義や選択中デバイスの制限は設けない。Mixingでは設定された割り当てへ戻り、Legacyを選んだ場合は従来のPanへ戻る。フェーダー25番、ボタン33番からのパラメータ配置を維持する。
 
 表示は`Keyboard / Preset Up-Down / UpまたはDown`、待機時は3行目を空にする。LEDは青25%。Shift中とタッチ入力は表示だけでキーを送らない。
 
@@ -437,7 +489,7 @@ RGB LED 送信は SysEx `F0 00 20 29 02 15 01 53 <control_index> <r> <g> <b> F7`
 
 エンコーダ LED の `control_index` は `message_identifier() - 64`。通常のボタン LED は `message_identifier()` を使う。
 
-主な色仕様:
+主な色仕様（Device Onの固定色とEncoder 1のサブモード色はLegacy専用）:
 
 | 対象 | 色 |
 | --- | --- |
@@ -478,7 +530,7 @@ Transport / Recording skin:
 - 選択トラック、対象デバイス、デバイス数、デバイス名、class 名、パラメータ名、min/max などの署名が変わった場合だけ再接続する。
 - 同じデバイスのパラメータ列はキャッシュし、Live が同等の wrapper を返すだけなら不要な release/connect を避ける。
 - モード非 active 化時:
-  - `Fixed_Assignments` は全パラメータを release し、Encoder 1 と Device On エンコーダの手動 LED 状態を消す。
+  - `Fixed_Assignments` は全パラメータを release する。新Mixingは構成通知リスナーも解放し、LegacyはEncoder 1とDevice Onエンコーダの手動LED状態を消す。
   - `Instrument_Assignments` は全パラメータを release し、instrument ボタン LED を off にする。
   - `Track_Buttons` は modifier LED を off にし、入力を無視する。
 
