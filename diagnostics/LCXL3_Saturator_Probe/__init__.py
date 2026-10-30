@@ -188,8 +188,12 @@ class SaturatorInputProbe(ControlSurface):
         groups = []
         for script in self._probe_scripts:
             try:
-                # Live's v3 ComponentMap.get raises KeyError for absent names.
-                component = script.component_map.get("Fixed_Assignments")
+                # ComponentMap.get can instantiate lazy components. Inspect only
+                # the underlying v3 dict, without invoking that factory path.
+                component_map = script.component_map
+                if not isinstance(component_map, dict):
+                    continue
+                component = dict.get(component_map, "Fixed_Assignments")
                 if component is None or type(component).__name__ != "ConfiguredMixingAssignmentsComponent":
                     continue
                 assignments = component._assignments

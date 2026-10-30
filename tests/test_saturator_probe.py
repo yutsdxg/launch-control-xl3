@@ -135,6 +135,18 @@ class SaturatorProbeTest(unittest.TestCase):
         self.assertEqual(len(self.probe._bindings), 1)
         self.assertEqual(len(self.drive.listeners), 1)
 
+    def test_inspecting_lazy_v3_map_never_constructs_an_unrelated_component(self):
+        class LazyComponentMap(dict):
+            def get(self, name):
+                raise AssertionError("ComponentMap.get can instantiate a component")
+
+        unrelated = types.SimpleNamespace(component_map=LazyComponentMap(
+            Fixed_Assignments=lambda: object()))
+        self.probe._probe_scripts = (unrelated,) + self.probe._probe_scripts
+        self.probe._refresh_bindings()
+        self.assertEqual(len(self.probe._bindings), 1)
+        self.assertEqual(len(self.drive.listeners), 1)
+
     def test_actual_event_order_is_retained_in_both_directions_without_value_writes(self):
         for native_first in (True, False):
             with self.subTest(native_first=native_first):
