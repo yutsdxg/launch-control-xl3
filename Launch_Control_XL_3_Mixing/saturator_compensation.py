@@ -155,7 +155,6 @@ class _TargetState:
                 and self.drive.automation_state == 0 and self.output.automation_state == 0
                 and _unit_value(self.drive) is not None and _unit_value(self.output) is not None
                 and _selected_item(self.type) == "Analog Clip"
-                and _unchanged(_unit_value(self.color), 0.0)
                 and _selected_item(self.post_clip) == "No Clip"
                 and _unchanged(_unit_value(self.wet), 1.0))
         except ERRORS:

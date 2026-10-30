@@ -1622,5 +1622,24 @@
     "user_feedback": "急に大きくなる現象はなくなった",
     "sudden_bypass_gain_jump_resolved_user_confirmed": true,
     "subjective_confirmation_is_separate_from_measured_rms": true
+  },
+  "runtime_policy_issue_36": {
+    "color_on_supported": true,
+    "color_on_uses_same_existing_curve": true,
+    "additional_color_calibration_performed": false,
+    "measurement_color_setting_remains": "OFF",
+    "configured_drive_min_fraction": 0.5,
+    "configured_controller_drive_range_db": [
+      0.0,
+      36.0
+    ],
+    "calibrated_drive_range_db": [
+      0.0,
+      24.0
+    ],
+    "above_calibrated_range_uses_endpoint_correction": true,
+    "bounded_fader_default_takeover": "script value_scaling",
+    "bounded_fader_follows_global_live_takeover": false,
+    "unbounded_controls_keep_native_live_mapping": true
   }
 }

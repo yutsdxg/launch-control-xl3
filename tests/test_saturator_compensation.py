@@ -200,6 +200,15 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.assertOutput(-7.0)
         self.assertEqual(self.device.drive.writes, [])
 
+    def test_color_on_uses_the_same_drive_compensation_curve(self):
+        self.device.named["Color On"].external_change(1.0)
+        self.physical(6.0)
+        self.assertOutput(-4.0)
+        self.physical(12.0)
+        self.assertOutput(-7.0)
+        self.physical(0.0)
+        self.assertOutput(0.0)
+
     def test_arbitrary_encoder_and_duplicate_assignment_share_one_target_state(self):
         self.assignments["encoder_23"] = dict(self.assignments["fader_7"])
         self.controls["encoder_23"] = NativeControl(self.device.drive)
@@ -297,15 +306,35 @@ class SaturatorCompensationTest(unittest.TestCase):
     def test_explicit_trim_survives_condition_pause_without_reanchoring_from_output(self):
         self.physical_output(-6.0)
         self.physical(6.0)
-        self.device.named["Color On"].external_change(1.0)
+        self.device.named["Post Clip Mode"].external_change(1.0)
         self.device.drive.external_change(drive_value(12.0))
         self.device.output.writes.clear()
         self.refresh()
-        self.device.named["Color On"].external_change(0.0)
+        self.device.named["Post Clip Mode"].external_change(0.0)
         self.refresh()
         self.assertEqual(self.device.output.writes, [])
         self.physical(18.0)
         self.assertOutput(-14.5)
+
+    def test_color_toggles_keep_manual_trim_without_writes_or_reanchoring(self):
+        self.physical_output(-6.0)
+        self.physical(6.0)
+        color = self.device.named["Color On"]
+        listeners = tuple(color.listeners)
+        current_drive = 6.0
+        for state, next_drive, expected in ((1.0, 12.0, -13.0),
+                                            (0.0, 18.0, -14.5),
+                                            (1.0, 0.0, -6.0)):
+            with self.subTest(color=state, drive=next_drive):
+                self.device.output.writes.clear()
+                color.external_change(state)
+                self.refresh()
+                self.physical(current_drive)
+                self.assertEqual(self.device.output.writes, [])
+                self.assertEqual(tuple(color.listeners), listeners)
+                self.physical(next_drive)
+                self.assertOutput(expected)
+                current_drive = next_drive
 
     def test_return_to_same_device_keeps_explicit_trim_and_detaches_inactive_listeners(self):
         first = self.device
@@ -459,8 +488,8 @@ class SaturatorCompensationTest(unittest.TestCase):
         self.assertOutput(-7.0)
 
     def test_unsupported_settings_pause_then_keep_reference_on_resume(self):
-        for parameter, invalid in (("Type", 1.0), ("Color On", 1.0),
-                                   ("Dry/Wet", 0.5), ("Post Clip Mode", 1.0)):
+        for parameter, invalid in (("Type", 1.0), ("Dry/Wet", 0.5),
+                                   ("Post Clip Mode", 1.0)):
             with self.subTest(parameter=parameter):
                 self.device.drive.external_change(drive_value(0.0))
                 self.physical_output(0.0)

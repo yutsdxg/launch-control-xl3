@@ -2,6 +2,8 @@
 
 2026-10-30、Live 12.4.15で測定した。Issue #34で、音量の基準をDrive 0の処理音から実際にSaturatorをOFFにした原音へ変更した。対象は新Mixingの`parameter: "Drive"`に一致する割り当てで、デバイス名・操作子番号・Outputの操作子番号では固定しない。[本体の仕様](../Launch_Control_XL_3_Mixing/SPEC.md#saturatorのdriveに連動するoutput補正)と[測定数値・音声SHA-256](saturator_measurements.json)を参照する。
 
+2026-10-31のIssue #36で実行時のColor OFF制限を外した。Color ONでも同じ補正表と手動トリムを使い、Colorの切替で休止・再基準化しない。ユーザー指定によりColor ON向けの追加較正はしていない。以下の測定条件・数値は引き続きColor OFFで測った結果である。
+
 ## 測定条件と基準音
 
 - Analog Clip、Color OFF、Post Clip No Clip、Dry/Wet 100%、Hi-Quality ON、Pre-DC Filter OFF。
@@ -41,6 +43,14 @@
 | 合成ドラム | −2.472 | −0.022 | 2.472 |
 
 入力レベル・波形・音色設定によって必要な補正の形は変わる。ピークの高いドラムでは小さくなる場合がある。一定の手動Output調整だけではDrive全域の残差を消せないため、共有カーブを使う初版の制限として記録する。負のDriveと24 dB超は引き続き音量維持の評価対象外である。
+
+## 本体のDrive下限を0 dBにする設定
+
+`mixing_config.py`のDrive割り当てへ`"min": 0.5`を加えると、エンコーダー／フェーダーの操作下限を0 dB、上限を36 dBにできる。フェーダーは全移動範囲を0〜36 dBへ再配分する。現行の個人配置ではDriveの行だけへこの指定を加え、ほかの配置は維持する。Live画面やオートメーションのパラメータ範囲は変わらない。
+
+正の`min`がある操作子だけ範囲専用の制御を使い、フェーダーの既定takeoverはスクリプト側の`value_scaling`となる。`pickup`・`none`も指定でき、Liveのグローバル設定へは自動追従しない。`min`未指定・0は従来のLive標準接続を使う。詳細な入力・復帰仕様は本体の仕様を参照する。
+
+この設定は補正表を拡張しない。0〜24 dBの補正と測定値は従来のままで、24〜36 dBでは24 dBの補正量を維持する。`auto_bypass`の最小端点は設定下限の0 dBとなり、端点のOutput補正を反映してからデバイスをOFFにする。
 
 ## 保存値と手動トリム
 
