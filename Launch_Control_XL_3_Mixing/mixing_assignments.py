@@ -9,6 +9,8 @@ from .display import send_display, send_locked_display, send_unassigned_display
 from .mixing_config import MIXING_ASSIGNMENTS
 from .mixing_targets import CONTROL_NAMES, MixingTargetResolver, validate_assignments
 from .parameter_actions import apply_directional_on_off
+from .parameter_ranges import ParameterRangeControl, effective_bounds, is_bounded
+from .saturator_compensation import SaturatorCompensationManager
 
 ASSIGNMENT_UPDATE_INTERVAL = 0.1
 
@@ -22,11 +24,13 @@ class ConfiguredMixingAssignmentsComponent(Component):
         self._updating = False
         self._assignments = validate_assignments(MIXING_ASSIGNMENTS if assignments is None else assignments)
         self._resolver = MixingTargetResolver(self._update_assignments)
+        self._saturator_compensation = SaturatorCompensationManager()
         self._controls = {}
         self._control_slots = {}
         self._display_commands = {}
         self._connected_parameters = {}
         self._connected_parameter_signatures = {}
+        self._range_inputs = {}
         self._tasks.add(task.loop(task.sequence(
             task.run(self._update_assignments), task.delay(ASSIGNMENT_UPDATE_INTERVAL))))
 
@@ -44,6 +48,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         if active:
             self._update_assignments()
         else:
+            self._saturator_compensation.suspend()
             self._release_all_parameter_controls()
             self._resolver.disconnect()
 
@@ -85,6 +90,9 @@ class ConfiguredMixingAssignmentsComponent(Component):
             self._resolver.refresh(self.song, self._assignments)
             for name in self._controls:
                 self._update_parameter_assignment(name, force=force)
+            self._saturator_compensation.refresh(
+                self._resolver, self._assignments, self._controls,
+                enabled=not self._shift_pressed and not self._locked)
             if prepare_displays:
                 for name in self._display_commands:
                     self._prepare_control_display(name)
@@ -102,6 +110,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
     def _manual_mapping(self, name):
         entry = self._assignments[name]
         return (self._shift_pressed or self._locked or bool(entry and entry.get("directional_on_off"))
+                or is_bounded(entry)
                 or self._bypassed_parameter(name, self._resolver.resolve(entry)))
 
     def _bypassed_parameter(self, name, parameter):
@@ -114,6 +123,9 @@ class ConfiguredMixingAssignmentsComponent(Component):
         )
 
     def _parameter_is_available(self, name, parameter):
+        entry = self._assignments[name]
+        if is_bounded(entry) and effective_bounds(parameter, entry) is None:
+            return False
         return self._parameter_is_enabled(parameter) or self._bypassed_parameter(name, parameter)
 
     def _update_parameter_assignment(self, name, force=False):
@@ -129,6 +141,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
         except (AttributeError, RuntimeError):
             self._release_parameter_control(name, control)
             return
+        self._update_range_input(name, control, parameter, entry)
         if not force and signature == self._connected_parameter_signatures.get(name):
             if manual and name.startswith("encoder_"):
                 self._refresh_encoder_led(control)
@@ -140,6 +153,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
                     control.set_manual_led_parameter(parameter)
                 control.release_parameter()
             except (AttributeError, RuntimeError):
+                self._range_inputs.pop(name, None)
                 return
         else:
             self._release_parameter_control(name, control)
@@ -150,7 +164,22 @@ class ConfiguredMixingAssignmentsComponent(Component):
         self._connected_parameters[name] = parameter
         self._connected_parameter_signatures[name] = signature
 
+    def _update_range_input(self, name, control, parameter, entry):
+        if not is_bounded(entry) or self._shift_pressed or self._locked:
+            self._range_inputs.pop(name, None)
+            return
+        signature = (control, self._resolver.owner(entry), parameter,
+                     parameter.min, parameter.max, entry.get("min", 0.0), entry.get("max", 1.0),
+                     entry.get("takeover", "value_scaling"))
+        previous = self._range_inputs.get(name)
+        if previous is None or previous[0] != signature:
+            self._range_inputs[name] = (signature, ParameterRangeControl(
+                parameter, relative=name.startswith("encoder_"),
+                minimum=entry.get("min", 0.0), maximum=entry.get("max", 1.0),
+                takeover=entry.get("takeover", "value_scaling")))
+
     def _release_parameter_control(self, name, control):
+        self._range_inputs.pop(name, None)
         # Inactive components must never release the other mode's native map.
         if name not in self._connected_parameters:
             return
@@ -222,12 +251,26 @@ class ConfiguredMixingAssignmentsComponent(Component):
             return
         self._update_assignments(prepare_displays=False)
         if not self._locked and not self._shift_pressed:
-            entry = self._assignments[name]
-            if entry and entry.get("directional_on_off"):
-                apply_directional_on_off(self._connected_parameters.get(name), value)
+            bounded_applied = False
+            self._saturator_compensation.begin_input(name)
+            try:
+                entry = self._assignments[name]
+                if is_bounded(entry):
+                    bounded_applied = self._handle_bounded_input(name, value)
+                elif entry and entry.get("directional_on_off"):
+                    apply_directional_on_off(self._connected_parameters.get(name), value)
+                    self._refresh_encoder_led(self._controls.get(name))
+                elif entry and entry.get("auto_bypass"):
+                    self._handle_auto_bypass_input(name, value)
+            finally:
+                self._saturator_compensation.end_input(name)
+            if bounded_applied:
+                # Output must reach the Drive minimum's correction before an
+                # auto_bypass action disables that device's parameters.
+                if entry.get("auto_bypass"):
+                    self._apply_auto_bypass(entry)
+                    self._update_assignments(prepare_displays=False)
                 self._refresh_encoder_led(self._controls.get(name))
-            elif entry and entry.get("auto_bypass"):
-                self._handle_auto_bypass_input(name, value)
         self._prepare_control_display(name, trigger=True)
 
     def on_consumed_encoder_input(self, event):
@@ -237,6 +280,46 @@ class ConfiguredMixingAssignmentsComponent(Component):
         entry = self._assignments.get(name)
         if entry and entry.get("auto_bypass"):
             self._on_parameter_control_value(name, value)
+
+    def _handle_bounded_input(self, name, value):
+        entry = self._assignments[name]
+        parameter = self._connected_parameters.get(name)
+        state = self._range_inputs.get(name)
+        if state is None or not self._parameter_is_available(name, parameter):
+            return False
+        controller = state[1]
+        bounds = effective_bounds(parameter, entry)
+        target = controller.input_target(value)
+        if target is None:
+            return False
+        if self._bypassed_parameter(name, parameter):
+            try:
+                actual = float(parameter.value)
+                outside_bounds = not controller.within_bounds(actual)
+                if (not outside_bounds and should_bypass(
+                        parameter, entry["auto_bypass"]["off_at"], target, bounds=bounds)):
+                    controller.applied(actual)
+                    return False
+            except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
+                controller.reset()
+                return False
+            # Repair a saved value outside the configured range even when the
+            # device is OFF. Correct Output before the final bypass action.
+            if not set_device_enabled(self._resolver.device_on(entry), True):
+                controller.reset()
+                return False
+        if not self._parameter_is_enabled(parameter):
+            controller.reset()
+            self._update_assignments(prepare_displays=False)
+            return False
+        try:
+            if abs(float(parameter.value) - target) > 1e-9:
+                parameter.value = target
+            controller.applied(float(parameter.value))
+        except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
+            controller.reset()
+            return False
+        return True
 
     def _handle_auto_bypass_input(self, name, value):
         entry = self._assignments[name]
@@ -270,7 +353,8 @@ class ConfiguredMixingAssignmentsComponent(Component):
                 parameter = self._resolver.resolve(candidate)
                 if not self._parameter_is_available(name, parameter):
                     continue
-                condition = should_bypass(parameter, candidate["auto_bypass"]["off_at"])
+                bounds = effective_bounds(parameter, candidate) if is_bounded(candidate) else None
+                condition = should_bypass(parameter, candidate["auto_bypass"]["off_at"], bounds=bounds)
                 if condition is not None:
                     conditions.append(condition)
         if conditions:
@@ -278,6 +362,7 @@ class ConfiguredMixingAssignmentsComponent(Component):
 
     def disconnect(self):
         self._active = False
+        self._saturator_compensation.disconnect()
         self._release_all_parameter_controls()
         self._resolver.disconnect()
         for slot in self._control_slots.values():

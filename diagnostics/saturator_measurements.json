@@ -1,0 +1,1657 @@
+{
+  "date": "2026-10-30",
+  "ableton_live_version": "12.4.15",
+  "calibration_version": "bypass_reference_v1",
+  "conditions": {
+    "device_on": true,
+    "type": "Analog Clip",
+    "color": false,
+    "post_clip": "No Clip",
+    "dry_wet": 1,
+    "output_db": "actual bypass-based curve value at each Drive",
+    "hi_quality": true,
+    "pre_dc_filter": false,
+    "track_fader_db": 0,
+    "main_fader_db": 0,
+    "warp": false,
+    "fade": false
+  },
+  "sample_rate_hz": 44100,
+  "format": "stereo IEEE float32 WAV; normalize off; dither off",
+  "input": {
+    "input_rms_dbfs": -18.000000000215366,
+    "input_peak_dbfs": -3.4940414721270874,
+    "input_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5"
+  },
+  "reference_definition": "Actual Saturator-OFF render, same source and same 0.5..9.5 second measurement window",
+  "reference_rms_dbfs": -17.981263834964967,
+  "curve_db": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      3.0,
+      -2.990675605074582
+    ],
+    [
+      6.0,
+      -5.985547524032334
+    ],
+    [
+      9.0,
+      -8.897638176286074
+    ],
+    [
+      12.0,
+      -11.471879384789583
+    ],
+    [
+      15.0,
+      -13.480187475523012
+    ],
+    [
+      18.0,
+      -14.910258125829028
+    ],
+    [
+      21.0,
+      -15.87605445941633
+    ],
+    [
+      24.0,
+      -16.508052892207136
+    ]
+  ],
+  "native_output_range_db": [
+    -36.0,
+    0.0
+  ],
+  "drive_zero_positive_correction_clamped_db": 0.009183128689535636,
+  "uncompensated_render_sha256": "84496d26457938f47135363f47efc262071c336723a8b55dd78e56f00895b47d",
+  "bypass_reference_measurement": {
+    "status": "measured_actual_bypass_references_and_derived_curve_candidate_not_new_curve_playback_validation",
+    "actual_bypass_references": [
+      {
+        "index": 0,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASS 1 pink_noise",
+        "device_on": false,
+        "start_seconds": 0,
+        "end_seconds": 10,
+        "measure_start_seconds": 0.5,
+        "measure_end_seconds": 9.5,
+        "measured_bypass_rms_dbfs": -17.981263834964967,
+        "measured_bypass_peak_dbfs": -3.4940414721270874
+      },
+      {
+        "index": 1,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASS 2 bass",
+        "device_on": false,
+        "start_seconds": 12,
+        "end_seconds": 22,
+        "measure_start_seconds": 12.5,
+        "measure_end_seconds": 21.5,
+        "measured_bypass_rms_dbfs": -17.999931211599794,
+        "measured_bypass_peak_dbfs": -10.820578431991514
+      },
+      {
+        "index": 2,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASS 3 chords",
+        "device_on": false,
+        "start_seconds": 24,
+        "end_seconds": 34,
+        "measure_start_seconds": 24.5,
+        "measure_end_seconds": 33.5,
+        "measured_bypass_rms_dbfs": -17.900416639915317,
+        "measured_bypass_peak_dbfs": -8.052503507249892
+      },
+      {
+        "index": 3,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASS 4 drums",
+        "device_on": false,
+        "start_seconds": 36,
+        "end_seconds": 46,
+        "measure_start_seconds": 36.5,
+        "measure_end_seconds": 45.5,
+        "measured_bypass_rms_dbfs": -18.00007797296542,
+        "measured_bypass_peak_dbfs": -0.012491191421640199
+      }
+    ]
+  },
+  "actual_corrected_audio_validation": {
+    "status": "measured_actual_bypass_based_corrected_render_against_actual_device_OFF_references",
+    "corrected_render": "Bypass_Based_Combined_Validation.wav",
+    "corrected_render_sha256": "857fd1b9672e56d3fe5b56395e733c1c4ab728e46450362eeba64f3dc7b2092c",
+    "corrected_render_format": {
+      "codec_name": "pcm_f32le",
+      "sample_fmt": "flt",
+      "sample_rate": "44100",
+      "channels": 2,
+      "duration": "528.000000"
+    },
+    "manifest_sha256": "fb9d2d936a22f3ea6bed60d91a0b4ba24af87536d56b41abc02029e7923b840a",
+    "bypass_render": "Bypass_Reference_Calibration.wav",
+    "bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+    "bypass_reference_report_sha256": "8412f59a10e95c02714dd85a7e8663ee4c9ffbf70468ee1289b7f1179c776c3d",
+    "curve_basis": "actual_device_OFF_reference",
+    "curve_db": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        3.0,
+        -2.990675605074582
+      ],
+      [
+        6.0,
+        -5.985547524032334
+      ],
+      [
+        9.0,
+        -8.897638176286074
+      ],
+      [
+        12.0,
+        -11.471879384789583
+      ],
+      [
+        15.0,
+        -13.480187475523012
+      ],
+      [
+        18.0,
+        -14.910258125829028
+      ],
+      [
+        21.0,
+        -15.87605445941633
+      ],
+      [
+        24.0,
+        -16.508052892207136
+      ]
+    ],
+    "conditions": {
+      "device_on": true,
+      "type": "Analog Clip",
+      "color": false,
+      "post_clip": "No Clip",
+      "dry_wet": 1,
+      "output_db": "actual bypass-based curve value at each Drive",
+      "hi_quality": true,
+      "pre_dc_filter": false,
+      "track_fader_db": 0,
+      "main_fader_db": 0,
+      "warp": false,
+      "fade": false
+    },
+    "actual_bypass_references": {
+      "pink_noise": {
+        "index": 0,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASS 1 pink_noise",
+        "device_on": false,
+        "start_seconds": 0,
+        "end_seconds": 10,
+        "measure_start_seconds": 0.5,
+        "measure_end_seconds": 9.5,
+        "measured_bypass_rms_dbfs": -17.981263834964967,
+        "measured_bypass_peak_dbfs": -3.4940414721270874
+      },
+      "bass": {
+        "index": 1,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASS 2 bass",
+        "device_on": false,
+        "start_seconds": 12,
+        "end_seconds": 22,
+        "measure_start_seconds": 12.5,
+        "measure_end_seconds": 21.5,
+        "measured_bypass_rms_dbfs": -17.999931211599794,
+        "measured_bypass_peak_dbfs": -10.820578431991514
+      },
+      "chords": {
+        "index": 2,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASS 3 chords",
+        "device_on": false,
+        "start_seconds": 24,
+        "end_seconds": 34,
+        "measure_start_seconds": 24.5,
+        "measure_end_seconds": 33.5,
+        "measured_bypass_rms_dbfs": -17.900416639915317,
+        "measured_bypass_peak_dbfs": -8.052503507249892
+      },
+      "drums": {
+        "index": 3,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASS 4 drums",
+        "device_on": false,
+        "start_seconds": 36,
+        "end_seconds": 46,
+        "measure_start_seconds": 36.5,
+        "measure_end_seconds": 45.5,
+        "measured_bypass_rms_dbfs": -18.00007797296542,
+        "measured_bypass_peak_dbfs": -0.012491191421640199
+      }
+    },
+    "calibration_noise_test": {
+      "reference": "actual Saturator-OFF pink-noise render",
+      "tolerance_db": 0.5,
+      "point_count": 17,
+      "curve_node_count": 9,
+      "interpolation_midpoint_count": 8,
+      "maximum_absolute_measured_residual_vs_bypass_db": 0.0762129027139089,
+      "maximum_curve_node_absolute_measured_residual_db": 0.009183128689535636,
+      "maximum_midpoint_absolute_measured_residual_db": 0.0762129027139089,
+      "within_tolerance": true
+    },
+    "summary_by_material": [
+      {
+        "material_label": "pink_noise",
+        "point_count": 17,
+        "reference": "own actual Saturator-OFF render, not processed Drive 0",
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "minimum_measured_residual_vs_bypass_db": -0.009183128689535636,
+        "maximum_measured_residual_vs_bypass_db": 0.0762129027139089,
+        "maximum_absolute_measured_residual_vs_bypass_db": 0.0762129027139089,
+        "measured_residual_peak_to_peak_db": 0.08539603140344454,
+        "maximum_error_drive_db": 13.5,
+        "maximum_measured_corrected_peak_dbfs": -3.7522931128380854,
+        "measured_drive_zero_residual_vs_bypass_db": -0.009183128689535636
+      },
+      {
+        "material_label": "bass",
+        "point_count": 9,
+        "reference": "own actual Saturator-OFF render, not processed Drive 0",
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "minimum_measured_residual_vs_bypass_db": -3.5265088627056684e-08,
+        "maximum_measured_residual_vs_bypass_db": 0.5040472067803279,
+        "maximum_absolute_measured_residual_vs_bypass_db": 0.5040472067803279,
+        "measured_residual_peak_to_peak_db": 0.5040472420454165,
+        "maximum_error_drive_db": 15.0,
+        "maximum_measured_corrected_peak_dbfs": -10.806158466310869,
+        "measured_drive_zero_residual_vs_bypass_db": -3.5265088627056684e-08
+      },
+      {
+        "material_label": "chords",
+        "point_count": 9,
+        "reference": "own actual Saturator-OFF render, not processed Drive 0",
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "minimum_measured_residual_vs_bypass_db": -0.17052032356320979,
+        "maximum_measured_residual_vs_bypass_db": 0.01710648728314368,
+        "maximum_absolute_measured_residual_vs_bypass_db": 0.17052032356320979,
+        "measured_residual_peak_to_peak_db": 0.18762681084635346,
+        "maximum_error_drive_db": 18.0,
+        "maximum_measured_corrected_peak_dbfs": -8.043204249216402,
+        "measured_drive_zero_residual_vs_bypass_db": -4.436185676581772e-07
+      },
+      {
+        "material_label": "drums",
+        "point_count": 9,
+        "reference": "own actual Saturator-OFF render, not processed Drive 0",
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "minimum_measured_residual_vs_bypass_db": -2.471971794756037,
+        "maximum_measured_residual_vs_bypass_db": -0.02173480191433086,
+        "maximum_absolute_measured_residual_vs_bypass_db": 2.471971794756037,
+        "measured_residual_peak_to_peak_db": 2.450236992841706,
+        "maximum_error_drive_db": 21.0,
+        "maximum_measured_corrected_peak_dbfs": 0.41492461566076533,
+        "measured_drive_zero_residual_vs_bypass_db": -0.02173480191433086
+      }
+    ],
+    "measurements": [
+      {
+        "index": 0,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 0 dB",
+        "drive_db": 0.0,
+        "output_correction_db": 0.0,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 0,
+        "end_seconds": 10,
+        "measure_start_seconds": 0.5,
+        "measure_end_seconds": 9.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.990446963654502,
+        "measured_corrected_peak_dbfs": -3.7522931128380854,
+        "measured_residual_vs_actual_bypass_db": -0.009183128689535636
+      },
+      {
+        "index": 1,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 1.5 dB",
+        "drive_db": 1.5,
+        "output_correction_db": -1.495337802537291,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 12,
+        "end_seconds": 22,
+        "measure_start_seconds": 12.5,
+        "measure_end_seconds": 21.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.985752308150733,
+        "measured_corrected_peak_dbfs": -3.7905989297030662,
+        "measured_residual_vs_actual_bypass_db": -0.004488473185766395
+      },
+      {
+        "index": 2,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 3 dB",
+        "drive_db": 3.0,
+        "output_correction_db": -2.990675605074582,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 24,
+        "end_seconds": 34,
+        "measure_start_seconds": 24.5,
+        "measure_end_seconds": 33.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981286962020505,
+        "measured_corrected_peak_dbfs": -4.226947708812702,
+        "measured_residual_vs_actual_bypass_db": -2.3127055538196828e-05
+      },
+      {
+        "index": 3,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 4.5 dB",
+        "drive_db": 4.5,
+        "output_correction_db": -4.488111564553458,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 36,
+        "end_seconds": 46,
+        "measure_start_seconds": 36.5,
+        "measure_end_seconds": 45.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.979311058063814,
+        "measured_corrected_peak_dbfs": -5.079322348600548,
+        "measured_residual_vs_actual_bypass_db": 0.0019527769011524754
+      },
+      {
+        "index": 4,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 6 dB",
+        "drive_db": 6.0,
+        "output_correction_db": -5.985547524032334,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 48,
+        "end_seconds": 58,
+        "measure_start_seconds": 48.5,
+        "measure_end_seconds": 57.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.98127321067674,
+        "measured_corrected_peak_dbfs": -6.192789222113698,
+        "measured_residual_vs_actual_bypass_db": -9.375711773174089e-06
+      },
+      {
+        "index": 5,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 7.5 dB",
+        "drive_db": 7.5,
+        "output_correction_db": -7.441592850159204,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 60,
+        "end_seconds": 70,
+        "measure_start_seconds": 60.5,
+        "measure_end_seconds": 69.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.958588899282965,
+        "measured_corrected_peak_dbfs": -7.346733489169455,
+        "measured_residual_vs_actual_bypass_db": 0.022674935682001518
+      },
+      {
+        "index": 6,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 9 dB",
+        "drive_db": 9.0,
+        "output_correction_db": -8.897638176286074,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 72,
+        "end_seconds": 82,
+        "measure_start_seconds": 72.5,
+        "measure_end_seconds": 81.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981289705989322,
+        "measured_corrected_peak_dbfs": -8.28956335536308,
+        "measured_residual_vs_actual_bypass_db": -2.587102435569477e-05
+      },
+      {
+        "index": 7,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 10.5 dB",
+        "drive_db": 10.5,
+        "output_correction_db": -10.184758780537829,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 84,
+        "end_seconds": 94,
+        "measure_start_seconds": 84.5,
+        "measure_end_seconds": 93.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.920078725806178,
+        "measured_corrected_peak_dbfs": -9.070691248154446,
+        "measured_residual_vs_actual_bypass_db": 0.06118510915878872
+      },
+      {
+        "index": 8,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 12 dB",
+        "drive_db": 12.0,
+        "output_correction_db": -11.471879384789583,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 96,
+        "end_seconds": 106,
+        "measure_start_seconds": 96.5,
+        "measure_end_seconds": 105.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981302441587804,
+        "measured_corrected_peak_dbfs": -9.88922618338727,
+        "measured_residual_vs_actual_bypass_db": -3.860662283727834e-05
+      },
+      {
+        "index": 9,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 13.5 dB",
+        "drive_db": 13.5,
+        "output_correction_db": -12.476033430156297,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 108,
+        "end_seconds": 118,
+        "measure_start_seconds": 108.5,
+        "measure_end_seconds": 117.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.905050932251058,
+        "measured_corrected_peak_dbfs": -10.483242144355478,
+        "measured_residual_vs_actual_bypass_db": 0.0762129027139089
+      },
+      {
+        "index": 10,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 15 dB",
+        "drive_db": 15.0,
+        "output_correction_db": -13.480187475523012,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 120,
+        "end_seconds": 130,
+        "measure_start_seconds": 120.5,
+        "measure_end_seconds": 129.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981290167641035,
+        "measured_corrected_peak_dbfs": -10.804019220877416,
+        "measured_residual_vs_actual_bypass_db": -2.6332676068108185e-05
+      },
+      {
+        "index": 11,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 16.5 dB",
+        "drive_db": 16.5,
+        "output_correction_db": -14.19522280067602,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 132,
+        "end_seconds": 142,
+        "measure_start_seconds": 132.5,
+        "measure_end_seconds": 141.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.91480242810173,
+        "measured_corrected_peak_dbfs": -11.038173435924667,
+        "measured_residual_vs_actual_bypass_db": 0.06646140686323676
+      },
+      {
+        "index": 12,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 18 dB",
+        "drive_db": 18.0,
+        "output_correction_db": -14.910258125829028,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 144,
+        "end_seconds": 154,
+        "measure_start_seconds": 144.5,
+        "measure_end_seconds": 153.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981277230958412,
+        "measured_corrected_peak_dbfs": -11.279284762994418,
+        "measured_residual_vs_actual_bypass_db": -1.3395993445186605e-05
+      },
+      {
+        "index": 13,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 19.5 dB",
+        "drive_db": 19.5,
+        "output_correction_db": -15.39315629262268,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 156,
+        "end_seconds": 166,
+        "measure_start_seconds": 156.5,
+        "measure_end_seconds": 165.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.931784839336512,
+        "measured_corrected_peak_dbfs": -11.157809725936174,
+        "measured_residual_vs_actual_bypass_db": 0.049478995628454925
+      },
+      {
+        "index": 14,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 21 dB",
+        "drive_db": 21.0,
+        "output_correction_db": -15.87605445941633,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 168,
+        "end_seconds": 178,
+        "measure_start_seconds": 168.5,
+        "measure_end_seconds": 177.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981237199392986,
+        "measured_corrected_peak_dbfs": -11.127646083697835,
+        "measured_residual_vs_actual_bypass_db": 2.663557198090416e-05
+      },
+      {
+        "index": 15,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 22.5 dB",
+        "drive_db": 22.5,
+        "output_correction_db": -16.192053675811735,
+        "point_kind": "interpolation_midpoint",
+        "group": "calibration_noise",
+        "start_seconds": 180,
+        "end_seconds": 190,
+        "measure_start_seconds": 180.5,
+        "measure_end_seconds": 189.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.9468203490081,
+        "measured_corrected_peak_dbfs": -10.960920714596988,
+        "measured_residual_vs_actual_bypass_db": 0.03444348595686719
+      },
+      {
+        "index": 16,
+        "material_label": "pink_noise",
+        "material_type": "synthetic_deterministic",
+        "source_path": "pink_noise_seed32_rms_minus18_44k1_float32.wav",
+        "source_sha256": "621eb9dbae4a9c6d891b92c99910fa5b46df062a74960ea2eeed21fb786416d5",
+        "track_name": "BYPASSREF pink_noise 24 dB",
+        "drive_db": 24.0,
+        "output_correction_db": -16.508052892207136,
+        "point_kind": "curve_node",
+        "group": "calibration_noise",
+        "start_seconds": 192,
+        "end_seconds": 202,
+        "measure_start_seconds": 192.5,
+        "measure_end_seconds": 201.5,
+        "actual_bypass_reference_rms_dbfs": -17.981263834964967,
+        "actual_bypass_reference_window_seconds": [
+          0.5,
+          9.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.981233981621564,
+        "measured_corrected_peak_dbfs": -10.885873595068293,
+        "measured_residual_vs_actual_bypass_db": 2.9853343402663768e-05
+      },
+      {
+        "index": 17,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 0 dB",
+        "drive_db": 0.0,
+        "output_correction_db": 0.0,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 204,
+        "end_seconds": 214,
+        "measure_start_seconds": 204.5,
+        "measure_end_seconds": 213.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.999931246864882,
+        "measured_corrected_peak_dbfs": -10.820578431991514,
+        "measured_residual_vs_actual_bypass_db": -3.5265088627056684e-08
+      },
+      {
+        "index": 18,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 3 dB",
+        "drive_db": 3.0,
+        "output_correction_db": -2.990675605074582,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 216,
+        "end_seconds": 226,
+        "measure_start_seconds": 216.5,
+        "measure_end_seconds": 225.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.990629794786102,
+        "measured_corrected_peak_dbfs": -10.811278808645742,
+        "measured_residual_vs_actual_bypass_db": 0.009301416813691787
+      },
+      {
+        "index": 19,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 6 dB",
+        "drive_db": 6.0,
+        "output_correction_db": -5.985547524032334,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 228,
+        "end_seconds": 238,
+        "measure_start_seconds": 228.5,
+        "measure_end_seconds": 237.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.98550963890222,
+        "measured_corrected_peak_dbfs": -10.806158466310869,
+        "measured_residual_vs_actual_bypass_db": 0.014421572697575158
+      },
+      {
+        "index": 20,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 9 dB",
+        "drive_db": 9.0,
+        "output_correction_db": -8.897638176286074,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 240,
+        "end_seconds": 250,
+        "measure_start_seconds": 240.5,
+        "measure_end_seconds": 249.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.901389803281006,
+        "measured_corrected_peak_dbfs": -10.868728147626069,
+        "measured_residual_vs_actual_bypass_db": 0.09854140831878766
+      },
+      {
+        "index": 21,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 12 dB",
+        "drive_db": 12.0,
+        "output_correction_db": -11.471879384789583,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 252,
+        "end_seconds": 262,
+        "measure_start_seconds": 252.5,
+        "measure_end_seconds": 261.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.65735407746789,
+        "measured_corrected_peak_dbfs": -11.960312258678055,
+        "measured_residual_vs_actual_bypass_db": 0.34257713413190416
+      },
+      {
+        "index": 22,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 15 dB",
+        "drive_db": 15.0,
+        "output_correction_db": -13.480187475523012,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 264,
+        "end_seconds": 274,
+        "measure_start_seconds": 264.5,
+        "measure_end_seconds": 273.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.495884004819466,
+        "measured_corrected_peak_dbfs": -13.56347494022857,
+        "measured_residual_vs_actual_bypass_db": 0.5040472067803279
+      },
+      {
+        "index": 23,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 18 dB",
+        "drive_db": 18.0,
+        "output_correction_db": -14.910258125829028,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 276,
+        "end_seconds": 286,
+        "measure_start_seconds": 276.5,
+        "measure_end_seconds": 285.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.560242178418136,
+        "measured_corrected_peak_dbfs": -14.916260476033846,
+        "measured_residual_vs_actual_bypass_db": 0.43968903318165786
+      },
+      {
+        "index": 24,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 21 dB",
+        "drive_db": 21.0,
+        "output_correction_db": -15.87605445941633,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 288,
+        "end_seconds": 298,
+        "measure_start_seconds": 288.5,
+        "measure_end_seconds": 297.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.67793123743305,
+        "measured_corrected_peak_dbfs": -15.881507274711097,
+        "measured_residual_vs_actual_bypass_db": 0.32199997416674364
+      },
+      {
+        "index": 25,
+        "material_label": "bass",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_bass_rms_minus18_44k1_float32.wav",
+        "source_sha256": "6ea9d1e7c80402bde226bb62e91e788ccc3e2a4fe58ab04e6b652efc89aae9bf",
+        "track_name": "BYPASSREF bass 24 dB",
+        "drive_db": 24.0,
+        "output_correction_db": -16.508052892207136,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 300,
+        "end_seconds": 310,
+        "measure_start_seconds": 300.5,
+        "measure_end_seconds": 309.5,
+        "actual_bypass_reference_rms_dbfs": -17.999931211599794,
+        "actual_bypass_reference_window_seconds": [
+          12.5,
+          21.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.823397915484836,
+        "measured_corrected_peak_dbfs": -16.51227273447462,
+        "measured_residual_vs_actual_bypass_db": 0.1765332961149575
+      },
+      {
+        "index": 26,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 0 dB",
+        "drive_db": 0.0,
+        "output_correction_db": 0.0,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 312,
+        "end_seconds": 322,
+        "measure_start_seconds": 312.5,
+        "measure_end_seconds": 321.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.900417083533885,
+        "measured_corrected_peak_dbfs": -8.05250416141836,
+        "measured_residual_vs_actual_bypass_db": -4.436185676581772e-07
+      },
+      {
+        "index": 27,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 3 dB",
+        "drive_db": 3.0,
+        "output_correction_db": -2.990675605074582,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 324,
+        "end_seconds": 334,
+        "measure_start_seconds": 324.5,
+        "measure_end_seconds": 333.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.89111563220342,
+        "measured_corrected_peak_dbfs": -8.043204249216402,
+        "measured_residual_vs_actual_bypass_db": 0.009301007711897569
+      },
+      {
+        "index": 28,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 6 dB",
+        "drive_db": 6.0,
+        "output_correction_db": -5.985547524032334,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 336,
+        "end_seconds": 346,
+        "measure_start_seconds": 336.5,
+        "measure_end_seconds": 345.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.886452612909956,
+        "measured_corrected_peak_dbfs": -8.13638369745112,
+        "measured_residual_vs_actual_bypass_db": 0.013964027005361146
+      },
+      {
+        "index": 29,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 9 dB",
+        "drive_db": 9.0,
+        "output_correction_db": -8.897638176286074,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 348,
+        "end_seconds": 358,
+        "measure_start_seconds": 348.5,
+        "measure_end_seconds": 357.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.883310152632173,
+        "measured_corrected_peak_dbfs": -9.452002441313974,
+        "measured_residual_vs_actual_bypass_db": 0.01710648728314368
+      },
+      {
+        "index": 30,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 12 dB",
+        "drive_db": 12.0,
+        "output_correction_db": -11.471879384789583,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 360,
+        "end_seconds": 370,
+        "measure_start_seconds": 360.5,
+        "measure_end_seconds": 369.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -17.95121128459449,
+        "measured_corrected_peak_dbfs": -11.569262977073297,
+        "measured_residual_vs_actual_bypass_db": -0.05079464467917205
+      },
+      {
+        "index": 31,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 15 dB",
+        "drive_db": 15.0,
+        "output_correction_db": -13.480187475523012,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 372,
+        "end_seconds": 382,
+        "measure_start_seconds": 372.5,
+        "measure_end_seconds": 381.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.03997744761183,
+        "measured_corrected_peak_dbfs": -13.486176824163465,
+        "measured_residual_vs_actual_bypass_db": -0.1395608076965118
+      },
+      {
+        "index": 32,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 18 dB",
+        "drive_db": 18.0,
+        "output_correction_db": -14.910258125829028,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 384,
+        "end_seconds": 394,
+        "measure_start_seconds": 384.5,
+        "measure_end_seconds": 393.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.070936963478527,
+        "measured_corrected_peak_dbfs": -14.915657142008808,
+        "measured_residual_vs_actual_bypass_db": -0.17052032356320979
+      },
+      {
+        "index": 33,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 21 dB",
+        "drive_db": 21.0,
+        "output_correction_db": -15.87605445941633,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 396,
+        "end_seconds": 406,
+        "measure_start_seconds": 396.5,
+        "measure_end_seconds": 405.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.062347609611624,
+        "measured_corrected_peak_dbfs": -15.879432343192262,
+        "measured_residual_vs_actual_bypass_db": -0.16193096969630716
+      },
+      {
+        "index": 34,
+        "material_label": "chords",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_chords_rms_minus18_44k1_float32.wav",
+        "source_sha256": "42129bba3d9f818400fab19e25ce9b798631eb9af8d2888b9875aec06f0e09d3",
+        "track_name": "BYPASSREF chords 24 dB",
+        "drive_db": 24.0,
+        "output_correction_db": -16.508052892207136,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 408,
+        "end_seconds": 418,
+        "measure_start_seconds": 408.5,
+        "measure_end_seconds": 417.5,
+        "actual_bypass_reference_rms_dbfs": -17.900416639915317,
+        "actual_bypass_reference_window_seconds": [
+          24.5,
+          33.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.03831958136454,
+        "measured_corrected_peak_dbfs": -16.507577144414306,
+        "measured_residual_vs_actual_bypass_db": -0.137902941449223
+      },
+      {
+        "index": 35,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 0 dB",
+        "drive_db": 0.0,
+        "output_correction_db": 0.0,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 420,
+        "end_seconds": 430,
+        "measure_start_seconds": 420.5,
+        "measure_end_seconds": 429.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.021812774879752,
+        "measured_corrected_peak_dbfs": 0.41492461566076533,
+        "measured_residual_vs_actual_bypass_db": -0.02173480191433086
+      },
+      {
+        "index": 36,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 3 dB",
+        "drive_db": 3.0,
+        "output_correction_db": -2.990675605074582,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 432,
+        "end_seconds": 442,
+        "measure_start_seconds": 432.5,
+        "measure_end_seconds": 441.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.07800818582237,
+        "measured_corrected_peak_dbfs": -1.0902605670862016,
+        "measured_residual_vs_actual_bypass_db": -0.07793021285694834
+      },
+      {
+        "index": 37,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 6 dB",
+        "drive_db": 6.0,
+        "output_correction_db": -5.985547524032334,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 444,
+        "end_seconds": 454,
+        "measure_start_seconds": 444.5,
+        "measure_end_seconds": 453.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.33916224809213,
+        "measured_corrected_peak_dbfs": -2.9731658084360344,
+        "measured_residual_vs_actual_bypass_db": -0.3390842751267087
+      },
+      {
+        "index": 38,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 9 dB",
+        "drive_db": 9.0,
+        "output_correction_db": -8.897638176286074,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 456,
+        "end_seconds": 466,
+        "measure_start_seconds": 456.5,
+        "measure_end_seconds": 465.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -18.93727299636392,
+        "measured_corrected_peak_dbfs": -4.8739711754615715,
+        "measured_residual_vs_actual_bypass_db": -0.9371950233984983
+      },
+      {
+        "index": 39,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 12 dB",
+        "drive_db": 12.0,
+        "output_correction_db": -11.471879384789583,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 468,
+        "end_seconds": 478,
+        "measure_start_seconds": 468.5,
+        "measure_end_seconds": 477.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -19.66721413661643,
+        "measured_corrected_peak_dbfs": -6.581756459413918,
+        "measured_residual_vs_actual_bypass_db": -1.6671361636510085
+      },
+      {
+        "index": 40,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 15 dB",
+        "drive_db": 15.0,
+        "output_correction_db": -13.480187475523012,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 480,
+        "end_seconds": 490,
+        "measure_start_seconds": 480.5,
+        "measure_end_seconds": 489.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -20.214966024103838,
+        "measured_corrected_peak_dbfs": -7.783633424658238,
+        "measured_residual_vs_actual_bypass_db": -2.2148880511384164
+      },
+      {
+        "index": 41,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 18 dB",
+        "drive_db": 18.0,
+        "output_correction_db": -14.910258125829028,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 492,
+        "end_seconds": 502,
+        "measure_start_seconds": 492.5,
+        "measure_end_seconds": 501.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -20.469296122036162,
+        "measured_corrected_peak_dbfs": -8.60683452867471,
+        "measured_residual_vs_actual_bypass_db": -2.469218149070741
+      },
+      {
+        "index": 42,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 21 dB",
+        "drive_db": 21.0,
+        "output_correction_db": -15.87605445941633,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 504,
+        "end_seconds": 514,
+        "measure_start_seconds": 504.5,
+        "measure_end_seconds": 513.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -20.472049767721458,
+        "measured_corrected_peak_dbfs": -9.192068494257077,
+        "measured_residual_vs_actual_bypass_db": -2.471971794756037
+      },
+      {
+        "index": 43,
+        "material_label": "drums",
+        "material_type": "synthetic_deterministic",
+        "source_path": "synthetic_drums_rms_minus18_44k1_float32.wav",
+        "source_sha256": "a85157a791aeedf687fca17f6fee0caf1d0f2dddcd3de91e12c8d08fdc8980eb",
+        "track_name": "BYPASSREF drums 24 dB",
+        "drive_db": 24.0,
+        "output_correction_db": -16.508052892207136,
+        "point_kind": "curve_node",
+        "group": "synthetic_material_validation",
+        "start_seconds": 516,
+        "end_seconds": 526,
+        "measure_start_seconds": 516.5,
+        "measure_end_seconds": 525.5,
+        "actual_bypass_reference_rms_dbfs": -18.00007797296542,
+        "actual_bypass_reference_window_seconds": [
+          36.5,
+          45.5
+        ],
+        "actual_bypass_render_sha256": "fcc82301c7b97e33dd5db25fe4eb3b65c05e1c22b0628fc4715808e71e620be0",
+        "measured_corrected_rms_dbfs": -20.319462490819085,
+        "measured_corrected_peak_dbfs": -9.644311611502143,
+        "measured_residual_vs_actual_bypass_db": -2.3193845178536634
+      }
+    ],
+    "limitations": [
+      "Every corrected RMS value in this report is measured from the supplied new-curve render. References are separately measured actual device-OFF audio.",
+      "All four source signals are deterministic synthetic waveforms; these results do not establish exact compensation for arbitrary real material.",
+      "RMS matching does not guarantee equal perceived loudness.",
+      "Fixed-parameter offline rendering does not verify physical controller timing, takeover, or runtime parameter updates.",
+      "Native Output is limited to -36..0 dB. Any positive desired correction near Drive 0 is bounded at 0 dB.",
+      "Live export normalization and Set conditions must be independently verified in Live."
+    ]
+  },
+  "native_input_gate": {
+    "physical_initial_control_inputs": 254,
+    "physical_initial_drive_notifications": 252,
+    "order": "native actual value update -> physical input callback -> Drive value notification",
+    "pickup_inputs_with_unchanged_drive": 75,
+    "pickup_first_accepted_input": 76,
+    "drive_db_conversion": "72 * normalized_value - 36",
+    "output_db_conversion": "36 * normalized_value - 36"
+  },
+  "legacy_drive_zero_reference": {
+    "issue": 32,
+    "reference_rms_dbfs": -17.990446963654502,
+    "curve_db": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        3.0,
+        -2.9998587337641176
+      ],
+      [
+        6.0,
+        -5.99473065272187
+      ],
+      [
+        9.0,
+        -8.90682130497561
+      ],
+      [
+        12.0,
+        -11.481062513479118
+      ],
+      [
+        15.0,
+        -13.489370604212548
+      ],
+      [
+        18.0,
+        -14.919441254518564
+      ],
+      [
+        21.0,
+        -15.885237588105866
+      ],
+      [
+        24.0,
+        -16.51723602089667
+      ]
+    ],
+    "compensated_reference_validation": {
+      "status": "measured_actual_compensated_audio_render",
+      "render_sha256": "f6ad79cb2acd020ca74e6a0beb2ec3057c6d37c37d78839338aed62b4f855e5a",
+      "reference_rms_dbfs": -17.990446963654502,
+      "maximum_absolute_error_db": 0.07625520696189625,
+      "measurements": [
+        {
+          "drive_db": 0.0,
+          "corrected_rms_dbfs": -17.990446963654502,
+          "error_from_drive_zero_db": 0.0
+        },
+        {
+          "drive_db": 1.5,
+          "corrected_rms_dbfs": -17.990345577099095,
+          "error_from_drive_zero_db": 0.0001013865554071458
+        },
+        {
+          "drive_db": 3.0,
+          "corrected_rms_dbfs": -17.990472934538005,
+          "error_from_drive_zero_db": -2.5970883502424158e-05
+        },
+        {
+          "drive_db": 4.5,
+          "corrected_rms_dbfs": -17.988498048092247,
+          "error_from_drive_zero_db": 0.0019489155622558485
+        },
+        {
+          "drive_db": 6.0,
+          "corrected_rms_dbfs": -17.990459461388888,
+          "error_from_drive_zero_db": -1.2497734385163994e-05
+        },
+        {
+          "drive_db": 7.5,
+          "corrected_rms_dbfs": -17.967775831704383,
+          "error_from_drive_zero_db": 0.02267113195011916
+        },
+        {
+          "drive_db": 9.0,
+          "corrected_rms_dbfs": -17.990476038115208,
+          "error_from_drive_zero_db": -2.907446070565811e-05
+        },
+        {
+          "drive_db": 10.5,
+          "corrected_rms_dbfs": -17.929264850128114,
+          "error_from_drive_zero_db": 0.061182113526388804
+        },
+        {
+          "drive_db": 12.0,
+          "corrected_rms_dbfs": -17.990488902563875,
+          "error_from_drive_zero_db": -4.193890937287392e-05
+        },
+        {
+          "drive_db": 13.5,
+          "corrected_rms_dbfs": -17.914191756692606,
+          "error_from_drive_zero_db": 0.07625520696189625
+        },
+        {
+          "drive_db": 15.0,
+          "corrected_rms_dbfs": -17.990477214760926,
+          "error_from_drive_zero_db": -3.025110642340678e-05
+        },
+        {
+          "drive_db": 16.5,
+          "corrected_rms_dbfs": -17.923989181617966,
+          "error_from_drive_zero_db": 0.06645778203653663
+        },
+        {
+          "drive_db": 18.0,
+          "corrected_rms_dbfs": -17.990463761802687,
+          "error_from_drive_zero_db": -1.6798148184449246e-05
+        },
+        {
+          "drive_db": 19.5,
+          "corrected_rms_dbfs": -17.940971565520783,
+          "error_from_drive_zero_db": 0.04947539813371904
+        },
+        {
+          "drive_db": 21.0,
+          "corrected_rms_dbfs": -17.990423118332625,
+          "error_from_drive_zero_db": 2.3845321877047354e-05
+        },
+        {
+          "drive_db": 22.5,
+          "corrected_rms_dbfs": -17.955960679324527,
+          "error_from_drive_zero_db": 0.0344862843299758
+        },
+        {
+          "drive_db": 24.0,
+          "corrected_rms_dbfs": -17.990421027316433,
+          "error_from_drive_zero_db": 2.5936338069243448e-05
+        }
+      ]
+    },
+    "deployed_runtime_validation": {
+      "user_confirmed_drive_output_link": true,
+      "valid_physical_inputs": 1176,
+      "observed_drive_range_db": [
+        -36.0,
+        36.0
+      ],
+      "observed_output_range_db": [
+        -28.232009947299957,
+        -11.714773178100586
+      ],
+      "initial_trim_db_approximately": -12.0,
+      "initial_trim_input_count": 17,
+      "manual_adjusted_trim_db_approximately": -11.7148,
+      "manual_adjusted_trim_input_count": 1159,
+      "takeover_restored_to": "Value Scaling",
+      "parameter_relationship_is_not_audio_rms_error": true,
+      "subjective_listening_feedback": "User reported no noticeable level steps during fast Drive movement on the synthetic bass test Set.",
+      "diagnostic_surface_disabled_after_test": true,
+      "main_surface_and_ports_preserved": true
+    },
+    "reason_replaced": "The old demonstration initialized Output to -12 dB and inherited it as trim, causing a 12 dB bypass jump."
+  },
+  "limitations": [
+    "Calibration depends on waveform, input level and fixed settings.",
+    "Negative Drive and Drive above 24 dB remain outside level-matching evaluation.",
+    "Explicit manual Output trim intentionally changes the level relative to bypass.",
+    "Saved Output is normalized on the first accepted physical Drive change; startup and selection do not write Output.",
+    "Native callback order was observed on Live 12.4.15."
+  ],
+  "bypass_runtime_confirmation": {
+    "date": "2026-10-30",
+    "set": "Runtime_Bypass_Reference_Check",
+    "initial_drive_db": 0.0,
+    "initial_output_db": 0.0,
+    "post_device_track_volume_db": -12.0,
+    "user_feedback": "急に大きくなる現象はなくなった",
+    "sudden_bypass_gain_jump_resolved_user_confirmed": true,
+    "subjective_confirmation_is_separate_from_measured_rms": true
+  },
+  "runtime_policy_issue_36": {
+    "color_on_supported": true,
+    "color_on_uses_same_existing_curve": true,
+    "additional_color_calibration_performed": false,
+    "measurement_color_setting_remains": "OFF",
+    "configured_drive_min_fraction": 0.5,
+    "configured_controller_drive_range_db": [
+      0.0,
+      36.0
+    ],
+    "calibrated_drive_range_db": [
+      0.0,
+      24.0
+    ],
+    "above_calibrated_range_uses_endpoint_correction": true,
+    "bounded_fader_default_takeover": "script value_scaling",
+    "bounded_fader_follows_global_live_takeover": false,
+    "unbounded_controls_keep_native_live_mapping": true
+  },
+  "runtime_confirmation_issue_36": {
+    "date": "2026-10-31",
+    "set": "LCXL3_issue36_session",
+    "color_on": true,
+    "configured_drive_min_fraction": 0.5,
+    "controller_drive_range_0_to_36_db_user_confirmed": true,
+    "output_linkage_user_confirmed": true,
+    "minimum_bypass_and_wake_user_confirmed": true,
+    "user_feedback": "OKです",
+    "additional_acoustic_calibration_performed": false,
+    "final_pr_approval": false
+  }
+}
