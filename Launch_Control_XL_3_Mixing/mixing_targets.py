@@ -97,18 +97,24 @@ class _Listener:
         self.callback = callback
         self.connected = False
         try:
-            getattr(subject, "add_{}_listener".format(event))(callback)
-            self.connected = True
-        except (AttributeError, RuntimeError):
+            if liveobj_valid(subject):
+                getattr(subject, "add_{}_listener".format(event))(callback)
+                self.connected = True
+        except (AttributeError, RuntimeError, TypeError):
             pass
 
     def disconnect(self):
-        if self.connected:
+        subject, callback = self.subject, self.callback
+        connected, self.connected = self.connected, False
+        self.subject = self.callback = None
+        if connected:
             try:
-                getattr(self.subject, "remove_{}_listener".format(self.event))(self.callback)
-            except (AttributeError, RuntimeError):
+                # Deleted Live objects can raise Boost.Python.ArgumentError
+                # (a TypeError), including after a successful validity check.
+                if liveobj_valid(subject):
+                    getattr(subject, "remove_{}_listener".format(self.event))(callback)
+            except (AttributeError, RuntimeError, TypeError):
                 pass
-            self.connected = False
 
 
 class _DeviceParameters:
@@ -121,8 +127,9 @@ class _DeviceParameters:
         self.listener = _Listener(device, "parameters", self._invalidate)
 
     def _invalidate(self, *a):
-        self.dirty = True
-        self._on_change()
+        if self._on_change is not None:
+            self.dirty = True
+            self._on_change()
 
     def refresh(self):
         # Real Live devices notify Configure/list changes. Unsupported subjects
@@ -143,7 +150,13 @@ class _DeviceParameters:
                 continue
 
     def disconnect(self):
-        self.listener.disconnect()
+        self._on_change = None
+        try:
+            self.listener.disconnect()
+        finally:
+            self.device = None
+            self.parameters = ()
+            self.named.clear()
 
 
 class MixingTargetResolver:
@@ -182,8 +195,8 @@ class MixingTargetResolver:
             device = self.device(number) if number in numbers else None
             cached = self._device_parameters.get(number)
             if cached is not None and cached.device != device:
+                self._device_parameters.pop(number)
                 cached.disconnect()
-                del self._device_parameters[number]
                 cached = None
             if liveobj_valid(device):
                 if cached is None:
@@ -230,9 +243,9 @@ class MixingTargetResolver:
         return matches[0] if matches else None
 
     def _clear_devices(self):
-        for cached in self._device_parameters.values():
+        previous, self._device_parameters = self._device_parameters, {}
+        for cached in previous.values():
             cached.disconnect()
-        self._device_parameters.clear()
 
     def disconnect(self):
         self._clear_devices()

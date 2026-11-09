@@ -12,7 +12,7 @@ from test_instrument_keyboard_navigation import surface_class
 from test_mixing_colored_encoder import COLORED, FakeDevice as LedDevice, FakeParameter as LedParameter
 from test_shift_preview import NativeMappedControl, ParameterPreviewChecks, display_lines
 
-from Launch_Control_XL_3_Mixing import mixing_config
+from Launch_Control_XL_3_Mixing import mixing_config, mixing_targets
 from Launch_Control_XL_3_Mixing.mixing_assignments import ConfiguredMixingAssignmentsComponent
 from Launch_Control_XL_3_Mixing.mixing_targets import CONTROL_NAMES, validate_assignments
 
@@ -308,6 +308,91 @@ class ConfiguredAssignmentsTest(unittest.TestCase):
         self.song.view.selected_track.devices = ()
         self.assertIsNone(control.mapped_parameter)
         self.assertEqual(replacement.parameter_listeners, [])
+
+    def test_deleted_device_removal_type_error_does_not_block_surviving_controls(self):
+        survivor = ObservableDevice()
+        survivor.name = "Survivor"
+        self.selected.devices = (self.device, survivor)
+        control, display = self.bind("encoder_1")
+        fader, _ = self.bind("fader_1")
+        original = control.mapped_parameter
+        late_notification = self.device.parameter_listeners[0]
+
+        # Boost.Python.ArgumentError derives from TypeError. The native object
+        # can disappear between the validity check and listener removal.
+        with patch.object(self.device, "remove_parameters_listener",
+                          side_effect=TypeError("deleted Live device")) as remove:
+            self.selected.devices = (survivor,)
+            for _ in range(3):
+                self.component._update_assignments()
+            self.assertEqual(remove.call_count, 1)
+            self.assertIs(control.mapped_parameter, survivor.parameters[1])
+            self.assertIs(fader.mapped_parameter, survivor.parameters[2])
+            control.receive(65)
+            fader.receive(127)
+            late_notification()  # A queued notification from the removed target.
+            self.assertEqual(original.value, 0.0)
+            self.assertGreater(survivor.parameters[1].value, 0.0)
+            self.assertEqual(survivor.parameters[2].value, 1.0)
+            self.assertEqual(display.local_shift_turn()[:2], ("Survivor", "D1 P1"))
+
+    def test_deleted_track_listener_type_errors_do_not_block_new_track_controls(self):
+        control, _ = self.bind("encoder_1")
+        original = control.mapped_parameter
+        device = ObservableDevice()
+        track = ObservableTrack("Remaining track", devices=(device,))
+        self.song.tracks = (track,)
+        with patch.object(self.device, "remove_parameters_listener",
+                          side_effect=TypeError("deleted Live device")) as remove_device, \
+                patch.object(self.selected, "remove_devices_listener",
+                             side_effect=TypeError("deleted Live track")) as remove_track:
+            self.song.view.selected_track = track
+            for _ in range(3):
+                self.component._update_assignments()
+            self.assertEqual(remove_device.call_count, 1)
+            self.assertEqual(remove_track.call_count, 1)
+            self.assertIs(control.mapped_parameter, device.parameters[1])
+            control.receive(65)
+            self.assertEqual(original.value, 0.0)
+            self.assertGreater(device.parameters[1].value, 0.0)
+
+    def test_invalidated_device_and_track_are_not_passed_to_native_listener_removal(self):
+        control, _ = self.bind("encoder_1")
+        device = ObservableDevice()
+        track = ObservableTrack("Remaining track", devices=(device,))
+        invalid = (self.device, self.selected)
+        with patch.object(mixing_targets, "liveobj_valid",
+                          side_effect=lambda obj: obj is not None and obj not in invalid), \
+                patch.object(self.device, "remove_parameters_listener") as remove_device, \
+                patch.object(self.selected, "remove_devices_listener") as remove_track:
+            self.song.view.selected_track = track
+            remove_device.assert_not_called()
+            remove_track.assert_not_called()
+            self.assertIs(control.mapped_parameter, device.parameters[1])
+            control.receive(65)
+            self.assertGreater(device.parameters[1].value, 0.0)
+
+    def test_deleted_targets_do_not_block_mode_exit_reentry_or_disconnect(self):
+        control, _ = self.bind("encoder_1")
+        with patch.object(self.device, "remove_parameters_listener",
+                          side_effect=TypeError("deleted Live device")), \
+                patch.object(self.selected, "remove_devices_listener",
+                             side_effect=TypeError("deleted Live track")):
+            self.component.set_active(False)
+            self.assertIsNone(control.mapped_parameter)
+            self.assertEqual(self.song.view.listeners, [])
+            device = ObservableDevice()
+            self.song.view.selected_track = ObservableTrack("Remaining", devices=(device,))
+            self.component.set_active(True)
+            self.assertIs(control.mapped_parameter, device.parameters[1])
+            control.receive(65)
+            self.assertGreater(device.parameters[1].value, 0.0)
+        with patch.object(device, "remove_parameters_listener",
+                          side_effect=TypeError("device deleted before disconnect")):
+            self.component.disconnect()
+            self.assertIsNone(control.mapped_parameter)
+            self.assertEqual(control.listeners, [])
+            self.assertEqual(self.song.view.listeners, [])
 
     def test_reorder_and_configure_change_rebind_even_with_the_same_names_and_counts(self):
         control, _ = self.bind("encoder_1")
